@@ -5,6 +5,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -20,12 +22,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         this.jwtService = jwtService;
     }
 
-    private final List<String> publicPaths = List.of(
-            "/api/users",
-            "/api/users/login",
-            "/api/portfolio",
-            "/api/holdings"
-    );
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+
+        return path.startsWith("/api/stocks")
+                || path.equals("/api/users/register")
+                || path.equals("/api/users/login");
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -33,20 +37,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        String path = request.getRequestURI();
-
-        // ✅ Allow public endpoints (ALL subpaths included)
-        boolean isPublic = publicPaths.stream()
-                .anyMatch(path::startsWith);
-
-        if (isPublic) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
         String authHeader = request.getHeader("Authorization");
 
-        // ❌ No token
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Missing or invalid Authorization header");
@@ -56,10 +48,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String token = authHeader.substring(7);
 
         try {
-            jwtService.extractEmail(token);
+            String email = jwtService.extractEmail(token);
+
+            // ✅ Set authentication in SecurityContext so Spring allows the request
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(email, null, List.of());
+
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("Invalid JWT token");
+            response.getWriter().write("Invalid or expired token");
             return;
         }
 

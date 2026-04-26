@@ -1,5 +1,6 @@
 package com.stocksense.controller;
 
+import com.stocksense.dto.PortfolioSummaryDTO;
 import com.stocksense.model.Portfolio;
 import com.stocksense.model.User;
 import com.stocksense.repository.UserRepository;
@@ -26,7 +27,7 @@ public class PortfolioController {
         this.userRepository = userRepository;
     }
 
-    // 🔐 CREATE PORTFOLIO (NO userId needed now)
+    // ➕ CREATE PORTFOLIO
     @PostMapping
     public Portfolio create(@RequestBody Portfolio request,
                             @RequestHeader("Authorization") String authHeader) {
@@ -40,7 +41,7 @@ public class PortfolioController {
         return portfolioService.createPortfolio(user.getId(), request.getName());
     }
 
-    // 📄 GET USER PORTFOLIOS (also from JWT)
+    // 📄 GET USER PORTFOLIOS
     @GetMapping
     public List<Portfolio> get(@RequestHeader("Authorization") String authHeader) {
 
@@ -51,5 +52,11 @@ public class PortfolioController {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         return portfolioService.getUserPortfolios(user.getId());
+    }
+
+    // 🚀 PORTFOLIO SUMMARY (NEW)
+    @GetMapping("/summary/{portfolioId}")
+    public PortfolioSummaryDTO getSummary(@PathVariable UUID portfolioId) {
+        return portfolioService.getSummary(portfolioId);
     }
 }
