@@ -11,12 +11,14 @@ import java.util.UUID;
 public class HoldingService {
 
     private final HoldingRepository holdingRepository;
+    private final StockService stockService;
 
-    public HoldingService(HoldingRepository holdingRepository) {
+    public HoldingService(HoldingRepository holdingRepository, StockService stockService) {
         this.holdingRepository = holdingRepository;
+        this.stockService = stockService;
     }
 
-    // ➕ ADD STOCK
+    // ➕ ADD HOLDING
     public Holding addHolding(Holding holding) {
         return holdingRepository.save(holding);
     }
@@ -26,53 +28,35 @@ public class HoldingService {
         return holdingRepository.findByPortfolioId(portfolioId);
     }
 
-    // ❌ DELETE STOCK
+    // ❌ DELETE HOLDING
     public void deleteHolding(UUID id) {
         holdingRepository.deleteById(id);
     }
 
-    // 💰 TOTAL INVESTMENT
+    // 💰 TOTAL INVESTMENT (quantity × buyPrice)
     public double getTotalInvestment(UUID portfolioId) {
         List<Holding> holdings = holdingRepository.findByPortfolioId(portfolioId);
-
         double total = 0;
-
         for (Holding h : holdings) {
             total += h.getQuantity() * h.getBuyPrice();
         }
-
         return total;
     }
 
-    // 📈 MOCK CURRENT PRICE (TEMP)
-    private double getCurrentPrice(String symbol) {
-        return switch (symbol) {
-            case "AAPL" -> 180;
-            case "TSLA" -> 250;
-            case "GOOGL" -> 140;
-            default -> 100;
-        };
-    }
-
-    // 📊 CURRENT VALUE
+    // 📈 CURRENT VALUE (quantity × live price, falls back to buyPrice)
     public double getCurrentValue(UUID portfolioId) {
         List<Holding> holdings = holdingRepository.findByPortfolioId(portfolioId);
-
         double total = 0;
-
         for (Holding h : holdings) {
-            double currentPrice = getCurrentPrice(h.getSymbol());
-            total += h.getQuantity() * currentPrice;
+            double livePrice = stockService.getLivePrice(h.getSymbol());
+            double price = livePrice > 0 ? livePrice : h.getBuyPrice();
+            total += h.getQuantity() * price;
         }
-
         return total;
     }
 
-    // 💸 PROFIT
+    // 💸 PROFIT / LOSS
     public double getProfit(UUID portfolioId) {
-        double investment = getTotalInvestment(portfolioId);
-        double currentValue = getCurrentValue(portfolioId);
-
-        return currentValue - investment;
+        return getCurrentValue(portfolioId) - getTotalInvestment(portfolioId);
     }
 }
