@@ -9,5 +9,21 @@ spring:
       ddl-auto: update
     show-sql: true
 
+  threads:
+    virtual:
+      enabled: true
+
 server:
   port: 8081
+
+alphavantage:
+  api:
+    key: HXW27CL9C8V78EXL
+
+jwt:
+  expiration: 604800000
+
+logging:
+  level:
+    com.stocksense: DEBUG
+    com.stocksense.service.StockService: INFO

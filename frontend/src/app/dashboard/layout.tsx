@@ -1,31 +1,33 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
-  PieChart,
-  Star,
-  BarChart2,
+  Briefcase,
+  BookMarked,
+  BarChart3,
   Settings,
   Bell,
-  TrendingUp,
   LogOut,
   ChevronRight,
-  User,
+  TrendingUp,
 } from "lucide-react";
+import { MarketProvider } from "@/lib/MarketContext";
+import MarketSwitcher from "@/components/MarketSwitcher";
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/portfolio", label: "Portfolio", icon: PieChart },
-  { href: "/dashboard/watchlist", label: "Watchlist", icon: Star },
-  { href: "/dashboard/analytics", label: "Analytics", icon: BarChart2 },
+// ─── Nav items ────────────────────────────────────────────────────────────────
+
+const NAV_ITEMS = [
+  { href: "/dashboard",           label: "Dashboard",  icon: LayoutDashboard },
+  { href: "/dashboard/portfolio", label: "Portfolio",  icon: Briefcase },
+  { href: "/dashboard/watchlist", label: "Watchlist",  icon: BookMarked },
+  { href: "/dashboard/analytics", label: "Analytics",  icon: BarChart3 },
+  { href: "/dashboard/settings",  label: "Settings",   icon: Settings },
 ];
 
-const bottomItems = [
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
-];
+// ─── Layout ───────────────────────────────────────────────────────────────────
 
 export default function DashboardLayout({
   children,
@@ -35,166 +37,417 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [userEmail, setUserEmail] = useState<string>("");
-  const [notifications] = useState(3);
+  const [hoveredLogout, setHoveredLogout] = useState(false);
+  const [notifications] = useState(3); // replace with real count later
+
+  // ── Load user email ──────────────────────────────────────────────────────
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-    // Fetch user info
-    fetch("http://127.0.0.1:8081/api/users/me", {
+    if (!token) return;
+    fetch("/api/users/me", {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.email) setUserEmail(data.email);
       })
       .catch(() => {});
-  }, [router]);
+  }, []);
+
+  // ── Logout ───────────────────────────────────────────────────────────────
 
   const handleLogout = () => {
     localStorage.removeItem("token");
+    // Clear cookie so middleware knows the session ended
+    document.cookie = "token=; path=/; Max-Age=0";
     router.push("/login");
   };
 
-  const isActive = (href: string) => {
-    if (href === "/dashboard") return pathname === "/dashboard";
-    return pathname.startsWith(href);
-  };
+  // ── Breadcrumb ───────────────────────────────────────────────────────────
 
-  const userInitial = userEmail ? userEmail[0].toUpperCase() : "U";
+  const breadcrumb = (() => {
+    const segments = pathname.split("/").filter(Boolean); // ["dashboard", "portfolio"]
+    return segments.map((seg, i) => ({
+      label: seg.charAt(0).toUpperCase() + seg.slice(1),
+      href: "/" + segments.slice(0, i + 1).join("/"),
+      isLast: i === segments.length - 1,
+    }));
+  })();
 
   return (
-    <div className="flex min-h-screen bg-[#0a0a0a] text-white">
-      {/* Sidebar */}
-      <aside className="w-[220px] shrink-0 bg-[#111111] border-r border-[#1f1f1f] hidden md:flex flex-col h-screen sticky top-0">
-        {/* Logo */}
-        <div className="p-5 border-b border-[#1f1f1f]">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#8FFFD6] flex items-center justify-center shrink-0">
-              <TrendingUp size={15} className="text-black" strokeWidth={2.5} />
+    <MarketProvider>
+      <div
+        style={{
+          display: "flex",
+          minHeight: "100vh",
+          background: "var(--surface, #0a0a0a)",
+          color: "var(--text-primary, #fff)",
+          fontFamily: "var(--font-geist-sans, 'Geist', sans-serif)",
+        }}
+      >
+        {/* ── Sidebar ───────────────────────────────────────────────────── */}
+        <aside
+          style={{
+            width: 220,
+            minHeight: "100vh",
+            background: "#0d0d0d",
+            borderRight: "1px solid var(--border, #1f1f1f)",
+            display: "flex",
+            flexDirection: "column",
+            padding: "0 0 24px",
+            flexShrink: 0,
+            position: "sticky",
+            top: 0,
+            height: "100vh",
+          }}
+        >
+          {/* Logo */}
+          <div
+            style={{
+              padding: "22px 20px 18px",
+              borderBottom: "1px solid #1a1a1a",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                background: "linear-gradient(135deg, #8FFFD6, #00c896)",
+                borderRadius: 9,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <TrendingUp size={16} color="#0a0a0a" strokeWidth={2.5} />
             </div>
-            <span className="font-semibold text-base tracking-tight">StockSense</span>
+            <span
+              style={{
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 16,
+                letterSpacing: -0.3,
+              }}
+            >
+              StockSense
+            </span>
           </div>
-        </div>
 
-        {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          <p className="text-[#444444] text-[10px] font-medium tracking-widest uppercase px-3 mb-3">
-            Main Menu
-          </p>
-          {navItems.map(({ href, label, icon: Icon }) => {
-            const active = isActive(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group relative ${
-                  active
-                    ? "bg-[#8FFFD6]/10 text-[#8FFFD6]"
-                    : "text-[#888888] hover:text-white hover:bg-[#1a1a1a]"
-                }`}
-              >
-                {active && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#8FFFD6] rounded-r-full" />
-                )}
-                <Icon
-                  size={16}
-                  className={active ? "text-[#8FFFD6]" : "text-[#555555] group-hover:text-white transition-colors"}
-                />
-                {label}
-                {active && (
-                  <ChevronRight size={12} className="ml-auto text-[#8FFFD6] opacity-60" />
-                )}
-              </Link>
-            );
-          })}
+          {/* ── Market Switcher ──────────────────────────────────────── */}
+          <div style={{ padding: "14px 12px 10px" }}>
+            <p
+              style={{
+                color: "#3a3a3a",
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: 1,
+                textTransform: "uppercase",
+                marginBottom: 8,
+                paddingLeft: 2,
+              }}
+            >
+              Market
+            </p>
+            <MarketSwitcher />
+          </div>
 
-          <div className="pt-4">
-            <p className="text-[#444444] text-[10px] font-medium tracking-widest uppercase px-3 mb-3">
+          {/* ── Nav links ────────────────────────────────────────────── */}
+          <nav style={{ padding: "10px 12px", flex: 1 }}>
+            <p
+              style={{
+                color: "#3a3a3a",
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: 1,
+                textTransform: "uppercase",
+                marginBottom: 8,
+                paddingLeft: 6,
+              }}
+            >
+              Main Menu
+            </p>
+
+            {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+              // Exact match for dashboard root, prefix match for sub-pages
+              const isActive =
+                href === "/dashboard"
+                  ? pathname === "/dashboard"
+                  : pathname.startsWith(href);
+
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "9px 10px",
+                    borderRadius: 9,
+                    marginBottom: 2,
+                    textDecoration: "none",
+                    background: isActive
+                      ? "rgba(143,255,214,0.07)"
+                      : "transparent",
+                    borderLeft: isActive
+                      ? "2px solid #8FFFD6"
+                      : "2px solid transparent",
+                    transition: "all 0.15s",
+                    color: isActive ? "#8FFFD6" : "#666",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive)
+                      (e.currentTarget as HTMLAnchorElement).style.background =
+                        "#141414";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive)
+                      (e.currentTarget as HTMLAnchorElement).style.background =
+                        "transparent";
+                  }}
+                >
+                  <Icon size={15} strokeWidth={isActive ? 2 : 1.5} />
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: isActive ? 600 : 400,
+                    }}
+                  >
+                    {label}
+                  </span>
+                  {isActive && (
+                    <ChevronRight
+                      size={12}
+                      style={{ marginLeft: "auto" }}
+                      strokeWidth={2}
+                    />
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* ── Account section ──────────────────────────────────────── */}
+          <div
+            style={{
+              padding: "0 12px",
+              borderTop: "1px solid #1a1a1a",
+              paddingTop: 16,
+            }}
+          >
+            <p
+              style={{
+                color: "#3a3a3a",
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: 1,
+                textTransform: "uppercase",
+                marginBottom: 8,
+                paddingLeft: 6,
+              }}
+            >
               Account
             </p>
-            {bottomItems.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#888888] hover:text-white hover:bg-[#1a1a1a] transition-all duration-150"
-              >
-                <Icon size={16} className="text-[#555555]" />
-                {label}
-              </Link>
-            ))}
-          </div>
-        </nav>
 
-        {/* User section */}
-        <div className="p-3 border-t border-[#1f1f1f]">
-          <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-[#1a1a1a] transition-colors cursor-pointer group">
-            <div className="w-8 h-8 rounded-full bg-[#8FFFD6]/20 border border-[#8FFFD6]/30 flex items-center justify-center shrink-0">
-              <span className="text-[#8FFFD6] text-xs font-semibold">{userInitial}</span>
+            {/* User email */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px 10px",
+                borderRadius: 9,
+                marginBottom: 4,
+              }}
+            >
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #8FFFD6, #00c896)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#0a0a0a",
+                  flexShrink: 0,
+                }}
+              >
+                {userEmail ? userEmail[0].toUpperCase() : "U"}
+              </div>
+              <div style={{ overflow: "hidden" }}>
+                <p
+                  style={{
+                    color: "#ccc",
+                    fontSize: 12,
+                    fontWeight: 500,
+                    margin: 0,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    maxWidth: 120,
+                  }}
+                >
+                  {userEmail || "Loading…"}
+                </p>
+                <p style={{ color: "#444", fontSize: 10, margin: 0 }}>
+                  Free plan
+                </p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-xs font-medium truncate">
-                {userEmail || "Loading..."}
-              </p>
-              <p className="text-[#555555] text-[10px]">Free plan</p>
-            </div>
+
+            {/* Logout */}
             <button
+              onMouseEnter={() => setHoveredLogout(true)}
+              onMouseLeave={() => setHoveredLogout(false)}
               onClick={handleLogout}
-              title="Logout"
-              className="text-[#555555] hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "9px 10px",
+                borderRadius: 9,
+                background: hoveredLogout
+                  ? "rgba(239,68,68,0.07)"
+                  : "transparent",
+                border: "none",
+                cursor: "pointer",
+                color: hoveredLogout ? "#ef4444" : "#555",
+                transition: "all 0.15s",
+              }}
             >
               <LogOut size={14} />
+              <span style={{ fontSize: 13 }}>Sign out</span>
             </button>
           </div>
-        </div>
-      </aside>
+        </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Bar */}
-        <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-[#0a0a0a]/80 backdrop-blur-sm border-b border-[#1f1f1f]">
-          {/* Mobile logo */}
-          <div className="flex items-center gap-2 md:hidden">
-            <div className="w-7 h-7 rounded-lg bg-[#8FFFD6] flex items-center justify-center">
-              <TrendingUp size={13} className="text-black" />
-            </div>
-            <span className="font-semibold text-sm">StockSense</span>
-          </div>
+        {/* ── Main area ─────────────────────────────────────────────────── */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
 
-          {/* Page title area — desktop */}
-          <div className="hidden md:block">
-            <nav className="flex items-center gap-2 text-sm text-[#555555]">
-              <span>StockSense</span>
-              <ChevronRight size={12} />
-              <span className="text-white capitalize">
-                {pathname === "/dashboard"
-                  ? "Dashboard"
-                  : pathname.split("/").pop() || "Dashboard"}
-              </span>
+          {/* Topbar */}
+          <header
+            style={{
+              height: 60,
+              borderBottom: "1px solid var(--border, #1f1f1f)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "0 32px",
+              background: "#0d0d0d",
+              position: "sticky",
+              top: 0,
+              zIndex: 30,
+              flexShrink: 0,
+            }}
+          >
+            {/* Breadcrumb */}
+            <nav
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              {breadcrumb.map(({ label, href, isLast }) => (
+                <span
+                  key={href}
+                  style={{ display: "flex", alignItems: "center", gap: 6 }}
+                >
+                  {isLast ? (
+                    <span
+                      style={{
+                        color: "#fff",
+                        fontSize: 13,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {label}
+                    </span>
+                  ) : (
+                    <Link
+                      href={href}
+                      style={{
+                        color: "#555",
+                        fontSize: 13,
+                        textDecoration: "none",
+                      }}
+                    >
+                      {label}
+                    </Link>
+                  )}
+                  {!isLast && (
+                    <ChevronRight size={12} color="#333" />
+                  )}
+                </span>
+              ))}
             </nav>
-          </div>
 
-          {/* Right actions */}
-          <div className="flex items-center gap-3">
-            <button className="relative w-9 h-9 rounded-xl bg-[#111111] border border-[#1f1f1f] flex items-center justify-center hover:border-[#333333] transition-colors">
-              <Bell size={15} className="text-[#888888]" />
-              {notifications > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#8FFFD6] rounded-full" />
-              )}
-            </button>
+            {/* Right: date + bell */}
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <span style={{ color: "#444", fontSize: 12 }}>
+                {new Date().toLocaleDateString("en-IN", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </span>
 
-            <div className="w-9 h-9 rounded-xl bg-[#8FFFD6]/20 border border-[#8FFFD6]/30 flex items-center justify-center cursor-pointer hover:bg-[#8FFFD6]/30 transition-colors">
-              <span className="text-[#8FFFD6] text-xs font-semibold">{userInitial}</span>
+              <div style={{ position: "relative" }}>
+                <button
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    background: "#141414",
+                    border: "1px solid #1f1f1f",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    color: "#888",
+                  }}
+                >
+                  <Bell size={15} />
+                </button>
+                {notifications > 0 && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: -2,
+                      right: -2,
+                      width: 16,
+                      height: 16,
+                      background: "#8FFFD6",
+                      borderRadius: "50%",
+                      fontSize: 9,
+                      fontWeight: 700,
+                      color: "#0a0a0a",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: "2px solid #0d0d0d",
+                    }}
+                  >
+                    {notifications}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
 
-        {/* Page Content */}
-        <main className="flex-1 overflow-auto">{children}</main>
+          {/* Page content */}
+          <main style={{ flex: 1, overflow: "auto" }}>{children}</main>
+        </div>
       </div>
-    </div>
+    </MarketProvider>
   );
 }

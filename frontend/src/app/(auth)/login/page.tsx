@@ -38,7 +38,10 @@ export default function LoginPage() {
       }
 
       localStorage.setItem("token", data.token);
-      router.push("/dashboard");
+      document.cookie = `token=${data.token}; path=/; SameSite=Strict`;
+
+      const params = new URLSearchParams(window.location.search);
+      router.push(params.get("redirect") || "/dashboard");
     } catch {
       setError("Network error. Please check your connection.");
     } finally {

@@ -1,7 +1,6 @@
 package com.stocksense.model;
 
 import jakarta.persistence.*;
-
 import java.util.UUID;
 
 @Entity
@@ -9,19 +8,20 @@ import java.util.UUID;
 public class Portfolio {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "user_id")
     private UUID userId;
 
     private String name;
 
     // getters
-    public UUID getId() { return id; }
+    public UUID getId()     { return id; }
     public UUID getUserId() { return userId; }
     public String getName() { return name; }
 
     // setters
-    public void setUserId(UUID userId) { this.userId = userId; }
-    public void setName(String name) { this.name = name; }
+    public void setId(UUID id)           { this.id = id; }
+    public void setUserId(UUID userId)   { this.userId = userId; }
+    public void setName(String name)     { this.name = name; }
 }
