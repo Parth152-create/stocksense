@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useMarket } from "@/lib/MarketContext";
+import StockSearch from "@/components/StockSearch";
 
 // ─── Market-aware data ────────────────────────────────────────────────────────
 
@@ -231,6 +232,11 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen p-5 flex flex-col gap-4"
       style={{ background: "#0a0a0a", fontFamily: "'Geist', 'Inter', sans-serif" }}>
+
+      {/* ── SEARCH BAR ── */}
+      <div style={{ maxWidth: 480 }}>
+        <StockSearch />
+      </div>
 
       {/* ── ROW 1 ── */}
       <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 320px" }}>
