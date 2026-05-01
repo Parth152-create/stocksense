@@ -1,542 +1,398 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useMarket } from "@/hooks/useMarket";
 import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
-import {
-  Plus,
-  Trash2,
-  TrendingUp,
-  TrendingDown,
-  X,
-  Loader2,
-  AlertCircle,
-} from "lucide-react";
+import { TrendingUp, TrendingDown, Plus, RefreshCw, ArrowUpRight, Filter } from "lucide-react";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-type Holding = {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Holding {
   id: string;
   symbol: string;
+  name: string;
   quantity: number;
-  buyPrice: number;
-  currentPrice?: number;
+  avgBuyPrice: number;
+  currentPrice: number;
+  color: string;
+  bg: string;
+  letter: string;
+  sector: string;
+}
+
+// ─── Logo domains ─────────────────────────────────────────────────────────────
+
+const LOGO_DOMAINS: Record<string, string> = {
+  TSLA: "tesla.com", AAPL: "apple.com", AMD: "amd.com", MSFT: "microsoft.com",
+  NVDA: "nvidia.com", ADBE: "adobe.com", KO: "coca-cola.com", MCD: "mcdonalds.com",
+  AMZN: "amazon.com", GOOGL: "google.com", RELIANCE: "ril.com", TCS: "tcs.com",
+  INFY: "infosys.com", HDFCBANK: "hdfcbank.com", WIPRO: "wipro.com",
 };
 
-type Summary = {
-  investment: number;
-  currentValue: number;
-  profit: number;
+// ─── Market-aware mock holdings ───────────────────────────────────────────────
+
+const MOCK_HOLDINGS: Record<string, Holding[]> = {
+  US: [
+    { id: "1", symbol: "NVDA", name: "NVIDIA Corp",    quantity: 22,  avgBuyPrice: 820,  currentPrice: 1089, color: "#76b900", bg: "#76b90018", letter: "N", sector: "Technology" },
+    { id: "2", symbol: "AAPL", name: "Apple Inc",      quantity: 48,  avgBuyPrice: 178,  currentPrice: 198,  color: "#aaaaaa", bg: "#aaaaaa18", letter: "",  sector: "Technology" },
+    { id: "3", symbol: "MSFT", name: "Microsoft Corp", quantity: 14,  avgBuyPrice: 310,  currentPrice: 378,  color: "#00a4ef", bg: "#00a4ef18", letter: "M", sector: "Technology" },
+    { id: "4", symbol: "ADBE", name: "Adobe Inc",      quantity: 36,  avgBuyPrice: 440,  currentPrice: 498,  color: "#ff0000", bg: "#ff000018", letter: "A", sector: "Technology" },
+    { id: "5", symbol: "KO",   name: "Coca-Cola Co",   quantity: 165, avgBuyPrice: 58,   currentPrice: 61,   color: "#f40000", bg: "#f4000018", letter: "K", sector: "Consumer"   },
+    { id: "6", symbol: "AMD",  name: "AMD",            quantity: 30,  avgBuyPrice: 148,  currentPrice: 220,  color: "#ed1c24", bg: "#ed1c2418", letter: "A", sector: "Technology" },
+  ],
+  IN: [
+    { id: "1", symbol: "RELIANCE", name: "Reliance Industries", quantity: 25,  avgBuyPrice: 2480, currentPrice: 2940, color: "#0ea5e9", bg: "#0ea5e918", letter: "R", sector: "Energy"      },
+    { id: "2", symbol: "TCS",      name: "TCS",                 quantity: 10,  avgBuyPrice: 3600, currentPrice: 3920, color: "#8b5cf6", bg: "#8b5cf618", letter: "T", sector: "IT"          },
+    { id: "3", symbol: "INFY",     name: "Infosys",             quantity: 40,  avgBuyPrice: 1520, currentPrice: 1820, color: "#f59e0b", bg: "#f59e0b18", letter: "I", sector: "IT"          },
+    { id: "4", symbol: "HDFCBANK", name: "HDFC Bank",           quantity: 15,  avgBuyPrice: 1580, currentPrice: 1710, color: "#10b981", bg: "#10b98118", letter: "H", sector: "Banking"     },
+    { id: "5", symbol: "WIPRO",    name: "Wipro Ltd",           quantity: 60,  avgBuyPrice: 520,  currentPrice: 468,  color: "#ef4444", bg: "#ef444418", letter: "W", sector: "IT"          },
+  ],
+  CRYPTO: [
+    { id: "1", symbol: "BTC",  name: "Bitcoin",   quantity: 0.5,  avgBuyPrice: 72000, currentPrice: 96400, color: "#f7931a", bg: "#f7931a18", letter: "₿", sector: "L1" },
+    { id: "2", symbol: "ETH",  name: "Ethereum",  quantity: 4,    avgBuyPrice: 2800,  currentPrice: 3580,  color: "#627eea", bg: "#627eea18", letter: "Ξ", sector: "L1" },
+    { id: "3", symbol: "SOL",  name: "Solana",    quantity: 25,   avgBuyPrice: 140,   currentPrice: 188,   color: "#9945ff", bg: "#9945ff18", letter: "◎", sector: "L1" },
+    { id: "4", symbol: "DOGE", name: "Dogecoin",  quantity: 5000, avgBuyPrice: 0.22,  currentPrice: 0.18,  color: "#c2a633", bg: "#c2a63318", letter: "Ð", sector: "Meme" },
+  ],
+  FX: [
+    { id: "1", symbol: "EUR/USD", name: "Euro / USD",    quantity: 10000, avgBuyPrice: 1.072, currentPrice: 1.089, color: "#3b82f6", bg: "#3b82f618", letter: "€", sector: "Major" },
+    { id: "2", symbol: "GBP/USD", name: "Pound / USD",   quantity: 5000,  avgBuyPrice: 1.264, currentPrice: 1.272, color: "#8b5cf6", bg: "#8b5cf618", letter: "£", sector: "Major" },
+    { id: "3", symbol: "USD/JPY", name: "Dollar / Yen",  quantity: 8000,  avgBuyPrice: 148,   currentPrice: 157.8, color: "#f59e0b", bg: "#f59e0b18", letter: "¥", sector: "Major" },
+  ],
 };
 
-// ── Constants ──────────────────────────────────────────────────────────────────
-const COLORS = ["#8FFFD6", "#3b82f6", "#f97316", "#a855f7", "#ef4444", "#22c55e", "#06b6d4", "#f59e0b"];
+const PORTFOLIO_HISTORY = [
+  { t: "Aug", v: 72000 }, { t: "Sep", v: 74500 }, { t: "Oct", v: 78000 },
+  { t: "Nov", v: 81000 }, { t: "Dec", v: 86000 }, { t: "Jan", v: 84000 },
+  { t: "Feb", v: 88000 }, { t: "Mar", v: 91000 }, { t: "Apr", v: 90200 }, { t: "May", v: 93314 },
+];
 
-const fmt = (n: number) =>
-  n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// ── Add Holding Modal ──────────────────────────────────────────────────────────
-function AddHoldingModal({
-  portfolioId,
-  token,
-  onClose,
-  onAdded,
-}: {
-  portfolioId: string;
-  token: string;
-  onClose: () => void;
-  onAdded: () => void;
+function pnl(h: Holding) { return (h.currentPrice - h.avgBuyPrice) * h.quantity; }
+function pnlPct(h: Holding) { return ((h.currentPrice - h.avgBuyPrice) / h.avgBuyPrice) * 100; }
+function marketValue(h: Holding) { return h.currentPrice * h.quantity; }
+
+function StockAvatar({ symbol, color, bg, letter, size = 36 }: {
+  symbol: string; color: string; bg: string; letter: string; size?: number;
 }) {
-  const [symbol, setSymbol] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [buyPrice, setBuyPrice] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleSubmit = async () => {
-    setError("");
-    if (!symbol || !quantity || !buyPrice) {
-      setError("All fields are required.");
-      return;
-    }
-    if (isNaN(Number(quantity)) || Number(quantity) <= 0) {
-      setError("Quantity must be a positive number.");
-      return;
-    }
-    if (isNaN(Number(buyPrice)) || Number(buyPrice) <= 0) {
-      setError("Buy price must be a positive number.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await fetch("http://localhost:8081/api/holdings", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          symbol: symbol.toUpperCase().trim(),
-          quantity: Number(quantity),
-          buyPrice: Number(buyPrice),
-          portfolioId,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data?.message || "Failed to add holding.");
-        return;
-      }
-
-      onAdded();
-      onClose();
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  const [err, setErr] = useState(false);
+  const clean = symbol.replace(".BSE", "").replace("/", "").split("").slice(0, 6).join("");
+  const domain = LOGO_DOMAINS[clean];
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
-      <div className="relative w-full max-w-md bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6 shadow-2xl">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-lg font-semibold text-white">Add Holding</h2>
-            <p className="text-[#555] text-xs mt-0.5">Add a stock to your portfolio</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-[#1a1a1a] flex items-center justify-center text-[#555] hover:text-white transition-colors"
-          >
-            <X size={14} />
-          </button>
-        </div>
-
-        {error && (
-          <div className="mb-4 flex items-center gap-2 text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm">
-            <AlertCircle size={14} className="shrink-0" />
-            {error}
-          </div>
-        )}
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs text-[#888] mb-2">Stock Symbol</label>
-            <input
-              type="text"
-              placeholder="e.g. RELIANCE, TCS, INFY"
-              className="w-full px-4 py-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f] text-white placeholder-[#444] focus:outline-none focus:border-[#8FFFD6] transition-colors text-sm uppercase"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-[#888] mb-2">Quantity</label>
-              <input
-                type="number"
-                placeholder="0"
-                min="0"
-                className="w-full px-4 py-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f] text-white placeholder-[#444] focus:outline-none focus:border-[#8FFFD6] transition-colors text-sm"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-[#888] mb-2">Buy Price (₹)</label>
-              <input
-                type="number"
-                placeholder="0.00"
-                min="0"
-                step="0.01"
-                className="w-full px-4 py-3 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f] text-white placeholder-[#444] focus:outline-none focus:border-[#8FFFD6] transition-colors text-sm"
-                value={buyPrice}
-                onChange={(e) => setBuyPrice(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-          </div>
-
-          {/* Preview */}
-          {symbol && quantity && buyPrice && (
-            <div className="bg-[#0a0a0a] rounded-xl p-3 border border-[#1f1f1f]">
-              <p className="text-[#555] text-xs mb-1">Total Investment</p>
-              <p className="text-white font-semibold">
-                ₹{fmt(Number(quantity) * Number(buyPrice))}
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 rounded-xl border border-[#1f1f1f] text-[#888] text-sm hover:border-[#333] hover:text-white transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex-1 py-3 rounded-xl bg-[#8FFFD6] hover:bg-[#6ee8bc] text-black font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                Adding...
-              </>
-            ) : (
-              <>
-                <Plus size={14} />
-                Add Holding
-              </>
-            )}
-          </button>
-        </div>
-      </div>
+    <div style={{
+      width: size, height: size, borderRadius: "50%", background: bg,
+      border: `1px solid ${color}33`, display: "flex", alignItems: "center",
+      justifyContent: "center", fontSize: size * 0.32, fontWeight: 700, color, flexShrink: 0, overflow: "hidden",
+    }}>
+      {domain && !err ? (
+        <img src={`https://icons.duckduckgo.com/ip3/${domain}.ico`} alt={symbol}
+          width={size * 0.6} height={size * 0.6} onError={() => setErr(true)}
+          style={{ objectFit: "contain", borderRadius: "50%" }} />
+      ) : (letter || symbol.charAt(0))}
     </div>
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function PortfolioPage() {
   const router = useRouter();
+  const { market } = useMarket();
+  const key = market.id as keyof typeof MOCK_HOLDINGS;
+  const currency = market.currency || "$";
+
   const [holdings, setHoldings] = useState<Holding[]>([]);
-  const [summary, setSummary] = useState<Summary>({ investment: 0, currentValue: 0, profit: 0 });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [showModal, setShowModal] = useState(false);
-  const [portfolioId, setPortfolioId] = useState("");
-  const [token, setToken] = useState("");
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"value" | "pnl" | "pnlpct">("value");
+  const [filterSector, setFilterSector] = useState("All");
 
-  const fetchData = async (tkn?: string) => {
+  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+  // Fetch from API, fall back to mock
+  const loadHoldings = useCallback(async () => {
+    setLoading(true);
     try {
-      const t = tkn || localStorage.getItem("token") || "";
-      if (!t) { router.push("/login"); return; }
-
-      const userRes = await fetch("http://localhost:8081/api/users/me", {
-        headers: { Authorization: `Bearer ${t}` },
+      const token = getToken();
+      const meRes = await fetch("/api/users/me", { headers: { Authorization: `Bearer ${token}` } });
+      if (!meRes.ok) throw new Error("auth");
+      const me = await meRes.json();
+      const res = await fetch(`/api/holdings?portfolioId=${me.portfolioId}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      if (userRes.status === 401) { localStorage.removeItem("token"); router.push("/login"); return; }
-      if (!userRes.ok) { setError("Failed to load user profile."); return; }
-
-      const user = await userRes.json();
-      const pid = user.portfolioId;
-      setPortfolioId(pid);
-
-      const [holdingsRes, summaryRes] = await Promise.all([
-        fetch(`http://localhost:8081/api/holdings/${pid}`, {
-          headers: { Authorization: `Bearer ${t}` },
-        }),
-        fetch(`http://localhost:8081/api/portfolio/summary/${pid}`, {
-          headers: { Authorization: `Bearer ${t}` },
-        }),
-      ]);
-
-      if (holdingsRes.ok) setHoldings(await holdingsRes.json());
-      if (summaryRes.ok) setSummary(await summaryRes.json());
+      if (!res.ok) throw new Error("holdings");
+      const data = await res.json();
+      if (data?.length > 0) {
+        setHoldings(data);
+      } else {
+        setHoldings(MOCK_HOLDINGS[key] ?? MOCK_HOLDINGS["US"]);
+      }
     } catch {
-      setError("Network error. Please check your connection.");
+      setHoldings(MOCK_HOLDINGS[key] ?? MOCK_HOLDINGS["US"]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [key]);
 
-  useEffect(() => {
-    const t = localStorage.getItem("token") || "";
-    setToken(t);
-    fetchData(t);
-  }, []);
+  useEffect(() => { loadHoldings(); }, [loadHoldings]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Remove this holding?")) return;
-    setDeletingId(id);
-    try {
-      await fetch(`http://localhost:8081/api/holdings/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      await fetchData();
-    } catch {
-      alert("Failed to delete holding.");
-    } finally {
-      setDeletingId(null);
-    }
-  };
+  // Derived stats
+  const totalValue   = holdings.reduce((s, h) => s + marketValue(h), 0);
+  const totalCost    = holdings.reduce((s, h) => s + h.avgBuyPrice * h.quantity, 0);
+  const totalPnL     = totalValue - totalCost;
+  const totalPnLPct  = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0;
+  const isUp         = totalPnL >= 0;
 
-  // ── Loading ────────────────────────────────────────────────────────────────
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
-      <div className="text-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#8FFFD6] mx-auto mb-3" />
-        <p className="text-[#555] text-sm">Loading portfolio...</p>
-      </div>
-    </div>
-  );
-
-  if (error) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
-      <div className="bg-[#111] p-8 rounded-2xl border border-[#1f1f1f] text-center max-w-sm">
-        <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-3" />
-        <p className="text-red-400 mb-4 text-sm">{error}</p>
-        <button
-          onClick={() => { setError(""); setLoading(true); fetchData(); }}
-          className="bg-[#8FFFD6] hover:bg-[#6ee8bc] text-black font-semibold px-6 py-2 rounded-xl text-sm transition-colors"
-        >
-          Retry
-        </button>
-      </div>
-    </div>
-  );
-
-  const profitPercent = summary.investment > 0
-    ? ((summary.profit / summary.investment) * 100).toFixed(2)
-    : "0.00";
-  const isProfit = summary.profit >= 0;
-
-  const pieData = holdings.map((h) => ({
-    name: h.symbol,
-    value: Math.round(h.quantity * h.buyPrice),
+  // Sector breakdown for donut
+  const sectors = Array.from(new Set(holdings.map((h) => h.sector)));
+  const sectorData = sectors.map((s, i) => ({
+    name: s,
+    value: holdings.filter((h) => h.sector === s).reduce((a, h) => a + marketValue(h), 0),
+    color: ["#8FFFD6", "#6366f1", "#f59e0b", "#ef4444", "#a855f7"][i % 5],
   }));
 
-  return (
-    <>
-      {showModal && portfolioId && token && (
-        <AddHoldingModal
-          portfolioId={portfolioId}
-          token={token}
-          onClose={() => setShowModal(false)}
-          onAdded={() => { setLoading(true); fetchData(); }}
-        />
-      )}
+  // Sort + filter
+  const allSectors = ["All", ...sectors];
+  const displayed = holdings
+    .filter((h) => filterSector === "All" || h.sector === filterSector)
+    .sort((a, b) =>
+      sortBy === "value"  ? marketValue(b) - marketValue(a) :
+      sortBy === "pnl"    ? pnl(b) - pnl(a) :
+                            pnlPct(b) - pnlPct(a)
+    );
 
-      <div className="p-6 space-y-5 max-w-[1400px] mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-white">Portfolio</h1>
-            <p className="text-[#555] text-xs mt-0.5">{holdings.length} positions</p>
-          </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-[#8FFFD6] hover:bg-[#6ee8bc] text-black font-semibold text-sm px-4 py-2.5 rounded-xl transition-colors"
-          >
-            <Plus size={14} />
-            Add Holding
+  const fmt = (n: number, dec = 2) =>
+    Math.abs(n) >= 1000
+      ? `${currency}${(n / 1000).toFixed(1)}k`
+      : `${currency}${n.toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec })}`;
+
+  return (
+    <div style={{ padding: "24px 32px", maxWidth: 1200, margin: "0 auto", fontFamily: "'Geist','Inter',sans-serif" }}>
+
+      {/* ── Header ── */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <h1 style={{ color: "#fff", fontWeight: 700, fontSize: 20, margin: 0, letterSpacing: -0.3 }}>My Portfolio</h1>
+          <p style={{ color: "#555", fontSize: 12, margin: "4px 0 0" }}>{market.flag} {market.label} · {holdings.length} positions</p>
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={loadHoldings} style={{
+            width: 36, height: 36, borderRadius: 10, border: "1px solid #1f1f1f",
+            background: "transparent", color: "#555", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <RefreshCw size={14} />
+          </button>
+          <button onClick={() => router.push("/dashboard")} style={{
+            display: "flex", alignItems: "center", gap: 8, padding: "10px 18px",
+            background: "#8FFFD6", borderRadius: 10, border: "none", cursor: "pointer",
+            color: "#0a0a0a", fontWeight: 700, fontSize: 13,
+          }}>
+            <Plus size={14} /> Add Position
           </button>
         </div>
+      </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
-            { label: "Total Investment", value: `₹${fmt(summary.investment)}`, sub: null },
-            { label: "Current Value", value: `₹${fmt(summary.currentValue)}`, sub: null },
-            {
-              label: "Profit / Loss",
-              value: `${isProfit ? "+" : ""}₹${fmt(summary.profit)}`,
-              sub: `${isProfit ? "▲" : "▼"} ${profitPercent}%`,
-              color: isProfit ? "#22c55e" : "#ef4444",
-            },
-          ].map((card) => (
-            <div key={card.label} className="bg-[#111111] rounded-2xl border border-[#1f1f1f] p-5">
-              <p className="text-[#555] text-xs uppercase tracking-widest mb-2">{card.label}</p>
-              <h2
-                className="text-2xl font-bold"
-                style={{ color: card.color ?? "#ffffff" }}
-              >
-                {card.value}
-              </h2>
-              {card.sub && (
-                <p className="text-xs mt-1" style={{ color: card.color }}>
-                  {card.sub}
-                </p>
-              )}
+      {/* ── Top stats row ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 14, marginBottom: 24 }}>
+
+        {/* Portfolio value card */}
+        <div style={{
+          background: "#111111", border: "1px solid #1f1f1f", borderRadius: 14,
+          padding: "20px 22px", position: "relative", overflow: "hidden",
+        }}>
+          <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 120,
+            background: `radial-gradient(ellipse at right, ${isUp ? "#8FFFD6" : "#ef4444"}08 0%, transparent 70%)`,
+            pointerEvents: "none" }} />
+          <p style={{ color: "#555", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 8px" }}>Total Value</p>
+          <p style={{ color: "#fff", fontWeight: 800, fontSize: 28, margin: 0, letterSpacing: -0.5 }}>
+            {currency}{totalValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+            {isUp ? <TrendingUp size={13} color="#22c55e" /> : <TrendingDown size={13} color="#ef4444" />}
+            <span style={{ color: isUp ? "#22c55e" : "#ef4444", fontSize: 12, fontWeight: 600 }}>
+              {isUp ? "+" : ""}{currency}{Math.abs(totalPnL).toLocaleString("en-US", { minimumFractionDigits: 2 })} ({isUp ? "+" : ""}{totalPnLPct.toFixed(2)}%)
+            </span>
+          </div>
+        </div>
+
+        {[
+          { label: "Total Cost",  value: `${currency}${totalCost.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, color: "#888" },
+          { label: "Unrealized P&L", value: `${totalPnL >= 0 ? "+" : ""}${currency}${Math.abs(totalPnL).toLocaleString("en-US", { minimumFractionDigits: 2 })}`, color: isUp ? "#22c55e" : "#ef4444" },
+          { label: "Positions",   value: holdings.length.toString(), color: "#8FFFD6" },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ background: "#111111", border: "1px solid #1f1f1f", borderRadius: 14, padding: "20px 22px" }}>
+            <p style={{ color: "#555", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 8px" }}>{label}</p>
+            <p style={{ color, fontWeight: 700, fontSize: 22, margin: 0, letterSpacing: -0.3 }}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Chart + Donut ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16, marginBottom: 24 }}>
+
+        {/* Portfolio History */}
+        <div style={{ background: "#111111", border: "1px solid #1f1f1f", borderRadius: 14, padding: "20px 22px" }}>
+          <p style={{ color: "#fff", fontWeight: 600, fontSize: 13, margin: "0 0 16px" }}>Portfolio Performance</p>
+          <ResponsiveContainer width="100%" height={160}>
+            <AreaChart data={PORTFOLIO_HISTORY} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor="#8FFFD6" stopOpacity={0.18} />
+                  <stop offset="95%" stopColor="#8FFFD6" stopOpacity={0.01} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="t" tick={{ fill: "#444", fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#444", fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 8, fontSize: 11 }}
+                itemStyle={{ color: "#8FFFD6" }} labelStyle={{ color: "#555" }} />
+              <Area type="monotone" dataKey="v" stroke="#8FFFD6" strokeWidth={2}
+                fill="url(#pg)" dot={false} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Sector Donut */}
+        <div style={{ background: "#111111", border: "1px solid #1f1f1f", borderRadius: 14, padding: "20px 22px" }}>
+          <p style={{ color: "#fff", fontWeight: 600, fontSize: 13, margin: "0 0 12px" }}>Allocation</p>
+          <ResponsiveContainer width="100%" height={110}>
+            <PieChart>
+              <Pie data={sectorData} cx="50%" cy="50%" innerRadius={32} outerRadius={50}
+                dataKey="value" stroke="none">
+                {sectorData.map((s, i) => <Cell key={i} fill={s.color} />)}
+              </Pie>
+              <Tooltip contentStyle={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 8, fontSize: 11 }}
+                formatter={(v: any) => [`${currency}${Number(v).toLocaleString()}`, ""]} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+            {sectorData.map((s) => (
+              <div key={s.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color }} />
+                  <span style={{ color: "#888", fontSize: 11 }}>{s.name}</span>
+                </div>
+                <span style={{ color: "#fff", fontSize: 11, fontWeight: 600 }}>
+                  {totalValue > 0 ? ((s.value / totalValue) * 100).toFixed(0) : 0}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Holdings Table ── */}
+      <div style={{ background: "#111111", border: "1px solid #1f1f1f", borderRadius: 14, overflow: "hidden" }}>
+
+        {/* Table header controls */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #1a1a1a" }}>
+          <p style={{ color: "#fff", fontWeight: 600, fontSize: 13, margin: 0 }}>Holdings</p>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {/* Sector filter */}
+            <div style={{ display: "flex", gap: 4 }}>
+              {allSectors.map((s) => (
+                <button key={s} onClick={() => setFilterSector(s)} style={{
+                  padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11,
+                  background: filterSector === s ? "#8FFFD618" : "transparent",
+                  color: filterSector === s ? "#8FFFD6" : "#444",
+                  fontWeight: filterSector === s ? 600 : 400,
+                }}>{s}</button>
+              ))}
             </div>
+            {/* Sort */}
+            <div style={{ display: "flex", background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 8, padding: 3, gap: 2 }}>
+              {(["value", "pnl", "pnlpct"] as const).map((s) => (
+                <button key={s} onClick={() => setSortBy(s)} style={{
+                  padding: "4px 10px", borderRadius: 5, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 600,
+                  background: sortBy === s ? "#1f1f1f" : "transparent",
+                  color: sortBy === s ? "#8FFFD6" : "#444",
+                }}>
+                  {s === "value" ? "Value" : s === "pnl" ? "P&L $" : "P&L %"}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Column headers */}
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 80px", gap: 0,
+          padding: "10px 20px", borderBottom: "1px solid #1a1a1a" }}>
+          {["Asset", "Qty", "Avg Price", "Current", "Market Value", "P&L", ""].map((h) => (
+            <span key={h} style={{ color: "#444", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{h}</span>
           ))}
         </div>
 
-        {/* Chart + Table */}
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5">
-          {/* Pie Chart */}
-          <div className="bg-[#111111] rounded-2xl border border-[#1f1f1f] p-5">
-            <p className="text-sm font-semibold text-white mb-4">Allocation</p>
-            {pieData.length > 0 ? (
-              <>
-                <ResponsiveContainer width="100%" height={180}>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={52}
-                      outerRadius={78}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {pieData.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        background: "#111",
-                        border: "1px solid #1f1f1f",
-                        borderRadius: 10,
-                        color: "#fff",
-                        fontSize: 12,
-                      }}
-                      formatter={(v) => [`₹${Number(v).toLocaleString("en-IN")}`, "Value"]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-
-                <div className="space-y-2 mt-3">
-                  {pieData.map((d, i) => {
-                    const pct = summary.investment > 0
-                      ? ((d.value / summary.investment) * 100).toFixed(1)
-                      : "0";
-                    return (
-                      <div key={i} className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-2 h-2 rounded-full shrink-0"
-                            style={{ backgroundColor: COLORS[i % COLORS.length] }}
-                          />
-                          <span className="text-white">{d.name}</span>
-                        </div>
-                        <span className="text-[#555]">{pct}%</span>
-                      </div>
-                    );
-                  })}
+        {/* Rows */}
+        {loading ? (
+          <div style={{ padding: 40, textAlign: "center" }}>
+            <div style={{ width: 28, height: 28, border: "2px solid #1f1f1f", borderTop: "2px solid #8FFFD6",
+              borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
+            <p style={{ color: "#555", fontSize: 13 }}>Loading holdings…</p>
+          </div>
+        ) : displayed.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center" }}>
+            <p style={{ color: "#555", fontSize: 13 }}>No holdings found. Start by buying a stock.</p>
+          </div>
+        ) : (
+          displayed.map((h, i) => {
+            const mv   = marketValue(h);
+            const pl   = pnl(h);
+            const plp  = pnlPct(h);
+            const isUp = pl >= 0;
+            return (
+              <div key={h.id}
+                onClick={() => router.push(`/dashboard/stock/${h.symbol}`)}
+                style={{
+                  display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 80px",
+                  padding: "14px 20px", borderBottom: i < displayed.length - 1 ? "1px solid #141414" : "none",
+                  cursor: "pointer", transition: "background 0.15s", alignItems: "center",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#141414")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                {/* Asset */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <StockAvatar symbol={h.symbol} color={h.color} bg={h.bg} letter={h.letter} size={34} />
+                  <div>
+                    <p style={{ color: "#fff", fontWeight: 600, fontSize: 13, margin: 0 }}>{h.symbol}</p>
+                    <p style={{ color: "#555", fontSize: 11, margin: "2px 0 0", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name}</p>
+                  </div>
                 </div>
-              </>
-            ) : (
-              <div className="h-48 flex flex-col items-center justify-center text-center">
-                <p className="text-[#555] text-sm mb-3">No holdings yet</p>
-                <button
-                  onClick={() => setShowModal(true)}
-                  className="text-[#8FFFD6] text-xs hover:underline"
-                >
-                  + Add your first holding
+                {/* Qty */}
+                <span style={{ color: "#888", fontSize: 13 }}>{h.quantity.toLocaleString()}</span>
+                {/* Avg */}
+                <span style={{ color: "#888", fontSize: 13 }}>{currency}{h.avgBuyPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                {/* Current */}
+                <span style={{ color: "#fff", fontSize: 13, fontWeight: 500 }}>{currency}{h.currentPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                {/* Market Value */}
+                <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{currency}{mv.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                {/* P&L */}
+                <div>
+                  <p style={{ color: isUp ? "#22c55e" : "#ef4444", fontSize: 13, fontWeight: 600, margin: 0 }}>
+                    {isUp ? "+" : ""}{currency}{Math.abs(pl).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  </p>
+                  <p style={{ color: isUp ? "#22c55e" : "#ef4444", fontSize: 10, margin: "2px 0 0", opacity: 0.7 }}>
+                    {isUp ? "+" : ""}{plp.toFixed(2)}%
+                  </p>
+                </div>
+                {/* Action */}
+                <button onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/stock/${h.symbol}`); }} style={{
+                  display: "flex", alignItems: "center", gap: 4, padding: "6px 10px",
+                  borderRadius: 7, border: "1px solid #1f1f1f", background: "transparent",
+                  color: "#888", cursor: "pointer", fontSize: 11, fontWeight: 600,
+                  transition: "all 0.15s",
+                }}>
+                  Trade <ArrowUpRight size={11} />
                 </button>
               </div>
-            )}
-          </div>
-
-          {/* Holdings Table */}
-          <div className="bg-[#111111] rounded-2xl border border-[#1f1f1f] p-5">
-            <p className="text-sm font-semibold text-white mb-4">Holdings</p>
-
-            {holdings.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-[#555] text-xs border-b border-[#1f1f1f]">
-                      <th className="text-left pb-3 font-medium">Symbol</th>
-                      <th className="text-right pb-3 font-medium">Qty</th>
-                      <th className="text-right pb-3 font-medium">Buy Price</th>
-                      <th className="text-right pb-3 font-medium">Invested</th>
-                      <th className="text-right pb-3 font-medium">P&L</th>
-                      <th className="pb-3" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {holdings.map((h, i) => {
-                      const invested = h.quantity * h.buyPrice;
-                      const currentVal = h.currentPrice
-                        ? h.quantity * h.currentPrice
-                        : invested;
-                      const pnl = currentVal - invested;
-                      const pnlPct = invested > 0 ? ((pnl / invested) * 100).toFixed(2) : "0.00";
-                      const isUp = pnl >= 0;
-
-                      return (
-                        <tr
-                          key={h.id}
-                          className="border-b border-[#1f1f1f] last:border-0 hover:bg-[#1a1a1a] transition-colors group cursor-pointer"
-                          onClick={() => router.push(`/dashboard/stock/${h.symbol}`)}
-                        >
-                          <td className="py-3">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-black shrink-0"
-                                style={{ backgroundColor: COLORS[i % COLORS.length] }}
-                              >
-                                {h.symbol.slice(0, 2)}
-                              </div>
-                              <div>
-                                <p className="text-white font-medium">{h.symbol}</p>
-                                <p className="text-[#555] text-[10px]">{h.quantity} shares</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-3 text-right text-white">{h.quantity}</td>
-                          <td className="py-3 text-right text-white">₹{fmt(h.buyPrice)}</td>
-                          <td className="py-3 text-right text-white">₹{fmt(invested)}</td>
-                          <td className="py-3 text-right">
-                            <div>
-                              <p className={`font-medium text-xs ${isUp ? "text-[#22c55e]" : "text-[#ef4444]"}`}>
-                                {isUp ? "+" : ""}₹{fmt(pnl)}
-                              </p>
-                              <p className={`text-[10px] ${isUp ? "text-[#22c55e]" : "text-[#ef4444]"}`}>
-                                {isUp ? "▲" : "▼"} {Math.abs(Number(pnlPct))}%
-                              </p>
-                            </div>
-                          </td>
-                          <td className="py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => handleDelete(h.id)}
-                              disabled={deletingId === h.id}
-                              className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 hover:bg-red-500/20 transition-all ml-auto"
-                            >
-                              {deletingId === h.id
-                                ? <Loader2 size={12} className="animate-spin" />
-                                : <Trash2 size={12} />
-                              }
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="h-48 flex flex-col items-center justify-center text-center">
-                <TrendingUp size={32} className="text-[#1f1f1f] mb-3" />
-                <p className="text-[#555] text-sm mb-1">No holdings yet</p>
-                <p className="text-[#333] text-xs mb-4">Add your first stock to get started</p>
-                <button
-                  onClick={() => setShowModal(true)}
-                  className="flex items-center gap-2 bg-[#8FFFD6] hover:bg-[#6ee8bc] text-black font-semibold text-xs px-4 py-2 rounded-xl transition-colors"
-                >
-                  <Plus size={12} />
-                  Add Holding
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+            );
+          })
+        )}
       </div>
-    </>
+
+      <style>{`@keyframes spin { to { transform:rotate(360deg); } }`}</style>
+    </div>
   );
 }

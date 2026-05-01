@@ -13,6 +13,8 @@ import {
   LogOut,
   ChevronRight,
   TrendingUp,
+  Sparkles,
+  Wallet,
 } from "lucide-react";
 import { MarketProvider } from "@/lib/MarketContext";
 import MarketSwitcher from "@/components/MarketSwitcher";
@@ -21,9 +23,11 @@ import MarketSwitcher from "@/components/MarketSwitcher";
 
 const NAV_ITEMS = [
   { href: "/dashboard",           label: "Dashboard",  icon: LayoutDashboard },
+  { href: "/dashboard/wallet",    label: "Wallet",    icon: Wallet },
   { href: "/dashboard/portfolio", label: "Portfolio",  icon: Briefcase },
   { href: "/dashboard/watchlist", label: "Watchlist",  icon: BookMarked },
   { href: "/dashboard/analytics", label: "Analytics",  icon: BarChart3 },
+  { href: "/dashboard/insights",  label: "Insights",   icon: Sparkles },
   { href: "/dashboard/settings",  label: "Settings",   icon: Settings },
 ];
 

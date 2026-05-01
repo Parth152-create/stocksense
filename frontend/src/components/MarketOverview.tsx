@@ -73,7 +73,7 @@ export default function MarketOverview() {
             padding: "2px 8px",
             borderRadius: 5,
           }}>
-            {market.exchangeLabel}
+            {market.label}
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -172,7 +172,7 @@ export default function MarketOverview() {
                     {ticker}
                   </p>
                   <p style={{ color: "#555", fontSize: 11, margin: "2px 0 0" }}>
-                    {market.exchangeLabel}
+                    {market.label}
                   </p>
                 </div>
 

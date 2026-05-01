@@ -48,7 +48,7 @@ export default function MarketSwitcher() {
             {market.label}
           </div>
           <div style={{ color: "#555", fontSize: 11, marginTop: 2, lineHeight: 1 }}>
-            {market.exchangeLabel}
+            {market.currency}
           </div>
         </div>
 
@@ -154,7 +154,7 @@ export default function MarketSwitcher() {
                       {m.label}
                     </div>
                     <div style={{ color: "#444", fontSize: 11, marginTop: 1 }}>
-                      {m.exchangeLabel}
+                      {m.currency}
                     </div>
                   </div>
 
