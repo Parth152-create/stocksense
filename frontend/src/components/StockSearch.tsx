@@ -69,7 +69,7 @@ function ResultAvatar({ symbol }: { symbol: string }) {
   );
 }
 
-// ─── Quick picks (shown when search is empty) ─────────────────────────────────
+// ─── Quick picks ──────────────────────────────────────────────────────────────
 
 const QUICK_PICKS = [
   { symbol: "RELIANCE.BSE", name: "Reliance Industries" },
@@ -123,22 +123,19 @@ export default function StockSearch() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // ── Fetch from Alpha Vantage via your Spring Boot backend ─────────────────
+  // ── Fetch directly from Spring Boot (search endpoint is public) ───────────
   const search = useCallback(async (q: string) => {
     if (!q.trim()) { setResults([]); setLoading(false); return; }
     setLoading(true);
     setError(false);
     try {
-      // Calls your Spring Boot: GET /api/stocks/search?q=apple
-      const res = await fetch(`/api/stocks/search?q=${encodeURIComponent(q)}`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
-        },
-      });
+      const res = await fetch(
+        `http://localhost:8081/api/stocks/search?q=${encodeURIComponent(q)}`,
+        { credentials: "include" }
+      );
       if (!res.ok) throw new Error("Search failed");
       const data: SearchResult[] = await res.json();
-      setResults(data.slice(0, 8)); // cap at 8 results
+      setResults(data.slice(0, 8));
     } catch {
       setError(true);
       setResults([]);
@@ -172,7 +169,6 @@ export default function StockSearch() {
     }
   };
 
-  // ── Navigate to stock detail ──────────────────────────────────────────────
   const navigateTo = (symbol: string) => {
     setOpen(false);
     setQuery("");
@@ -180,7 +176,6 @@ export default function StockSearch() {
     router.push(`/dashboard/stock/${symbol}`);
   };
 
-  // ── Region badge ──────────────────────────────────────────────────────────
   const regionBadge = (r: string) => {
     if (r?.includes("India")) return { label: "BSE", color: "#f59e0b" };
     if (r?.includes("United States")) return { label: "NYSE", color: "#8FFFD6" };
@@ -190,7 +185,7 @@ export default function StockSearch() {
   return (
     <div ref={containerRef} style={{ position: "relative", width: "100%" }}>
 
-      {/* ── Search input ─────────────────────────────────────────────────── */}
+      {/* Input */}
       <div style={{
         display: "flex", alignItems: "center", gap: 10,
         background: open ? "#161616" : "#111111",
@@ -222,7 +217,6 @@ export default function StockSearch() {
             <X size={13} />
           </button>
         )}
-        {/* Kbd shortcut hint */}
         {!open && !query && (
           <kbd style={{
             fontSize: 10, color: "#444", background: "#1a1a1a",
@@ -234,7 +228,7 @@ export default function StockSearch() {
         )}
       </div>
 
-      {/* ── Dropdown ─────────────────────────────────────────────────────── */}
+      {/* Dropdown */}
       {open && (
         <div style={{
           position: "absolute", top: "100%", left: 0, right: 0, zIndex: 1000,
@@ -243,8 +237,6 @@ export default function StockSearch() {
           boxShadow: "0 16px 40px rgba(0,0,0,0.6)",
           maxHeight: 380, overflowY: "auto",
         }}>
-
-          {/* Section label */}
           <div style={{ padding: "8px 14px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: 10, color: "#444", textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>
               {query ? `Results for "${query}"` : "Quick picks"}
@@ -254,21 +246,18 @@ export default function StockSearch() {
             )}
           </div>
 
-          {/* Error state */}
           {error && (
             <div style={{ padding: "16px 14px", color: "#555", fontSize: 13, textAlign: "center" }}>
-              Search unavailable — check your connection
+              Search unavailable — check backend is running on port 8081
             </div>
           )}
 
-          {/* No results */}
           {!loading && !error && query && results.length === 0 && (
             <div style={{ padding: "16px 14px", color: "#555", fontSize: 13, textAlign: "center" }}>
-              No results for "{query}"
+              No results for &ldquo;{query}&rdquo;
             </div>
           )}
 
-          {/* Results list */}
           {displayList.map((item, i) => {
             const badge = "region" in item ? regionBadge((item as SearchResult).region) : null;
             const isActive = i === activeIdx;
@@ -285,7 +274,6 @@ export default function StockSearch() {
                 }}
               >
                 <ResultAvatar symbol={item.symbol} />
-
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{item.symbol}</span>
@@ -303,13 +291,11 @@ export default function StockSearch() {
                     {item.name}
                   </div>
                 </div>
-
                 <TrendingUp size={13} color="#333" style={{ flexShrink: 0 }} />
               </button>
             );
           })}
 
-          {/* Footer hint */}
           {!query && (
             <div style={{ padding: "8px 14px 10px", borderTop: "1px solid #1a1a1a", marginTop: 4 }}>
               <span style={{ fontSize: 10, color: "#333" }}>
@@ -320,9 +306,7 @@ export default function StockSearch() {
         </div>
       )}
 
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

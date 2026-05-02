@@ -13,16 +13,6 @@ import java.util.concurrent.TimeUnit;
 @EnableCaching
 public class CacheConfig {
 
-    /**
-     * Cache strategy designed for Alpha Vantage free tier (25 req/day):
-     *
-     *  stockQuote   — 15 min TTL  (individual quote, most volatile)
-     *  stockHistory — 60 min TTL  (daily OHLCV, changes once/day)
-     *  stockSearch  — 60 min TTL  (search results rarely change)
-     *  batchQuotes  — 15 min TTL  (market list snapshots)
-     *  marketList   — 24 hr TTL   (static symbol lists)
-     */
-
     @Bean
     public CacheManager cacheManager() {
         CaffeineCacheManager manager = new CaffeineCacheManager();
@@ -30,8 +20,9 @@ public class CacheConfig {
             Caffeine.newBuilder().expireAfterWrite(15, TimeUnit.MINUTES).maximumSize(500).build());
         manager.registerCustomCache("stockHistory",
             Caffeine.newBuilder().expireAfterWrite(60, TimeUnit.MINUTES).maximumSize(200).build());
+        // 5 min TTL — short so stale empty results from rate-limit spikes expire fast
         manager.registerCustomCache("stockSearch",
-            Caffeine.newBuilder().expireAfterWrite(60, TimeUnit.MINUTES).maximumSize(100).build());
+            Caffeine.newBuilder().expireAfterWrite(5, TimeUnit.MINUTES).maximumSize(100).build());
         manager.registerCustomCache("batchQuotes",
             Caffeine.newBuilder().expireAfterWrite(15, TimeUnit.MINUTES).maximumSize(50).build());
         manager.registerCustomCache("marketList",

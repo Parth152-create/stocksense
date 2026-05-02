@@ -7,6 +7,8 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @Service
@@ -19,9 +21,8 @@ public class AlphaVantageService {
     private final ObjectMapper mapper = new ObjectMapper();
     private static final String BASE = "https://www.alphavantage.co/query";
 
-    // ── Cache TTL is configured in CacheConfig (15 min default) ─────────────
+    // ── Single quote ──────────────────────────────────────────────────────────
 
-    /** Single quote — used by stock detail page */
     @Cacheable(value = "stockQuote", key = "#symbol")
     public Map<String, Object> getQuote(String symbol) {
         try {
@@ -41,7 +42,6 @@ public class AlphaVantageService {
             result.put("changePercent",    parseDoublePercent(q.path("10. change percent").asText("0%")));
             result.put("volume",           parseLong(q.path("06. volume").asText("0")));
             result.put("latestTradingDay", q.path("07. latest trading day").asText(""));
-            // Analyst ratings — static until you wire an ML model
             result.put("analystBuy",  65);
             result.put("analystHold", 25);
             result.put("analystSell", 10);
@@ -51,7 +51,8 @@ public class AlphaVantageService {
         }
     }
 
-    /** Daily OHLCV history — used by stock chart */
+    // ── Daily OHLCV history ───────────────────────────────────────────────────
+
     @Cacheable(value = "stockHistory", key = "#symbol")
     public Map<String, Object> getDailyHistory(String symbol) {
         try {
@@ -75,24 +76,28 @@ public class AlphaVantageService {
                 c.put("volume", parseLong(v.path("5. volume").asText("0")));
                 candles.add(c);
             }
-            // Alpha Vantage returns newest-first — reverse to oldest-first
             Collections.reverse(candles);
-
             return Map.of("symbol", symbol, "candles", candles);
         } catch (Exception e) {
             return Map.of("symbol", symbol, "candles", mockCandles());
         }
     }
 
-    /** Search — used by market list search bar */
-    @Cacheable(value = "stockSearch", key = "#query")
+    // ── Search — no @Cacheable so empty rate-limit responses never get cached ─
+
     public List<Map<String, Object>> search(String query) {
         try {
-            String url = BASE + "?function=SYMBOL_SEARCH&keywords=" + query + "&apikey=" + apiKey;
+            String encoded = URLEncoder.encode(query, StandardCharsets.UTF_8);
+            String url = BASE + "?function=SYMBOL_SEARCH&keywords=" + encoded + "&apikey=" + apiKey;
             String json = restTemplate.getForObject(url, String.class);
             JsonNode root = mapper.readTree(json);
-            JsonNode matches = root.path("bestMatches");
 
+            // Alpha Vantage returns a "Note" or "Information" field on rate limit
+            if (root.has("Note") || root.has("Information")) {
+                return List.of();
+            }
+
+            JsonNode matches = root.path("bestMatches");
             List<Map<String, Object>> results = new ArrayList<>();
             for (JsonNode m : matches) {
                 Map<String, Object> item = new LinkedHashMap<>();
@@ -109,13 +114,13 @@ public class AlphaVantageService {
         }
     }
 
-    /** Batch quotes for a list of symbols — rate-limit aware */
+    // ── Batch quotes ──────────────────────────────────────────────────────────
+
     @Cacheable(value = "batchQuotes", key = "#symbols.toString()")
     public List<Map<String, Object>> getBatchQuotes(List<String> symbols) {
         List<Map<String, Object>> results = new ArrayList<>();
         for (String symbol : symbols) {
-            results.add(getQuote(symbol)); // Each call is individually cached
-            // Polite delay to avoid rate limiting
+            results.add(getQuote(symbol));
             try { Thread.sleep(200); } catch (InterruptedException ignored) {}
         }
         return results;
@@ -136,21 +141,21 @@ public class AlphaVantageService {
     }
 
     private Map<String, Object> mockQuote(String symbol) {
-        double price = 100 + (symbol.hashCode() % 900);
+        double price = 100 + (Math.abs(symbol.hashCode()) % 900);
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("symbol", symbol);
-        result.put("price", price);
-        result.put("open", price - 2);
-        result.put("high", price + 5);
-        result.put("low", price - 8);
-        result.put("previousClose", price - 1.5);
-        result.put("change", 1.5);
-        result.put("changePercent", 1.5);
-        result.put("volume", 1000000L);
-        result.put("latestTradingDay", "2025-04-30");
-        result.put("analystBuy", 65);
-        result.put("analystHold", 25);
-        result.put("analystSell", 10);
+        result.put("symbol",          symbol);
+        result.put("price",           price);
+        result.put("open",            price - 2);
+        result.put("high",            price + 5);
+        result.put("low",             price - 8);
+        result.put("previousClose",   price - 1.5);
+        result.put("change",          1.5);
+        result.put("changePercent",   1.5);
+        result.put("volume",          1000000L);
+        result.put("latestTradingDay","2025-04-30");
+        result.put("analystBuy",      65);
+        result.put("analystHold",     25);
+        result.put("analystSell",     10);
         return result;
     }
 

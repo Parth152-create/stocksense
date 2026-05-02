@@ -59,6 +59,26 @@ const MARKET_DATA: Record<string, {
     tradingScore: "$1,184,600",
     tradingPoints: 6280,
   },
+  CRYPTO: {
+    holdings: [
+      { symbol: "BTC",  shares: 0.5,  color: "#f7931a", bg: "#f7931a22", letter: "₿" },
+      { symbol: "ETH",  shares: 4.2,  color: "#627eea", bg: "#627eea22", letter: "Ξ" },
+      { symbol: "SOL",  shares: 32,   color: "#9945ff", bg: "#9945ff22", letter: "S" },
+      { symbol: "BNB",  shares: 8,    color: "#f3ba2f", bg: "#f3ba2f22", letter: "B" },
+      { symbol: "AVAX", shares: 15,   color: "#e84142", bg: "#e8414222", letter: "A" },
+    ],
+    transactions: [
+      { symbol: "BTC",  name: "Bitcoin",   change: +2.4, amount: -1240, color: "#f7931a", bg: "#f7931a22", letter: "₿" },
+      { symbol: "ETH",  name: "Ethereum",  change: -1.8, amount: +620,  color: "#627eea", bg: "#627eea22", letter: "Ξ" },
+      { symbol: "SOL",  name: "Solana",    change: +5.1, amount: -380,  color: "#9945ff", bg: "#9945ff22", letter: "S" },
+      { symbol: "BNB",  name: "BNB",       change: null, amount: +210,  color: "#f3ba2f", bg: "#f3ba2f22", letter: "B" },
+      { symbol: "AVAX", name: "Avalanche", change: null, amount: -90,   color: "#e84142", bg: "#e8414222", letter: "A" },
+    ],
+    portfolioValue: "$28,540.00",
+    portfolioGain: "+$3,120.80 this month",
+    tradingScore: "$842,000",
+    tradingPoints: 3140,
+  },
   FX: {
     holdings: [
       { symbol: "EUR/USD", shares: 10000, color: "#3b82f6", bg: "#3b82f622", letter: "€" },
@@ -83,12 +103,28 @@ const MARKET_DATA: Record<string, {
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 
-const BUY_SELL_DATA = [
-  { date: "Sep", value: 4200 }, { date: "Oct", value: 3800 }, { date: "Nov", value: 4100 },
-  { date: "Dec", value: 3600 }, { date: "Jan", value: 5200 }, { date: "Feb", value: 6800 },
-  { date: "Mar", value: 7400 }, { date: "Apr", value: 6900 }, { date: "May", value: 8200 },
-  { date: "Jun", value: 9100 },
+const ALL_BUY_SELL_DATA = [
+  { date: "Sep", value: 4200, daysAgo: 240 },
+  { date: "Oct", value: 3800, daysAgo: 210 },
+  { date: "Nov", value: 4100, daysAgo: 180 },
+  { date: "Dec", value: 3600, daysAgo: 150 },
+  { date: "Jan", value: 5200, daysAgo: 120 },
+  { date: "Feb", value: 6800, daysAgo: 90  },
+  { date: "Mar", value: 7400, daysAgo: 60  },
+  { date: "Apr", value: 6900, daysAgo: 30  },
+  { date: "May", value: 8200, daysAgo: 14  },
+  { date: "Jun", value: 9100, daysAgo: 0   },
 ];
+
+function filterDashboardData(range: string) {
+  const cutoffs: Record<string, number> = {
+    "1D": 1, "7D": 7, "1M": 30, "1Y": 365, "All": 9999,
+  };
+  const maxDays = cutoffs[range] ?? 9999;
+  const filtered = ALL_BUY_SELL_DATA.filter(d => d.daysAgo <= maxDays);
+  // Always show at least 2 points so the chart renders
+  return filtered.length >= 2 ? filtered : ALL_BUY_SELL_DATA.slice(-2);
+}
 
 const PORTFOLIO_CATEGORIES = [
   { label: "Stocks", pct: 40, color: "#a78bfa" },
@@ -119,6 +155,11 @@ const EVENT_PINS: Record<string, { label: string; letter: string; color: string;
     { label: "NVIDIA Reports Strong Q3 Earnings",      letter: "N", color: "#8FFFD6", left: "8%",  top: "60%" },
     { label: "Apple Reports Record Services Revenue",  letter: "A", color: "#fff",    left: "52%", top: "10%" },
     { label: "Tesla Launches Full Self-Driving 2.0",   letter: "T", color: "#ef4444", left: "60%", top: "28%" },
+  ],
+  CRYPTO: [
+    { label: "Bitcoin ETF Approval",      letter: "₿", color: "#8FFFD6", left: "8%",  top: "60%" },
+    { label: "Ethereum Dencun Upgrade",   letter: "Ξ", color: "#fff",    left: "52%", top: "10%" },
+    { label: "Solana Network Congestion", letter: "S", color: "#ef4444", left: "60%", top: "28%" },
   ],
   FX: [
     { label: "Fed Rate Decision Impact",    letter: "F", color: "#8FFFD6", left: "8%",  top: "60%" },
@@ -221,7 +262,7 @@ export default function DashboardPage() {
   const { market } = useMarket();
   // Normalise market id — CRYPTO falls back to US data, anything unknown → US
   const rawKey = market.id as string;
-  const key = (rawKey === "IN" || rawKey === "US" || rawKey === "FX") ? rawKey : "US";
+  const key = (["IN","US","FX","CRYPTO"].includes(rawKey)) ? rawKey : "US";
   const md = MARKET_DATA[key];
   const currency = market.currency || "$";
   const pins = EVENT_PINS[key] ?? EVENT_PINS["US"];
@@ -284,7 +325,7 @@ export default function DashboardPage() {
             </div>
 
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={BUY_SELL_DATA} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+              <AreaChart data={filterDashboardData(activeRange)} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#ffffff" stopOpacity={0.08} />
