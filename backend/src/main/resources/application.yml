@@ -21,7 +21,11 @@ alphavantage:
     key: HXW27CL9C8V78EXL
 
 jwt:
-  expiration: 604800000
+  secret: "your-256-bit-secret-here-change-in-production-min-32-chars"
+  expiration: 604800000   # 7 days in ms
+
+google:
+  client-id: "724652717839-u1lacrp7rmj5rp2117vhnpoj26t5vgm5.apps.googleusercontent.com"
 
 logging:
   level:

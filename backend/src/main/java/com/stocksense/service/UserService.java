@@ -29,7 +29,7 @@ public class UserService {
     }
 
     @Transactional
-    public void register(User user) {
+    public User register(User user) {
         if (user.getEmail() == null || user.getPassword() == null) {
             throw new RuntimeException("Email and password are required");
         }
@@ -38,22 +38,25 @@ public class UserService {
             throw new RuntimeException("Email already in use");
         }
 
-        // 1. Hash password + timestamp
+        // Hash password + timestamp
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         user.setCreatedAt(LocalDateTime.now());
+        user.setProvider("local"); // ✅ important for distinguishing login types
 
-        // 2. Save user first so the ID exists
+        // Save user
         User savedUser = userRepository.save(user);
 
-        // 3. Create portfolio row linked to this user
+        // Create portfolio
         Portfolio portfolio = new Portfolio();
         portfolio.setId(UUID.randomUUID());
         portfolio.setUserId(savedUser.getId());
+
         Portfolio savedPortfolio = portfolioRepository.save(portfolio);
 
-        // 4. Write portfolioId back onto the user so /api/users/me returns it
+        // Link portfolio to user
         savedUser.setPortfolioId(savedPortfolio.getId());
-        userRepository.save(savedUser);
+
+        return userRepository.save(savedUser); // ✅ return user instead of void
     }
 
     public User login(String email, String password) {
@@ -61,12 +64,14 @@ public class UserService {
             throw new RuntimeException("Email or password missing");
         }
 
-        Optional<User> userOpt = userRepository.findByEmail(email);
-        if (userOpt.isEmpty()) {
-            throw new RuntimeException("User not found");
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // ❗ Prevent Google users from logging in via password
+        if ("google".equals(user.getProvider())) {
+            throw new RuntimeException("Please login using Google");
         }
 
-        User user = userOpt.get();
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new RuntimeException("Invalid password");
         }
@@ -81,5 +86,36 @@ public class UserService {
 
     public List<User> getAllUsers() {
         return userRepository.findAll();
+    }
+
+    @Transactional
+    public User findOrCreateGoogleUser(String email, String name) {
+
+        Optional<User> existing = userRepository.findByEmail(email);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        // Create new Google user
+        User user = new User();
+        user.setEmail(email);
+        user.setName(name);
+        user.setPassword(""); // no password
+        user.setProvider("google");
+        user.setCreatedAt(LocalDateTime.now());
+
+        User savedUser = userRepository.save(user);
+
+        // Create portfolio
+        Portfolio portfolio = new Portfolio();
+        portfolio.setId(UUID.randomUUID());
+        portfolio.setUserId(savedUser.getId());
+
+        Portfolio savedPortfolio = portfolioRepository.save(portfolio);
+
+        // Link portfolio
+        savedUser.setPortfolioId(savedPortfolio.getId());
+
+        return userRepository.save(savedUser); // ✅ FIXED (was returning wrong object earlier)
     }
 }

@@ -23,14 +23,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
+protected boolean shouldNotFilter(HttpServletRequest request) {
+    String path = request.getRequestURI();
 
-        return path.startsWith("/api/stocks")
-                || path.equals("/api/users/register")
-                || path.equals("/api/users/login");
-    }
-
+    return path.startsWith("/api/stocks")
+            || path.startsWith("/api/auth")
+            || path.startsWith("/ws") 
+            || path.equals("/api/users/register")
+            || path.equals("/api/users/login");
+}
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -50,7 +51,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         try {
             String email = jwtService.extractEmail(token);
 
-            // ✅ Set authentication in SecurityContext so Spring allows the request
+            //  Set authentication in SecurityContext so Spring allows the request
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(email, null, List.of());
 

@@ -3,15 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { useMarket } from "@/lib/MarketContext";
 import StockSearch from "@/components/StockSearch";
+import { useLivePrices } from "@/lib/websocket";
 
 // ─── Market-aware data ────────────────────────────────────────────────────────
 
@@ -106,7 +102,6 @@ const WEEKLY_ACTIVITY = [
   { day: "T", trades: 8 }, { day: "F", trades: 11 }, { day: "S", trades: 5 }, { day: "S", trades: 4 },
 ];
 
-// Stable bar heights — no Math.random() to avoid hydration flicker
 const BAR_HEIGHTS: Record<string, number[]> = {
   Stocks: [45,62,38,71,55,48,66,42,58,74,51,63,47,69,54,61,43,70,56,65],
   Crypto: [38,55,71,44,62,49,67,41,58,73,50,64,46,68,53,60,42,69,55,63],
@@ -134,31 +129,25 @@ const EVENT_PINS: Record<string, { label: string; letter: string; color: string;
 
 const TIME_RANGES = ["1D", "7D", "1M", "1Y", "All"];
 
-// ─── Components ───────────────────────────────────────────────────────────────
+// ─── Logo helpers ─────────────────────────────────────────────────────────────
 
-// Maps ticker → company domain (used for favicon/logo fetching)
 const LOGO_DOMAINS: Record<string, string> = {
-  // US
   TSLA: "tesla.com",       AAPL: "apple.com",       AMD: "amd.com",
   MSFT: "microsoft.com",   NVDA: "nvidia.com",       ADBE: "adobe.com",
   KO: "coca-cola.com",     MCD: "mcdonalds.com",     SNCLD: "soundcloud.com",
   AMZN: "amazon.com",      GOOGL: "google.com",      META: "meta.com",
   NFLX: "netflix.com",     INTC: "intel.com",        UBER: "uber.com",
   SPOT: "spotify.com",     PYPL: "paypal.com",       SHOP: "shopify.com",
-  // India
   RELIANCE: "ril.com",     TCS: "tcs.com",           INFY: "infosys.com",
   HDFCBANK: "hdfcbank.com",WIPRO: "wipro.com",       TATAMOTORS: "tatamotors.com",
 };
 
-// Returns a working logo URL for a ticker using multiple CDN sources
 function getLogoUrl(cleanSymbol: string, domain: string | undefined): string {
-  if (domain) {
-    // Use DuckDuckGo favicon service — no key, no domain config needed, always works
-    return `https://icons.duckduckgo.com/ip3/${domain}.ico`;
-  }
-  // Fallback: unavatar (aggregates from multiple sources, no key)
+  if (domain) return `https://icons.duckduckgo.com/ip3/${domain}.ico`;
   return `https://unavatar.io/clearbit/${cleanSymbol.toLowerCase()}`;
 }
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StockAvatar({ symbol, color, bg, letter, px = 36 }: {
   symbol: string; color: string; bg: string; letter: string; px?: number;
@@ -176,14 +165,9 @@ function StockAvatar({ symbol, color, bg, letter, px = 36 }: {
     >
       {!imgError && !isFxPair ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={logoUrl}
-          alt={symbol}
-          width={px * 0.65}
-          height={px * 0.65}
+        <img src={logoUrl} alt={symbol} width={px * 0.65} height={px * 0.65}
           style={{ objectFit: "contain", borderRadius: "50%" }}
-          onError={() => setImgError(true)}
-        />
+          onError={() => setImgError(true)} />
       ) : (
         letter || cleanSymbol.charAt(0)
       )}
@@ -216,18 +200,35 @@ function CoinSVG() {
   );
 }
 
+/** Small pulsing green dot shown next to live prices */
+function LiveDot() {
+  return (
+    <span className="relative flex h-2 w-2 ml-1">
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+        style={{ background: "#8FFFD6" }} />
+      <span className="relative inline-flex rounded-full h-2 w-2"
+        style={{ background: "#8FFFD6" }} />
+    </span>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const router = useRouter();
   const [activeRange, setActiveRange] = useState("1M");
 
-  // Global market context — switches when user changes dropdown
   const { market } = useMarket();
-  const key = market.id; // MarketId: "IN" | "US" | "FX"
+  // Normalise market id — CRYPTO falls back to US data, anything unknown → US
+  const rawKey = market.id as string;
+  const key = (rawKey === "IN" || rawKey === "US" || rawKey === "FX") ? rawKey : "US";
   const md = MARKET_DATA[key];
   const currency = market.currency || "$";
-  const pins = EVENT_PINS[key];
+  const pins = EVENT_PINS[key] ?? EVENT_PINS["US"];
+
+  // ── Live prices for all transaction symbols in current market ────────────
+  const txSymbols = md.transactions.map(t => t.symbol);
+  const livePrices = useLivePrices(txSymbols);
 
   return (
     <div className="min-h-screen p-5 flex flex-col gap-4"
@@ -262,7 +263,6 @@ export default function DashboardPage() {
           </div>
 
           <div className="relative" style={{ height: 160 }}>
-            {/* Event pins */}
             <div className="absolute inset-0 pointer-events-none z-10">
               {pins.map((pin, i) => (
                 <div key={i} className="absolute flex flex-col items-center" style={{ left: pin.left, top: pin.top }}>
@@ -391,14 +391,15 @@ export default function DashboardPage() {
                 <p className="text-[#555] text-[10px] mt-0.5">Jul 15, 2025</p>
               </div>
               <div className="flex items-end gap-0.5 h-10">
-                {[4, 7, 5, 9, 6, 8, 5, 7, 9, 6, 8, 5].map((v, i) => (
+                {[4,7,5,9,6,8,5,7,9,6,8,5].map((v, i) => (
                   <div key={i} className="w-1.5 rounded-sm"
                     style={{ height: `${(v / 9) * 36}px`, background: "#1f1f1f" }} />
                 ))}
               </div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "#aaaaaa22" }}>
-                <img src="https://icons.duckduckgo.com/ip3/apple.com.ico" alt="AAPL" width={20} height={20} style={{ objectFit: "contain", borderRadius: "50%" }} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="https://icons.duckduckgo.com/ip3/apple.com.ico" alt="AAPL" width={20} height={20}
+                  style={{ objectFit: "contain", borderRadius: "50%" }} />
               </div>
             </div>
           </div>
@@ -439,10 +440,14 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* RIGHT: Transactions */}
+        {/* RIGHT: Transactions — with LIVE prices */}
         <div className="rounded-2xl p-5" style={{ background: "#111111", border: "1px solid #1f1f1f" }}>
           <div className="flex items-center justify-between mb-4">
-            <span className="text-white font-semibold text-sm">Transactions</span>
+            <div className="flex items-center gap-2">
+              <span className="text-white font-semibold text-sm">Transactions</span>
+              {/* Live indicator — shows once any price arrives */}
+              {Object.values(livePrices).some(p => p.live) && <LiveDot />}
+            </div>
             <div className="flex items-center gap-2">
               <button className="text-[#555] hover:text-white transition-colors">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -451,7 +456,8 @@ export default function DashboardPage() {
               </button>
               <button className="text-[#555] hover:text-white transition-colors">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
+                  <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/>
+                  <line x1="11" y1="18" x2="13" y2="18"/>
                 </svg>
               </button>
             </div>
@@ -463,41 +469,57 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-1">
-            {md.transactions.map((tx) => (
-              <button key={tx.symbol}
-                onClick={() => router.push(`/dashboard/stock/${tx.symbol}`)}
-                className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl transition-colors hover:bg-[#1a1a1a]">
+            {md.transactions.map((tx) => {
+              const live = livePrices[tx.symbol];
+              const liveChange = live?.changePct ?? null;
+              // Use live changePct if available, else fall back to static change
+              const displayChange = live?.live ? liveChange : tx.change;
+              const isPositive = displayChange !== null && displayChange > 0;
+              const isNegative = displayChange !== null && displayChange < 0;
 
-                {/* Stock avatar — no card logos */}
-                <StockAvatar symbol={tx.symbol} color={tx.color} bg={tx.bg} letter={tx.letter} px={36} />
+              return (
+                <button key={tx.symbol}
+                  onClick={() => router.push(`/dashboard/stock/${tx.symbol}`)}
+                  className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl transition-colors hover:bg-[#1a1a1a]">
 
-                {/* Name */}
-                <div className="flex-1 text-left min-w-0">
-                  <p className="text-white text-xs font-semibold truncate">{tx.symbol}</p>
-                  <p className="text-[#555] text-[10px] truncate">{tx.name}</p>
-                </div>
+                  <StockAvatar symbol={tx.symbol} color={tx.color} bg={tx.bg} letter={tx.letter} px={36} />
 
-                {/* Change badge */}
-                {tx.change !== null ? (
-                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="text-white text-xs font-semibold truncate">{tx.symbol}</p>
+                    {/* Live price replaces static name row */}
+                    {live?.live ? (
+                      <p className="text-[10px] font-semibold tabular-nums"
+                        style={{ color: isPositive ? "#22c55e" : isNegative ? "#ef4444" : "#555" }}>
+                        {currency}{live.price?.toFixed(2)}
+                      </p>
+                    ) : (
+                      <p className="text-[#555] text-[10px] truncate">{tx.name}</p>
+                    )}
+                  </div>
+
+                  {/* Change badge — live % change or static count */}
+                  {displayChange !== null ? (
+                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                      style={{
+                        background: isPositive ? "#22c55e22" : "#ef444422",
+                        color:      isPositive ? "#22c55e"   : "#ef4444",
+                      }}>
+                      {isPositive ? "+" : ""}
+                      {live?.live ? `${liveChange?.toFixed(2)}%` : displayChange}
+                    </span>
+                  ) : <div className="w-6" />}
+
+                  {/* Amount */}
+                  <span className="text-xs font-bold flex-shrink-0 px-2 py-1 rounded-xl"
                     style={{
-                      background: tx.change > 0 ? "#22c55e22" : "#ef444422",
-                      color: tx.change > 0 ? "#22c55e" : "#ef4444",
+                      background: tx.amount < 0 ? "#ef444422" : "#22c55e22",
+                      color:      tx.amount < 0 ? "#ef4444"   : "#22c55e",
                     }}>
-                    {tx.change > 0 ? "+" : ""}{tx.change}
+                    {tx.amount < 0 ? "-" : "+"}{currency}{Math.abs(tx.amount)}
                   </span>
-                ) : <div className="w-6" />}
-
-                {/* Amount */}
-                <span className="text-xs font-bold flex-shrink-0 px-2 py-1 rounded-xl"
-                  style={{
-                    background: tx.amount < 0 ? "#ef444422" : "#22c55e22",
-                    color: tx.amount < 0 ? "#ef4444" : "#22c55e",
-                  }}>
-                  {tx.amount < 0 ? "-" : "+"}{currency}{Math.abs(tx.amount)}
-                </span>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

@@ -31,27 +31,27 @@ public class UserController {
     public ResponseEntity<LoginResponseDTO> login(@RequestBody LoginRequestDTO request) {
         User user = userService.login(request.getEmail(), request.getPassword());
         String token = jwtService.generateToken(user.getEmail());
-        return ResponseEntity.ok(new LoginResponseDTO(token));
+        return ResponseEntity.ok(new LoginResponseDTO(token, user.getEmail())); // ← fixed
     }
 
-   @GetMapping("/me")
-public ResponseEntity<?> getCurrentUser(@RequestHeader("Authorization") String authHeader) {
-    if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-        return ResponseEntity.status(401).body("Missing or invalid token");
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser(@RequestHeader("Authorization") String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(401).body("Missing or invalid token");
+        }
+
+        String token = authHeader.substring(7);
+        String email = jwtService.extractEmail(token);
+        User user = userService.getUserByEmail(email);
+
+        UserResponseDTO response = new UserResponseDTO(
+                user.getId(),
+                user.getEmail(),
+                user.getProvider(),
+                user.getCreatedAt(),
+                user.getPortfolioId()
+        );
+
+        return ResponseEntity.ok(response);
     }
-
-    String token = authHeader.substring(7);
-    String email = jwtService.extractEmail(token);
-    User user = userService.getUserByEmail(email);
-
-    UserResponseDTO response = new UserResponseDTO(
-            user.getId(),
-            user.getEmail(),
-            user.getProvider(),
-            user.getCreatedAt(),
-            user.getPortfolioId()
-    );
-
-    return ResponseEntity.ok(response);
-}
 }

@@ -33,8 +33,14 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
             .authorizeHttpRequests(auth -> auth
+                // Auth endpoints — public
+                .requestMatchers("/api/auth/**").permitAll()
+                // Legacy endpoints kept for backwards compat
                 .requestMatchers("/api/users/register", "/api/users/login").permitAll()
+                // Stock data — public (market data shouldn't require login)
                 .requestMatchers("/api/stocks/**").permitAll()
+                // Everything else requires a valid JWT
+                .requestMatchers("/ws/**").permitAll()      
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

@@ -1,200 +1,233 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Eye, EyeOff, TrendingUp, Zap } from "lucide-react";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { login, googleAuth } from "@/lib/auth";
 
-export default function LoginPage() {
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: object) => void;
+          renderButton: (el: HTMLElement, config: object) => void;
+        };
+      };
+    };
+  }
+}
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+
+function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") ?? "/dashboard";
+  const expired = searchParams.get("reason") === "session_expired";
 
-  const handleLogin = async () => {
-    setError("");
+  const [email, setEmail]             = useState("");
+  const [password, setPassword]       = useState("");
+  const [showPw, setShowPw]           = useState(false);
+  const [loading, setLoading]         = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
+  const [error, setError]             = useState<string | null>(null);
 
-    if (!email || !password) {
-      setError("Email and password are required.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const res = await fetch("http://127.0.0.1:8081/api/users/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      window.google?.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCallback,
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data?.message || "Invalid email or password.");
-        return;
+      const btn = document.getElementById("google-btn");
+      if (btn) {
+        window.google?.accounts.id.renderButton(btn, {
+          theme: "filled_black",
+          size: "large",
+          width: btn.offsetWidth,
+          text: "continue_with",
+        });
+        setGoogleReady(true);
       }
+    };
+    document.head.appendChild(script);
+    return () => { document.head.removeChild(script); };
+  }, []);
 
-      localStorage.setItem("token", data.token);
-      document.cookie = `token=${data.token}; path=/; SameSite=Strict`;
-
-      const params = new URLSearchParams(window.location.search);
-      router.push(params.get("redirect") || "/dashboard");
-    } catch {
-      setError("Network error. Please check your connection.");
+  async function handleGoogleCallback(response: { credential: string }) {
+    setLoading(true);
+    setError(null);
+    try {
+      await googleAuth(response.credential);
+      router.push(redirectTo);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Google sign-in failed");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleLogin();
-  };
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await login(email, password);
+      router.push(redirectTo);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div className="min-h-screen flex bg-[#0a0a0a] text-white">
-      {/* Left Panel — branding */}
-      <div className="hidden lg:flex flex-col justify-between w-[45%] bg-[#111111] border-r border-[#1f1f1f] p-12">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-[#8FFFD6] flex items-center justify-center">
-            <TrendingUp size={16} className="text-black" />
-          </div>
-          <span className="font-semibold text-lg tracking-tight">StockSense</span>
+    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
+      <div
+        className="pointer-events-none fixed inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 40% at 50% 0%, rgba(143,255,214,0.07) 0%, transparent 70%)",
+        }}
+      />
+
+      <div className="w-full max-w-md relative z-10">
+        {/* Logo */}
+        <div className="flex items-center gap-2 justify-center mb-8">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" fill="#8FFFD6" />
+          </svg>
+          <span className="text-white font-semibold text-lg tracking-tight">StockSense</span>
         </div>
 
-        <div>
-          <p className="text-[#8FFFD6] text-sm font-medium mb-4 tracking-widest uppercase">
-            Portfolio Intelligence
-          </p>
-          <h1 className="text-5xl font-bold leading-tight text-white mb-6">
-            Track. Analyze.<br />Outperform.
-          </h1>
-          <p className="text-[#888888] text-base leading-relaxed max-w-sm">
-            Real-time portfolio tracking with AI-powered insights. Know exactly where your money stands, every moment.
-          </p>
+        {/* Card */}
+        <div className="rounded-2xl p-8" style={{ background: "#111111", border: "1px solid #1f1f1f" }}>
+          <h1 className="text-white text-2xl font-semibold text-center mb-1">Welcome Back</h1>
+          <p className="text-[#666] text-sm text-center mb-6">Sign in to your StockSense account</p>
 
-          <div className="mt-12 grid grid-cols-2 gap-4">
-            {[
-              { label: "Total Buy Volume", value: "$1.18M" },
-              { label: "Trading Points", value: "6,280" },
-              { label: "Active Positions", value: "12" },
-              { label: "Win Rate", value: "74%" },
-            ].map((stat) => (
-              <div key={stat.label} className="bg-[#0a0a0a] rounded-xl p-4 border border-[#1f1f1f]">
-                <p className="text-[#888888] text-xs mb-1">{stat.label}</p>
-                <p className="text-white font-semibold text-lg">{stat.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <p className="text-[#444444] text-sm">© 2025 StockSense. All rights reserved.</p>
-      </div>
-
-      {/* Right Panel — form */}
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-md">
-          {/* Mobile logo */}
-          <div className="flex items-center gap-2 mb-10 lg:hidden">
-            <div className="w-8 h-8 rounded-lg bg-[#8FFFD6] flex items-center justify-center">
-              <TrendingUp size={16} className="text-black" />
-            </div>
-            <span className="font-semibold text-lg">StockSense</span>
-          </div>
-
-          <h2 className="text-3xl font-bold mb-2">Welcome back</h2>
-          <p className="text-[#888888] mb-8 text-sm">
-            Don't have an account?{" "}
-            <Link href="/register" className="text-[#8FFFD6] hover:underline">
-              Sign up
-            </Link>
-          </p>
-
-          {error && (
-            <div className="mb-6 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl p-4">
-              {error}
+          {expired && (
+            <div className="mb-4 px-4 py-3 rounded-lg bg-amber-950/40 border border-amber-800/40 text-amber-400 text-sm">
+              Your session expired. Please sign in again.
             </div>
           )}
 
-          <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm text-[#888888] mb-2">Email Address</label>
+              <label className="block text-[#999] text-xs mb-1.5">Email Address</label>
               <input
                 type="email"
-                placeholder="you@example.com"
-                className="w-full px-4 py-3 rounded-xl bg-[#111111] border border-[#1f1f1f] text-white placeholder-[#444444] focus:outline-none focus:border-[#8FFFD6] transition-colors text-sm"
+                required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={loading}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-lg px-4 py-3 text-white text-sm placeholder-[#444] outline-none transition-all"
+                style={{ caretColor: "#8FFFD6" }}
+                onFocus={e => (e.target.style.borderColor = "#8FFFD6")}
+                onBlur={e  => (e.target.style.borderColor = "#1f1f1f")}
               />
             </div>
 
             <div>
-              <div className="flex justify-between mb-2">
-                <label className="text-sm text-[#888888]">Password</label>
-                <button className="text-sm text-[#8FFFD6] hover:underline">
-                  Forgot password?
-                </button>
-              </div>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 rounded-xl bg-[#111111] border border-[#1f1f1f] text-white placeholder-[#444444] focus:outline-none focus:border-[#8FFFD6] transition-colors text-sm pr-12"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={loading}
-                />
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="text-[#999] text-xs">Password</label>
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#444444] hover:text-[#888888] transition-colors"
+                  onClick={() => setShowPw(v => !v)}
+                  className="text-[#666] text-xs hover:text-[#8FFFD6] transition-colors"
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPw ? "Hide" : "Show"} Password
                 </button>
               </div>
+              <input
+                type={showPw ? "text" : "password"}
+                required
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-lg px-4 py-3 text-white text-sm placeholder-[#444] outline-none transition-all"
+                style={{ caretColor: "#8FFFD6" }}
+                onFocus={e => (e.target.style.borderColor = "#8FFFD6")}
+                onBlur={e  => (e.target.style.borderColor = "#1f1f1f")}
+              />
             </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 rounded-lg font-semibold text-sm text-[#0a0a0a] transition-all mt-2"
+              style={{
+                background: loading ? "#5fa88a" : "#8FFFD6",
+                cursor: loading ? "not-allowed" : "pointer",
+              }}
+            >
+              {loading ? "Signing in…" : "Sign in"}
+            </button>
+          </form>
+
+          {/* Error — shown below form, not at top */}
+          {error && (
+            <div className="mt-4 px-4 py-3 rounded-lg bg-red-950/40 border border-red-800/40 text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-[#1f1f1f]" />
+            <span className="text-[#444] text-xs">or</span>
+            <div className="flex-1 h-px bg-[#1f1f1f]" />
           </div>
 
-          <button
-            onClick={handleLogin}
-            disabled={loading}
-            className="w-full mt-6 py-3 rounded-xl bg-[#8FFFD6] hover:bg-[#6ee8bc] text-black font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                Signing in...
-              </>
-            ) : (
-              <>
-                <Zap size={15} />
-                Sign In
-              </>
-            )}
-          </button>
+          {GOOGLE_CLIENT_ID ? (
+            <div
+              id="google-btn"
+              className="w-full flex justify-center"
+              style={{ minHeight: 44, visibility: googleReady ? "visible" : "hidden" }}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() =>
+                setError("Google sign-in is not configured. Add NEXT_PUBLIC_GOOGLE_CLIENT_ID to .env.local.")
+              }
+              className="w-full flex items-center justify-center gap-3 py-3 rounded-lg border border-[#1f1f1f] text-[#555] text-sm hover:border-[#2a2a2a] hover:text-[#777] transition-all"
+            >
+              <GoogleIcon />
+              Continue with Google
+            </button>
+          )}
 
-          <div className="mt-6 flex items-center gap-4">
-            <div className="flex-1 h-px bg-[#1f1f1f]" />
-            <span className="text-[#444444] text-xs">or</span>
-            <div className="flex-1 h-px bg-[#1f1f1f]" />
-          </div>
-
-          <button className="w-full mt-4 py-3 rounded-xl border border-[#1f1f1f] bg-[#111111] hover:border-[#333333] text-white text-sm font-medium transition-colors flex items-center justify-center gap-3">
-            <svg width="16" height="16" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-            </svg>
-            Continue with Google
-          </button>
+          <p className="text-center text-[#555] text-sm mt-6">
+            Don&apos;t have an account?{" "}
+            <Link href="/register" className="text-[#8FFFD6] hover:underline">
+              Sign up
+            </Link>
+          </p>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18">
+      <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+      <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+      <path fill="#FBBC05" d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332z"/>
+      <path fill="#EA4335" d="M9 3.583c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962L3.964 7.294C4.672 5.163 6.656 3.583 9 3.583z"/>
+    </svg>
   );
 }
