@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMarket, type MarketId } from "@/hooks/useMarket";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis,
@@ -659,8 +659,24 @@ function SignalMeter({ value, signal }: { value: number; signal: SignalType }) {
   );
 }
 
+function useMlData(symbol: string | null) {
+  const [mlData, setMlData] = useState<any>(null);
+  const [mlLoading, setMlLoading] = useState(false);
+
+  useEffect(() => {
+    if (!symbol) return;
+    setMlLoading(true);
+    fetch(`http://localhost:8082/ml/full/${symbol}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { setMlData(d); setMlLoading(false); })
+      .catch(() => setMlLoading(false));
+  }, [symbol]);
+
+  return { mlData, mlLoading };
+}
+
 function InsightCard({ s, expanded, onToggle }: { s: StockInsight; expanded: boolean; onToggle: () => void }) {
-  return (
+  const { mlData, mlLoading } = useMlData(expanded ? s.symbol : null);  return (
     <div className="rounded-2xl cursor-pointer transition-all duration-300"
       style={{ background: "#111111", border: `1px solid ${expanded ? s.color + "44" : "#1f1f1f"}`, overflow: "hidden" }}
       onClick={onToggle}>
@@ -778,12 +794,32 @@ function InsightCard({ s, expanded, onToggle }: { s: StockInsight; expanded: boo
               </div>
               <div className="rounded-xl p-3" style={{ background: "#0d0d0d", border: "1px solid #1f1f1f" }}>
                 <p className="text-[#555] text-[10px] mb-1">ML Price Target (30d)</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-white font-bold text-base">{s.priceTarget}</span>
-                  <span className="text-xs font-semibold" style={{ color: s.upside >= 0 ? "#22c55e" : "#ef4444" }}>
-                    {s.upside >= 0 ? "↑" : "↓"} {Math.abs(s.upside)}% upside
-                  </span>
-                </div>
+                {mlLoading ? (
+                  <p className="text-[#555] text-xs">Fetching ML data…</p>
+                ) : mlData ? (
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-white font-bold text-base">${mlData.prediction.next_week.toFixed(2)}</span>
+                      <span className="text-xs font-semibold" style={{ color: mlData.prediction.next_week_change_pct >= 0 ? "#22c55e" : "#ef4444" }}>
+                        {mlData.prediction.next_week_change_pct >= 0 ? "↑" : "↓"} {Math.abs(mlData.prediction.next_week_change_pct)}% (7d)
+                      </span>
+                    </div>
+                    <p className="text-[10px] mt-1" style={{ color: mlData.signal.signal_color }}>
+                      Signal: {mlData.signal.signal} · Strength: {mlData.signal.strength}%
+                    </p>
+                    <p className="text-[#555] text-[10px] mt-1">RSI: {mlData.prediction.rsi} · Confidence: {mlData.prediction.confidence}%</p>
+                    {mlData.anomaly.is_anomaly && (
+                      <p className="text-[10px] mt-1" style={{ color: "#f59e0b" }}>⚡ {mlData.anomaly.summary}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-bold text-base">{s.priceTarget}</span>
+                    <span className="text-xs font-semibold" style={{ color: s.upside >= 0 ? "#22c55e" : "#ef4444" }}>
+                      {s.upside >= 0 ? "↑" : "↓"} {Math.abs(s.upside)}% upside
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 

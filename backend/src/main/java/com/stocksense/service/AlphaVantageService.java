@@ -21,8 +21,6 @@ public class AlphaVantageService {
     private final ObjectMapper mapper = new ObjectMapper();
     private static final String BASE = "https://www.alphavantage.co/query";
 
-    // ── Single quote ──────────────────────────────────────────────────────────
-
     @Cacheable(value = "stockQuote", key = "#symbol")
     public Map<String, Object> getQuote(String symbol) {
         try {
@@ -30,7 +28,6 @@ public class AlphaVantageService {
             String json = restTemplate.getForObject(url, String.class);
             JsonNode root = mapper.readTree(json);
             JsonNode q = root.path("Global Quote");
-
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("symbol",           q.path("01. symbol").asText(symbol));
             result.put("price",            parseDouble(q.path("05. price").asText("0")));
@@ -51,8 +48,6 @@ public class AlphaVantageService {
         }
     }
 
-    // ── Daily OHLCV history ───────────────────────────────────────────────────
-
     @Cacheable(value = "stockHistory", key = "#symbol")
     public Map<String, Object> getDailyHistory(String symbol) {
         try {
@@ -61,7 +56,6 @@ public class AlphaVantageService {
             String json = restTemplate.getForObject(url, String.class);
             JsonNode root = mapper.readTree(json);
             JsonNode series = root.path("Time Series (Daily)");
-
             List<Map<String, Object>> candles = new ArrayList<>();
             Iterator<Map.Entry<String, JsonNode>> it = series.fields();
             while (it.hasNext()) {
@@ -83,17 +77,26 @@ public class AlphaVantageService {
         }
     }
 
-    // ── Search — no @Cacheable so empty rate-limit responses never get cached ─
+    // ── Search — debug version ────────────────────────────────────────────────
 
     public List<Map<String, Object>> search(String query) {
         try {
             String encoded = URLEncoder.encode(query, StandardCharsets.UTF_8);
             String url = BASE + "?function=SYMBOL_SEARCH&keywords=" + encoded + "&apikey=" + apiKey;
+
+            System.out.println("=== SEARCH DEBUG ===");
+            System.out.println("Query   : " + query);
+            System.out.println("API Key : " + apiKey);
+            System.out.println("URL     : " + url);
+
             String json = restTemplate.getForObject(url, String.class);
+            System.out.println("Response: " + json);
+            System.out.println("====================");
+
             JsonNode root = mapper.readTree(json);
 
-            // Alpha Vantage returns a "Note" or "Information" field on rate limit
             if (root.has("Note") || root.has("Information")) {
+                System.out.println("RATE LIMITED by Alpha Vantage");
                 return List.of();
             }
 
@@ -108,13 +111,16 @@ public class AlphaVantageService {
                 item.put("currency", m.path("8. currency").asText());
                 results.add(item);
             }
+
+            System.out.println("Results : " + results.size());
             return results;
+
         } catch (Exception e) {
+            System.out.println("SEARCH EXCEPTION: " + e.getClass().getName() + " — " + e.getMessage());
+            e.printStackTrace();
             return List.of();
         }
     }
-
-    // ── Batch quotes ──────────────────────────────────────────────────────────
 
     @Cacheable(value = "batchQuotes", key = "#symbols.toString()")
     public List<Map<String, Object>> getBatchQuotes(List<String> symbols) {
@@ -125,8 +131,6 @@ public class AlphaVantageService {
         }
         return results;
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private double parseDouble(String s) {
         try { return Double.parseDouble(s.trim()); } catch (Exception e) { return 0.0; }

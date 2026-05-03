@@ -1,6 +1,22 @@
+# IntelliJ
 .idea/
+
+# Environment files
 .env
 ml-service/.env
+
+# Python
 ml-service/venv/
+__pycache__/
+*.pyc
+
+# Java
 *.class
 target/
+
+# OS files
+.DS_Store
+
+# Logs / misc
+*.log
+*.sqlite3
