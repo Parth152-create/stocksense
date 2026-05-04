@@ -122,7 +122,6 @@ function filterDashboardData(range: string) {
   };
   const maxDays = cutoffs[range] ?? 9999;
   const filtered = ALL_BUY_SELL_DATA.filter(d => d.daysAgo <= maxDays);
-  // Always show at least 2 points so the chart renders
   return filtered.length >= 2 ? filtered : ALL_BUY_SELL_DATA.slice(-2);
 }
 
@@ -134,7 +133,7 @@ const PORTFOLIO_CATEGORIES = [
 ];
 
 const WEEKLY_ACTIVITY = [
-  { day: "M", trades: 6 }, { day: "T", trades: 9 }, { day: "W", trades: 12 },
+  { day: "M", trades: 6 }, { day: "T", trades: 9 },  { day: "W", trades: 12 },
   { day: "T", trades: 8 }, { day: "F", trades: 11 }, { day: "S", trades: 5 }, { day: "S", trades: 4 },
 ];
 
@@ -152,9 +151,9 @@ const EVENT_PINS: Record<string, { label: string; letter: string; color: string;
     { label: "HDFC Bank Merger Complete",   letter: "H", color: "#ef4444", left: "60%", top: "28%" },
   ],
   US: [
-    { label: "NVIDIA Reports Strong Q3 Earnings",      letter: "N", color: "#8FFFD6", left: "8%",  top: "60%" },
-    { label: "Apple Reports Record Services Revenue",  letter: "A", color: "#fff",    left: "52%", top: "10%" },
-    { label: "Tesla Launches Full Self-Driving 2.0",   letter: "T", color: "#ef4444", left: "60%", top: "28%" },
+    { label: "NVIDIA Reports Strong Q3 Earnings",     letter: "N", color: "#8FFFD6", left: "8%",  top: "60%" },
+    { label: "Apple Reports Record Services Revenue", letter: "A", color: "#fff",    left: "52%", top: "10%" },
+    { label: "Tesla Launches Full Self-Driving 2.0",  letter: "T", color: "#ef4444", left: "60%", top: "28%" },
   ],
   CRYPTO: [
     { label: "Bitcoin ETF Approval",      letter: "₿", color: "#8FFFD6", left: "8%",  top: "60%" },
@@ -162,9 +161,9 @@ const EVENT_PINS: Record<string, { label: string; letter: string; color: string;
     { label: "Solana Network Congestion", letter: "S", color: "#ef4444", left: "60%", top: "28%" },
   ],
   FX: [
-    { label: "Fed Rate Decision Impact",    letter: "F", color: "#8FFFD6", left: "8%",  top: "60%" },
-    { label: "ECB Rate Cut Announcement",   letter: "E", color: "#fff",    left: "52%", top: "10%" },
-    { label: "USD/JPY Hits 5-Year High",    letter: "¥", color: "#ef4444", left: "60%", top: "28%" },
+    { label: "Fed Rate Decision Impact",  letter: "F", color: "#8FFFD6", left: "8%",  top: "60%" },
+    { label: "ECB Rate Cut Announcement", letter: "E", color: "#fff",    left: "52%", top: "10%" },
+    { label: "USD/JPY Hits 5-Year High",  letter: "¥", color: "#ef4444", left: "60%", top: "28%" },
   ],
 };
 
@@ -188,6 +187,17 @@ function getLogoUrl(cleanSymbol: string, domain: string | undefined): string {
   return `https://unavatar.io/clearbit/${cleanSymbol.toLowerCase()}`;
 }
 
+/**
+ * Appends .BSE for Indian stocks so the backend/WebSocket resolves correctly.
+ * Pass the raw display symbol (e.g. "RELIANCE") and marketId (e.g. "IN").
+ */
+function resolveSymbol(symbol: string, marketId: string): string {
+  if (marketId === "IN" && !symbol.includes(".") && !symbol.includes("/")) {
+    return `${symbol}.BSE`;
+  }
+  return symbol;
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StockAvatar({ symbol, color, bg, letter, px = 36 }: {
@@ -196,8 +206,8 @@ function StockAvatar({ symbol, color, bg, letter, px = 36 }: {
   const [imgError, setImgError] = useState(false);
   const cleanSymbol = symbol.replace(/\.BSE$/, "").replace(/^FX_/, "").toUpperCase();
   const isFxPair = symbol.includes("/");
-  const domain = LOGO_DOMAINS[cleanSymbol];
-  const logoUrl = getLogoUrl(cleanSymbol, domain);
+  const domain   = LOGO_DOMAINS[cleanSymbol];
+  const logoUrl  = getLogoUrl(cleanSymbol, domain);
 
   return (
     <div
@@ -241,7 +251,6 @@ function CoinSVG() {
   );
 }
 
-/** Small pulsing green dot shown next to live prices */
 function LiveDot() {
   return (
     <span className="relative flex h-2 w-2 ml-1">
@@ -260,15 +269,16 @@ export default function DashboardPage() {
   const [activeRange, setActiveRange] = useState("1M");
 
   const { market } = useMarket();
-  // Normalise market id — CRYPTO falls back to US data, anything unknown → US
   const rawKey = market.id as string;
-  const key = (["IN","US","FX","CRYPTO"].includes(rawKey)) ? rawKey : "US";
-  const md = MARKET_DATA[key];
+  const key    = (["IN","US","FX","CRYPTO"].includes(rawKey)) ? rawKey : "US";
+  const md       = MARKET_DATA[key];
   const currency = market.currency || "$";
-  const pins = EVENT_PINS[key] ?? EVENT_PINS["US"];
+  const pins     = EVENT_PINS[key] ?? EVENT_PINS["US"];
 
-  // ── Live prices for all transaction symbols in current market ────────────
-  const txSymbols = md.transactions.map(t => t.symbol);
+  // ── Resolve symbols for WebSocket subscription ───────────────────────────
+  // Indian stocks need .BSE suffix so the WS server matches the right ticker.
+  // We keep a mapping so we can look up live data by the resolved key.
+  const txSymbols = md.transactions.map((t) => resolveSymbol(t.symbol, key));
   const livePrices = useLivePrices(txSymbols);
 
   return (
@@ -294,8 +304,8 @@ export default function DashboardPage() {
                   className="px-3 py-1 rounded-full text-xs font-semibold transition-all"
                   style={{
                     background: activeRange === r ? "#fff" : "transparent",
-                    color: activeRange === r ? "#000" : "#555",
-                    border: activeRange === r ? "none" : "1px solid #1f1f1f",
+                    color:      activeRange === r ? "#000" : "#555",
+                    border:     activeRange === r ? "none" : "1px solid #1f1f1f",
                   }}>
                   {r}
                 </button>
@@ -310,7 +320,7 @@ export default function DashboardPage() {
                   <div className="rounded-full px-2 py-0.5 text-[9px] font-semibold whitespace-nowrap mb-0.5"
                     style={{
                       background: pin.color === "#8FFFD6" ? "#8FFFD611" : pin.color === "#fff" ? "#ffffff11" : "#ef444411",
-                      color: pin.color === "#8FFFD6" ? "#8FFFD6" : pin.color === "#fff" ? "#fff" : "#ef9999",
+                      color:      pin.color === "#8FFFD6" ? "#8FFFD6"   : pin.color === "#fff" ? "#fff"      : "#ef9999",
                       border: `1px solid ${pin.color === "#8FFFD6" ? "#8FFFD633" : pin.color === "#fff" ? "#ffffff33" : "#ef444433"}`,
                     }}>
                     {pin.label}
@@ -328,7 +338,7 @@ export default function DashboardPage() {
               <AreaChart data={filterDashboardData(activeRange)} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ffffff" stopOpacity={0.08} />
+                    <stop offset="5%"  stopColor="#ffffff" stopOpacity={0.08} />
                     <stop offset="95%" stopColor="#ffffff" stopOpacity={0} />
                   </linearGradient>
                 </defs>
@@ -381,17 +391,21 @@ export default function DashboardPage() {
               </button>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {md.holdings.map((h) => (
-                <button key={h.symbol}
-                  onClick={() => router.push(`/dashboard/stock/${h.symbol}`)}
-                  className="flex items-center gap-2 p-2 rounded-xl transition-colors hover:bg-[#1a1a1a]">
-                  <StockAvatar symbol={h.symbol} color={h.color} bg={h.bg} letter={h.letter} px={32} />
-                  <div className="text-left">
-                    <p className="text-white text-xs font-semibold">{h.shares} {h.shares > 999 ? "units" : "Shares"}</p>
-                    <p className="text-[#555] text-[10px] truncate max-w-[72px]">{h.symbol}</p>
-                  </div>
-                </button>
-              ))}
+              {md.holdings.map((h) => {
+                // ── Navigate with the .BSE-resolved symbol + market param ──
+                const navSymbol = resolveSymbol(h.symbol, key);
+                return (
+                  <button key={h.symbol}
+                    onClick={() => router.push(`/dashboard/stock/${navSymbol}?market=${key}`)}
+                    className="flex items-center gap-2 p-2 rounded-xl transition-colors hover:bg-[#1a1a1a]">
+                    <StockAvatar symbol={h.symbol} color={h.color} bg={h.bg} letter={h.letter} px={32} />
+                    <div className="text-left">
+                      <p className="text-white text-xs font-semibold">{h.shares} {h.shares > 999 ? "units" : "Shares"}</p>
+                      <p className="text-[#555] text-[10px] truncate max-w-[72px]">{h.symbol}</p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -486,7 +500,6 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <span className="text-white font-semibold text-sm">Transactions</span>
-              {/* Live indicator — shows once any price arrives */}
               {Object.values(livePrices).some(p => p.live) && <LiveDot />}
             </div>
             <div className="flex items-center gap-2">
@@ -511,23 +524,25 @@ export default function DashboardPage() {
 
           <div className="space-y-1">
             {md.transactions.map((tx) => {
-              const live = livePrices[tx.symbol];
-              const liveChange = live?.changePct ?? null;
-              // Use live changePct if available, else fall back to static change
+              // ── Look up live data by the resolved symbol key ──
+              const resolvedSym  = resolveSymbol(tx.symbol, key);
+              const live         = livePrices[resolvedSym];
+              const liveChange   = live?.changePct ?? null;
               const displayChange = live?.live ? liveChange : tx.change;
-              const isPositive = displayChange !== null && displayChange > 0;
-              const isNegative = displayChange !== null && displayChange < 0;
+              const isPositive   = displayChange !== null && displayChange > 0;
+              const isNegative   = displayChange !== null && displayChange < 0;
+              // Navigate with BSE-resolved symbol
+              const navSymbol = resolvedSym;
 
               return (
                 <button key={tx.symbol}
-                  onClick={() => router.push(`/dashboard/stock/${tx.symbol}`)}
+                  onClick={() => router.push(`/dashboard/stock/${navSymbol}?market=${key}`)}
                   className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl transition-colors hover:bg-[#1a1a1a]">
 
                   <StockAvatar symbol={tx.symbol} color={tx.color} bg={tx.bg} letter={tx.letter} px={36} />
 
                   <div className="flex-1 text-left min-w-0">
                     <p className="text-white text-xs font-semibold truncate">{tx.symbol}</p>
-                    {/* Live price replaces static name row */}
                     {live?.live ? (
                       <p className="text-[10px] font-semibold tabular-nums"
                         style={{ color: isPositive ? "#22c55e" : isNegative ? "#ef4444" : "#555" }}>
@@ -538,7 +553,6 @@ export default function DashboardPage() {
                     )}
                   </div>
 
-                  {/* Change badge — live % change or static count */}
                   {displayChange !== null ? (
                     <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
                       style={{
@@ -550,7 +564,6 @@ export default function DashboardPage() {
                     </span>
                   ) : <div className="w-6" />}
 
-                  {/* Amount */}
                   <span className="text-xs font-bold flex-shrink-0 px-2 py-1 rounded-xl"
                     style={{
                       background: tx.amount < 0 ? "#ef444422" : "#22c55e22",

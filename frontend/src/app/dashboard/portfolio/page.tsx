@@ -36,30 +36,30 @@ const LOGO_DOMAINS: Record<string, string> = {
 
 const MOCK_HOLDINGS: Record<string, Holding[]> = {
   US: [
-    { id: "1", symbol: "NVDA", name: "NVIDIA Corp",    quantity: 22,  avgBuyPrice: 820,  currentPrice: 1089, color: "#76b900", bg: "#76b90018", letter: "N", sector: "Technology" },
-    { id: "2", symbol: "AAPL", name: "Apple Inc",      quantity: 48,  avgBuyPrice: 178,  currentPrice: 198,  color: "#aaaaaa", bg: "#aaaaaa18", letter: "",  sector: "Technology" },
-    { id: "3", symbol: "MSFT", name: "Microsoft Corp", quantity: 14,  avgBuyPrice: 310,  currentPrice: 378,  color: "#00a4ef", bg: "#00a4ef18", letter: "M", sector: "Technology" },
-    { id: "4", symbol: "ADBE", name: "Adobe Inc",      quantity: 36,  avgBuyPrice: 440,  currentPrice: 498,  color: "#ff0000", bg: "#ff000018", letter: "A", sector: "Technology" },
-    { id: "5", symbol: "KO",   name: "Coca-Cola Co",   quantity: 165, avgBuyPrice: 58,   currentPrice: 61,   color: "#f40000", bg: "#f4000018", letter: "K", sector: "Consumer"   },
-    { id: "6", symbol: "AMD",  name: "AMD",            quantity: 30,  avgBuyPrice: 148,  currentPrice: 220,  color: "#ed1c24", bg: "#ed1c2418", letter: "A", sector: "Technology" },
+    { id: "1", symbol: "NVDA",  name: "NVIDIA Corp",    quantity: 22,  avgBuyPrice: 820,  currentPrice: 1089, color: "#76b900", bg: "#76b90018", letter: "N", sector: "Technology" },
+    { id: "2", symbol: "AAPL",  name: "Apple Inc",      quantity: 48,  avgBuyPrice: 178,  currentPrice: 198,  color: "#aaaaaa", bg: "#aaaaaa18", letter: "",  sector: "Technology" },
+    { id: "3", symbol: "MSFT",  name: "Microsoft Corp", quantity: 14,  avgBuyPrice: 310,  currentPrice: 378,  color: "#00a4ef", bg: "#00a4ef18", letter: "M", sector: "Technology" },
+    { id: "4", symbol: "ADBE",  name: "Adobe Inc",      quantity: 36,  avgBuyPrice: 440,  currentPrice: 498,  color: "#ff0000", bg: "#ff000018", letter: "A", sector: "Technology" },
+    { id: "5", symbol: "KO",    name: "Coca-Cola Co",   quantity: 165, avgBuyPrice: 58,   currentPrice: 61,   color: "#f40000", bg: "#f4000018", letter: "K", sector: "Consumer"   },
+    { id: "6", symbol: "AMD",   name: "AMD",            quantity: 30,  avgBuyPrice: 148,  currentPrice: 220,  color: "#ed1c24", bg: "#ed1c2418", letter: "A", sector: "Technology" },
   ],
   IN: [
-    { id: "1", symbol: "RELIANCE", name: "Reliance Industries", quantity: 25,  avgBuyPrice: 2480, currentPrice: 2940, color: "#0ea5e9", bg: "#0ea5e918", letter: "R", sector: "Energy"      },
-    { id: "2", symbol: "TCS",      name: "TCS",                 quantity: 10,  avgBuyPrice: 3600, currentPrice: 3920, color: "#8b5cf6", bg: "#8b5cf618", letter: "T", sector: "IT"          },
-    { id: "3", symbol: "INFY",     name: "Infosys",             quantity: 40,  avgBuyPrice: 1520, currentPrice: 1820, color: "#f59e0b", bg: "#f59e0b18", letter: "I", sector: "IT"          },
-    { id: "4", symbol: "HDFCBANK", name: "HDFC Bank",           quantity: 15,  avgBuyPrice: 1580, currentPrice: 1710, color: "#10b981", bg: "#10b98118", letter: "H", sector: "Banking"     },
-    { id: "5", symbol: "WIPRO",    name: "Wipro Ltd",           quantity: 60,  avgBuyPrice: 520,  currentPrice: 468,  color: "#ef4444", bg: "#ef444418", letter: "W", sector: "IT"          },
+    { id: "1", symbol: "RELIANCE", name: "Reliance Industries", quantity: 25,  avgBuyPrice: 2480, currentPrice: 2940, color: "#0ea5e9", bg: "#0ea5e918", letter: "R", sector: "Energy"  },
+    { id: "2", symbol: "TCS",      name: "TCS",                 quantity: 10,  avgBuyPrice: 3600, currentPrice: 3920, color: "#8b5cf6", bg: "#8b5cf618", letter: "T", sector: "IT"      },
+    { id: "3", symbol: "INFY",     name: "Infosys",             quantity: 40,  avgBuyPrice: 1520, currentPrice: 1820, color: "#f59e0b", bg: "#f59e0b18", letter: "I", sector: "IT"      },
+    { id: "4", symbol: "HDFCBANK", name: "HDFC Bank",           quantity: 15,  avgBuyPrice: 1580, currentPrice: 1710, color: "#10b981", bg: "#10b98118", letter: "H", sector: "Banking" },
+    { id: "5", symbol: "WIPRO",    name: "Wipro Ltd",           quantity: 60,  avgBuyPrice: 520,  currentPrice: 468,  color: "#ef4444", bg: "#ef444418", letter: "W", sector: "IT"      },
   ],
   CRYPTO: [
-    { id: "1", symbol: "BTC",  name: "Bitcoin",   quantity: 0.5,  avgBuyPrice: 72000, currentPrice: 96400, color: "#f7931a", bg: "#f7931a18", letter: "₿", sector: "L1" },
-    { id: "2", symbol: "ETH",  name: "Ethereum",  quantity: 4,    avgBuyPrice: 2800,  currentPrice: 3580,  color: "#627eea", bg: "#627eea18", letter: "Ξ", sector: "L1" },
-    { id: "3", symbol: "SOL",  name: "Solana",    quantity: 25,   avgBuyPrice: 140,   currentPrice: 188,   color: "#9945ff", bg: "#9945ff18", letter: "◎", sector: "L1" },
+    { id: "1", symbol: "BTC",  name: "Bitcoin",   quantity: 0.5,  avgBuyPrice: 72000, currentPrice: 96400, color: "#f7931a", bg: "#f7931a18", letter: "₿", sector: "L1"   },
+    { id: "2", symbol: "ETH",  name: "Ethereum",  quantity: 4,    avgBuyPrice: 2800,  currentPrice: 3580,  color: "#627eea", bg: "#627eea18", letter: "Ξ", sector: "L1"   },
+    { id: "3", symbol: "SOL",  name: "Solana",    quantity: 25,   avgBuyPrice: 140,   currentPrice: 188,   color: "#9945ff", bg: "#9945ff18", letter: "◎", sector: "L1"   },
     { id: "4", symbol: "DOGE", name: "Dogecoin",  quantity: 5000, avgBuyPrice: 0.22,  currentPrice: 0.18,  color: "#c2a633", bg: "#c2a63318", letter: "Ð", sector: "Meme" },
   ],
   FX: [
-    { id: "1", symbol: "EUR/USD", name: "Euro / USD",    quantity: 10000, avgBuyPrice: 1.072, currentPrice: 1.089, color: "#3b82f6", bg: "#3b82f618", letter: "€", sector: "Major" },
-    { id: "2", symbol: "GBP/USD", name: "Pound / USD",   quantity: 5000,  avgBuyPrice: 1.264, currentPrice: 1.272, color: "#8b5cf6", bg: "#8b5cf618", letter: "£", sector: "Major" },
-    { id: "3", symbol: "USD/JPY", name: "Dollar / Yen",  quantity: 8000,  avgBuyPrice: 148,   currentPrice: 157.8, color: "#f59e0b", bg: "#f59e0b18", letter: "¥", sector: "Major" },
+    { id: "1", symbol: "EUR/USD", name: "Euro / USD",   quantity: 10000, avgBuyPrice: 1.072, currentPrice: 1.089, color: "#3b82f6", bg: "#3b82f618", letter: "€", sector: "Major" },
+    { id: "2", symbol: "GBP/USD", name: "Pound / USD",  quantity: 5000,  avgBuyPrice: 1.264, currentPrice: 1.272, color: "#8b5cf6", bg: "#8b5cf618", letter: "£", sector: "Major" },
+    { id: "3", symbol: "USD/JPY", name: "Dollar / Yen", quantity: 8000,  avgBuyPrice: 148,   currentPrice: 157.8, color: "#f59e0b", bg: "#f59e0b18", letter: "¥", sector: "Major" },
   ],
 };
 
@@ -71,9 +71,18 @@ const PORTFOLIO_HISTORY = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function pnl(h: Holding) { return (h.currentPrice - h.avgBuyPrice) * h.quantity; }
+function pnl(h: Holding)    { return (h.currentPrice - h.avgBuyPrice) * h.quantity; }
 function pnlPct(h: Holding) { return ((h.currentPrice - h.avgBuyPrice) / h.avgBuyPrice) * 100; }
 function marketValue(h: Holding) { return h.currentPrice * h.quantity; }
+
+/**
+ * Appends .BSE to Indian stock symbols so the backend resolves them correctly.
+ * Idempotent — won't double-append if .BSE is already present.
+ */
+function resolveSymbol(symbol: string, marketId: string): string {
+  if (marketId === "IN" && !symbol.includes(".")) return `${symbol}.BSE`;
+  return symbol;
+}
 
 function StockAvatar({ symbol, color, bg, letter, size = 36 }: {
   symbol: string; color: string; bg: string; letter: string; size?: number;
@@ -104,28 +113,49 @@ export default function PortfolioPage() {
   const key = market.id as keyof typeof MOCK_HOLDINGS;
   const currency = market.currency || "$";
 
-  const [holdings, setHoldings] = useState<Holding[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState<"value" | "pnl" | "pnlpct">("value");
+  const [holdings, setHoldings]     = useState<Holding[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [sortBy, setSortBy]         = useState<"value" | "pnl" | "pnlpct">("value");
   const [filterSector, setFilterSector] = useState("All");
 
   const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  // Fetch from API, fall back to mock
+  // ── Fetch holdings from API, enrich each with a live price, fall back to mock ──
   const loadHoldings = useCallback(async () => {
     setLoading(true);
     try {
       const token = getToken();
-      const meRes = await fetch("/api/users/me", { headers: { Authorization: `Bearer ${token}` } });
+      const meRes = await fetch("/api/users/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!meRes.ok) throw new Error("auth");
       const me = await meRes.json();
+
       const res = await fetch(`/api/holdings?portfolioId=${me.portfolioId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("holdings");
-      const data = await res.json();
+      const data: Holding[] = await res.json();
+
       if (data?.length > 0) {
-        setHoldings(data);
+        // ── Enrich each holding with a live currentPrice from the quote API ──
+        // Pass ?market=IN so the backend appends .BSE for Indian symbols.
+        const enriched = await Promise.all(
+          data.map(async (h) => {
+            try {
+              const qRes = await fetch(
+                `/api/stocks/${h.symbol}?market=${market.id}`
+              );
+              if (!qRes.ok) return h;
+              const q = await qRes.json();
+              const livePrice = typeof q.price === "number" ? q.price : h.currentPrice;
+              return { ...h, currentPrice: livePrice };
+            } catch {
+              return h; // keep original price on fetch failure
+            }
+          })
+        );
+        setHoldings(enriched);
       } else {
         setHoldings(MOCK_HOLDINGS[key] ?? MOCK_HOLDINGS["US"]);
       }
@@ -134,28 +164,28 @@ export default function PortfolioPage() {
     } finally {
       setLoading(false);
     }
-  }, [key]);
+  }, [key, market.id]);
 
   useEffect(() => { loadHoldings(); }, [loadHoldings]);
 
-  // Derived stats
-  const totalValue   = holdings.reduce((s, h) => s + marketValue(h), 0);
-  const totalCost    = holdings.reduce((s, h) => s + h.avgBuyPrice * h.quantity, 0);
-  const totalPnL     = totalValue - totalCost;
-  const totalPnLPct  = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0;
-  const isUp         = totalPnL >= 0;
+  // ── Derived stats ──────────────────────────────────────────────────────────
+  const totalValue  = holdings.reduce((s, h) => s + marketValue(h), 0);
+  const totalCost   = holdings.reduce((s, h) => s + h.avgBuyPrice * h.quantity, 0);
+  const totalPnL    = totalValue - totalCost;
+  const totalPnLPct = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0;
+  const isUp        = totalPnL >= 0;
 
   // Sector breakdown for donut
-  const sectors = Array.from(new Set(holdings.map((h) => h.sector)));
+  const sectors    = Array.from(new Set(holdings.map((h) => h.sector)));
   const sectorData = sectors.map((s, i) => ({
-    name: s,
+    name:  s,
     value: holdings.filter((h) => h.sector === s).reduce((a, h) => a + marketValue(h), 0),
     color: ["#8FFFD6", "#6366f1", "#f59e0b", "#ef4444", "#a855f7"][i % 5],
   }));
 
   // Sort + filter
   const allSectors = ["All", ...sectors];
-  const displayed = holdings
+  const displayed  = holdings
     .filter((h) => filterSector === "All" || h.sector === filterSector)
     .sort((a, b) =>
       sortBy === "value"  ? marketValue(b) - marketValue(a) :
@@ -163,10 +193,10 @@ export default function PortfolioPage() {
                             pnlPct(b) - pnlPct(a)
     );
 
-  const fmt = (n: number, dec = 2) =>
+  const fmt = (n: number) =>
     Math.abs(n) >= 1000
       ? `${currency}${(n / 1000).toFixed(1)}k`
-      : `${currency}${n.toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec })}`;
+      : `${currency}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <div style={{ padding: "24px 32px", maxWidth: 1200, margin: "0 auto", fontFamily: "'Geist','Inter',sans-serif" }}>
@@ -197,8 +227,6 @@ export default function PortfolioPage() {
 
       {/* ── Top stats row ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 14, marginBottom: 24 }}>
-
-        {/* Portfolio value card */}
         <div style={{
           background: "#111111", border: "1px solid #1f1f1f", borderRadius: 14,
           padding: "20px 22px", position: "relative", overflow: "hidden",
@@ -219,9 +247,9 @@ export default function PortfolioPage() {
         </div>
 
         {[
-          { label: "Total Cost",  value: `${currency}${totalCost.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, color: "#888" },
+          { label: "Total Cost",     value: `${currency}${totalCost.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,                                                            color: "#888"                       },
           { label: "Unrealized P&L", value: `${totalPnL >= 0 ? "+" : ""}${currency}${Math.abs(totalPnL).toLocaleString("en-US", { minimumFractionDigits: 2 })}`, color: isUp ? "#22c55e" : "#ef4444" },
-          { label: "Positions",   value: holdings.length.toString(), color: "#8FFFD6" },
+          { label: "Positions",      value: holdings.length.toString(),                                                                                                                   color: "#8FFFD6"                    },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ background: "#111111", border: "1px solid #1f1f1f", borderRadius: 14, padding: "20px 22px" }}>
             <p style={{ color: "#555", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 8px" }}>{label}</p>
@@ -232,8 +260,6 @@ export default function PortfolioPage() {
 
       {/* ── Chart + Donut ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16, marginBottom: 24 }}>
-
-        {/* Portfolio History */}
         <div style={{ background: "#111111", border: "1px solid #1f1f1f", borderRadius: 14, padding: "20px 22px" }}>
           <p style={{ color: "#fff", fontWeight: 600, fontSize: 13, margin: "0 0 16px" }}>Portfolio Performance</p>
           <ResponsiveContainer width="100%" height={160}>
@@ -254,7 +280,6 @@ export default function PortfolioPage() {
           </ResponsiveContainer>
         </div>
 
-        {/* Sector Donut */}
         <div style={{ background: "#111111", border: "1px solid #1f1f1f", borderRadius: 14, padding: "20px 22px" }}>
           <p style={{ color: "#fff", fontWeight: 600, fontSize: 13, margin: "0 0 12px" }}>Allocation</p>
           <ResponsiveContainer width="100%" height={110}>
@@ -286,11 +311,9 @@ export default function PortfolioPage() {
       {/* ── Holdings Table ── */}
       <div style={{ background: "#111111", border: "1px solid #1f1f1f", borderRadius: 14, overflow: "hidden" }}>
 
-        {/* Table header controls */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #1a1a1a" }}>
           <p style={{ color: "#fff", fontWeight: 600, fontSize: 13, margin: 0 }}>Holdings</p>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {/* Sector filter */}
             <div style={{ display: "flex", gap: 4 }}>
               {allSectors.map((s) => (
                 <button key={s} onClick={() => setFilterSector(s)} style={{
@@ -301,7 +324,6 @@ export default function PortfolioPage() {
                 }}>{s}</button>
               ))}
             </div>
-            {/* Sort */}
             <div style={{ display: "flex", background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 8, padding: 3, gap: 2 }}>
               {(["value", "pnl", "pnlpct"] as const).map((s) => (
                 <button key={s} onClick={() => setSortBy(s)} style={{
@@ -316,15 +338,13 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-        {/* Column headers */}
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 80px", gap: 0,
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 80px",
           padding: "10px 20px", borderBottom: "1px solid #1a1a1a" }}>
           {["Asset", "Qty", "Avg Price", "Current", "Market Value", "P&L", ""].map((h) => (
             <span key={h} style={{ color: "#444", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{h}</span>
           ))}
         </div>
 
-        {/* Rows */}
         {loading ? (
           <div style={{ padding: 40, textAlign: "center" }}>
             <div style={{ width: 28, height: 28, border: "2px solid #1f1f1f", borderTop: "2px solid #8FFFD6",
@@ -333,17 +353,25 @@ export default function PortfolioPage() {
           </div>
         ) : displayed.length === 0 ? (
           <div style={{ padding: 40, textAlign: "center" }}>
-            <p style={{ color: "#555", fontSize: 13 }}>No holdings found. Start by buying a stock.</p>
+            <p style={{ color: "#8FFFD6", fontSize: 32, margin: "0 0 12px" }}>📈</p>
+            <p style={{ color: "#fff", fontSize: 14, fontWeight: 600, margin: "0 0 6px" }}>No holdings yet</p>
+            <p style={{ color: "#555", fontSize: 13, margin: "0 0 20px" }}>Start building your portfolio by buying your first stock.</p>
+            <button onClick={() => router.push("/dashboard")} style={{
+              padding: "10px 20px", background: "#8FFFD6", borderRadius: 10, border: "none",
+              color: "#0a0a0a", fontWeight: 700, fontSize: 13, cursor: "pointer",
+            }}>Browse Stocks</button>
           </div>
         ) : (
           displayed.map((h, i) => {
-            const mv   = marketValue(h);
-            const pl   = pnl(h);
-            const plp  = pnlPct(h);
-            const isUp = pl >= 0;
+            const mv  = marketValue(h);
+            const pl  = pnl(h);
+            const plp = pnlPct(h);
+            const up  = pl >= 0;
+            // ── Navigate with market param so stock detail page uses correct suffix ──
+            const navSymbol = resolveSymbol(h.symbol, market.id);
             return (
               <div key={h.id}
-                onClick={() => router.push(`/dashboard/stock/${h.symbol}`)}
+                onClick={() => router.push(`/dashboard/stock/${navSymbol}?market=${market.id}`)}
                 style={{
                   display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 80px",
                   padding: "14px 20px", borderBottom: i < displayed.length - 1 ? "1px solid #141414" : "none",
@@ -352,7 +380,6 @@ export default function PortfolioPage() {
                 onMouseEnter={(e) => (e.currentTarget.style.background = "#141414")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               >
-                {/* Asset */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <StockAvatar symbol={h.symbol} color={h.color} bg={h.bg} letter={h.letter} size={34} />
                   <div>
@@ -360,30 +387,25 @@ export default function PortfolioPage() {
                     <p style={{ color: "#555", fontSize: 11, margin: "2px 0 0", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name}</p>
                   </div>
                 </div>
-                {/* Qty */}
                 <span style={{ color: "#888", fontSize: 13 }}>{h.quantity.toLocaleString()}</span>
-                {/* Avg */}
                 <span style={{ color: "#888", fontSize: 13 }}>{currency}{h.avgBuyPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-                {/* Current */}
                 <span style={{ color: "#fff", fontSize: 13, fontWeight: 500 }}>{currency}{h.currentPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-                {/* Market Value */}
                 <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{currency}{mv.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-                {/* P&L */}
                 <div>
-                  <p style={{ color: isUp ? "#22c55e" : "#ef4444", fontSize: 13, fontWeight: 600, margin: 0 }}>
-                    {isUp ? "+" : ""}{currency}{Math.abs(pl).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  <p style={{ color: up ? "#22c55e" : "#ef4444", fontSize: 13, fontWeight: 600, margin: 0 }}>
+                    {up ? "+" : ""}{currency}{Math.abs(pl).toLocaleString("en-US", { minimumFractionDigits: 2 })}
                   </p>
-                  <p style={{ color: isUp ? "#22c55e" : "#ef4444", fontSize: 10, margin: "2px 0 0", opacity: 0.7 }}>
-                    {isUp ? "+" : ""}{plp.toFixed(2)}%
+                  <p style={{ color: up ? "#22c55e" : "#ef4444", fontSize: 10, margin: "2px 0 0", opacity: 0.7 }}>
+                    {up ? "+" : ""}{plp.toFixed(2)}%
                   </p>
                 </div>
-                {/* Action */}
-                <button onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/stock/${h.symbol}`); }} style={{
-                  display: "flex", alignItems: "center", gap: 4, padding: "6px 10px",
-                  borderRadius: 7, border: "1px solid #1f1f1f", background: "transparent",
-                  color: "#888", cursor: "pointer", fontSize: 11, fontWeight: 600,
-                  transition: "all 0.15s",
-                }}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/stock/${navSymbol}?market=${market.id}`); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 4, padding: "6px 10px",
+                    borderRadius: 7, border: "1px solid #1f1f1f", background: "transparent",
+                    color: "#888", cursor: "pointer", fontSize: 11, fontWeight: 600, transition: "all 0.15s",
+                  }}>
                   Trade <ArrowUpRight size={11} />
                 </button>
               </div>

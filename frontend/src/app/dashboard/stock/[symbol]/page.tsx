@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
   ArrowLeft, TrendingUp, TrendingDown, Star, StarOff,
@@ -15,6 +15,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import StockInsightsPanel from "@/components/StockInsightsPanel";
 
 // Dynamically import chart — no SSR (lightweight-charts is browser-only)
 const TradingViewChart = dynamic(() => import("@/components/TradingViewChart"), { ssr: false });
@@ -46,7 +47,6 @@ type TimeRange = "1D" | "7D" | "1M" | "3M" | "1Y" | "All";
 
 const TIME_RANGES: TimeRange[] = ["1D", "7D", "1M", "3M", "1Y", "All"];
 
-// Slices candle array to the requested time range
 function filterCandles(candles: Candle[], range: TimeRange): Candle[] {
   if (!candles.length || range === "All") return candles;
   const now = new Date();
@@ -60,7 +60,6 @@ function filterCandles(candles: Candle[], range: TimeRange): Candle[] {
   }
   const cutoffStr = cutoff.toISOString().split("T")[0];
   const filtered = candles.filter(c => c.date >= cutoffStr);
-  // If not enough data for this range, show all available data
   return filtered.length >= 2 ? filtered : candles;
 }
 
@@ -132,28 +131,36 @@ const Toast = ({ message, type }: { message:string; type:"success"|"error" }) =>
 export default function StockDetailPage() {
   const { symbol } = useParams<{ symbol: string }>();
   const router = useRouter();
-  const { market } = useMarketHook() ?? {};
+  const searchParams = useSearchParams();
 
-  const isIndian = symbol?.endsWith(".BSE") || symbol?.endsWith(".NSE") || market?.id === "IN";
-  const currencySymbol = market?.currency ?? (isIndian ? "₹" : "$");
+  // market comes from either the URL ?market= param (set by dashboard/portfolio)
+  // or falls back to the global market context
+  const { market: ctxMarket } = useMarketHook() ?? {};
+  const marketIdFromUrl = searchParams.get("market") ?? ctxMarket?.id ?? "US";
 
-  const [quote, setQuote]             = useState<StockQuote | null>(null);
-  const [history, setHistory]         = useState<Candle[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [histLoading, setHistLoading] = useState(true);
-  const [error]                       = useState<string | null>(null);
-  const [chartType, setChartType]     = useState<ChartType>("candlestick");
-  const [activeRange, setActiveRange] = useState<TimeRange>("3M");
-  const [orderType, setOrderType]     = useState<OrderType>("buy");
-  const [quantity, setQuantity]       = useState(1);
+  const isIndian = symbol?.endsWith(".BSE") || symbol?.endsWith(".NSE") || marketIdFromUrl === "IN";
+  const currencySymbol = ctxMarket?.currency ?? (isIndian ? "₹" : "$");
+
+  // The symbol to pass to the ML service — strip .BSE since ML service uses plain symbols
+  const mlSymbol = symbol?.replace(".BSE","").replace(".NSE","") ?? "";
+
+  const [quote, setQuote]               = useState<StockQuote | null>(null);
+  const [history, setHistory]           = useState<Candle[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [histLoading, setHistLoading]   = useState(true);
+  const [error]                         = useState<string | null>(null);
+  const [chartType, setChartType]       = useState<ChartType>("candlestick");
+  const [activeRange, setActiveRange]   = useState<TimeRange>("3M");
+  const [orderType, setOrderType]       = useState<OrderType>("buy");
+  const [quantity, setQuantity]         = useState(1);
   const [orderLoading, setOrderLoading] = useState(false);
-  const [toast, setToast]             = useState<{ message:string; type:"success"|"error" } | null>(null);
-  const [watchlisted, setWatchlisted] = useState(false);
+  const [toast, setToast]               = useState<{ message:string; type:"success"|"error" } | null>(null);
+  const [watchlisted, setWatchlisted]   = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen]   = useState(false);
 
-  const isPositive  = (quote?.change ?? 0) >= 0;
-  const orderTotal  = quote ? quote.price * quantity : 0;
+  const isPositive = (quote?.change ?? 0) >= 0;
+  const orderTotal = quote ? quote.price * quantity : 0;
 
   const getToken    = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const authHeaders = useCallback(() => ({
@@ -242,27 +249,28 @@ export default function StockDetailPage() {
     return candles;
   }, []);
 
-  // ── Fetch ─────────────────────────────────────────────────────────────────
+  // ── Fetch quote + history ─────────────────────────────────────────────────
 
   useEffect(() => {
     if (!symbol) return;
     setLoading(true);
-    fetch(`/api/stocks/${symbol}`, { headers: authHeaders() })
+    // Pass market param so backend appends .BSE for Indian stocks if needed
+    fetch(`/api/stocks/${symbol}?market=${marketIdFromUrl}`, { headers: authHeaders() })
       .then(async r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(data => { setQuote(!data?.price || Number(data.price) === 0 ? getMockQuote(symbol) : data); })
       .catch(() => setQuote(getMockQuote(symbol)))
       .finally(() => setLoading(false));
-  }, [symbol, authHeaders, getMockQuote]);
+  }, [symbol, marketIdFromUrl, authHeaders, getMockQuote]);
 
   useEffect(() => {
     if (!symbol) return;
     setHistLoading(true);
-    fetch(`/api/stocks/${symbol}/history`, { headers: authHeaders() })
+    fetch(`/api/stocks/${symbol}/history?market=${marketIdFromUrl}`, { headers: authHeaders() })
       .then(async r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(data => { setHistory(data?.candles?.length > 0 ? data.candles : getMockHistory(symbol)); })
       .catch(() => setHistory(getMockHistory(symbol)))
       .finally(() => setHistLoading(false));
-  }, [symbol, authHeaders, getMockHistory]);
+  }, [symbol, marketIdFromUrl, authHeaders, getMockHistory]);
 
   // ── Order ─────────────────────────────────────────────────────────────────
 
@@ -301,7 +309,7 @@ export default function StockDetailPage() {
     return n.toLocaleString("en-IN");
   };
 
-  // ── States ────────────────────────────────────────────────────────────────
+  // ── Loading state ─────────────────────────────────────────────────────────
 
   if (loading) return (
     <div style={{ padding:"24px 32px", maxWidth:1200, margin:"0 auto" }}>
@@ -359,7 +367,7 @@ export default function StockDetailPage() {
                 <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                   <h1 style={{ fontSize:22,fontWeight:700,color:"#fff",margin:0 }}>{quote?.symbol ?? symbol}</h1>
                   <span style={{ fontSize:11,padding:"2px 8px",background:"#1f1f1f",borderRadius:6,color:"#888",border:"1px solid #2a2a2a" }}>
-                    {symbol?.endsWith(".BSE")?"BSE":symbol?.endsWith(".NSE")?"NSE":market?.id==="IN"?"NSE":"NASDAQ"}
+                    {symbol?.endsWith(".BSE")?"BSE":symbol?.endsWith(".NSE")?"NSE":marketIdFromUrl==="IN"?"NSE":"NASDAQ"}
                   </span>
                 </div>
                 <p style={{ color:"#888",fontSize:13,margin:"4px 0 0" }}>
@@ -392,10 +400,10 @@ export default function StockDetailPage() {
         {/* ── Two-col layout ── */}
         <div style={{ display:"grid",gridTemplateColumns:"1fr 340px",gap:20,alignItems:"start" }}>
 
-          {/* LEFT */}
+          {/* ── LEFT column ── */}
           <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
 
-            {/* ── Chart card ── */}
+            {/* Chart card */}
             <div style={{ background:"#111",border:"1px solid #1f1f1f",borderRadius:14,padding:"20px 24px" }}>
               <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20 }}>
                 <div style={{ display:"flex",alignItems:"center",gap:8 }}>
@@ -406,8 +414,6 @@ export default function StockDetailPage() {
                     TradingView
                   </span>
                 </div>
-
-                {/* Toggle */}
                 <Tabs value={chartType} onValueChange={v => setChartType(v as ChartType)}>
                   <TabsList className="bg-[#0a0a0a] border border-[#1f1f1f]">
                     <TabsTrigger value="candlestick" className="flex items-center gap-1.5 text-xs data-[state=active]:text-[#8FFFD6]">
@@ -420,7 +426,6 @@ export default function StockDetailPage() {
                 </Tabs>
               </div>
 
-              {/* Time range buttons */}
               <div style={{ display:"flex",gap:6,marginBottom:16 }}>
                 {TIME_RANGES.map(r => (
                   <button key={r} onClick={() => setActiveRange(r)}
@@ -435,7 +440,6 @@ export default function StockDetailPage() {
                 ))}
               </div>
 
-              {/* Chart or loader */}
               {histLoading ? (
                 <div className="space-y-2 pt-2">
                   <Skeleton className="h-[300px] w-full rounded-lg" />
@@ -447,7 +451,6 @@ export default function StockDetailPage() {
                 />
               )}
 
-              {/* Volume label */}
               <p style={{ color:"#333",fontSize:10,marginTop:8,textAlign:"right" }}>
                 Volume bars shown below price
               </p>
@@ -526,9 +529,16 @@ export default function StockDetailPage() {
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* RIGHT — Order Panel (unchanged) */}
+            {/* ── AI Insights Panel — wired below analyst ratings ── */}
+            <StockInsightsPanel
+              symbol={mlSymbol}
+              market={ctxMarket as any}
+            />
+
+          </div>{/* end LEFT column */}
+
+          {/* ── RIGHT — Order Panel ── */}
           <div style={{ background:"#111",border:"1px solid #1f1f1f",borderRadius:14,padding:"20px",position:"sticky",top:20 }}>
             <h3 style={{ color:"#fff",fontWeight:700,fontSize:15,margin:"0 0 18px" }}>Place Order</h3>
             <div style={{ display:"flex",background:"#0a0a0a",border:"1px solid #1f1f1f",borderRadius:10,padding:4,marginBottom:20 }}>
@@ -605,7 +615,8 @@ export default function StockDetailPage() {
               Market orders are executed at prevailing prices. Past performance is not indicative of future results.
             </p>
           </div>
-        </div>
+
+        </div>{/* end two-col grid */}
       </div>
 
       {toast && <Toast {...toast}/>}
