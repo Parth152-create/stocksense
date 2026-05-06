@@ -9,8 +9,6 @@ import { useMarket } from "@/lib/MarketContext";
 import StockSearch from "@/components/StockSearch";
 import { useLivePrices } from "@/lib/websocket";
 
-// ─── Market-aware data ────────────────────────────────────────────────────────
-
 const MARKET_DATA: Record<string, {
   holdings: { symbol: string; shares: number; color: string; bg: string; letter: string }[];
   transactions: { symbol: string; name: string; change: number | null; amount: number; color: string; bg: string; letter: string }[];
@@ -34,7 +32,7 @@ const MARKET_DATA: Record<string, {
       { symbol: "HDFCBANK", name: "HDFC Bank", change: null, amount: -2100, color: "#10b981", bg: "#10b98122", letter: "H" },
       { symbol: "WIPRO",    name: "Wipro",     change: null, amount: -800,  color: "#ef4444", bg: "#ef444422", letter: "W" },
     ],
-    portfolioValue: "₹7,84,320.00",
+    portfolioValue: "₹7,84,320",
     portfolioGain: "+₹62,410 this month",
     tradingScore: "₹9,42,500",
     tradingPoints: 4820,
@@ -48,14 +46,14 @@ const MARKET_DATA: Record<string, {
       { symbol: "AAPL", shares: 48,  color: "#aaaaaa", bg: "#aaaaaa22", letter: "" },
     ],
     transactions: [
-      { symbol: "TSLA",  name: "Tesla",       change: +3,   amount: -525,  color: "#ef4444", bg: "#ef444422", letter: "T" },
-      { symbol: "AAPL",  name: "Apple",       change: -7,   amount: +120,  color: "#aaaaaa", bg: "#aaaaaa22", letter: "" },
-      { symbol: "AMD",   name: "AMD",         change: null, amount: +280,  color: "#ed1c24", bg: "#ed1c2422", letter: "A" },
-      { symbol: "SNCLD", name: "Soundcloud",  change: null, amount: -90,   color: "#ff5500", bg: "#ff550022", letter: "S" },
-      { symbol: "MCD",   name: "McDonald's",  change: null, amount: -340,  color: "#ffbc0d", bg: "#ffbc0d22", letter: "M" },
+      { symbol: "TSLA",  name: "Tesla",      change: +3,   amount: -525,  color: "#ef4444", bg: "#ef444422", letter: "T" },
+      { symbol: "AAPL",  name: "Apple",      change: -7,   amount: +120,  color: "#aaaaaa", bg: "#aaaaaa22", letter: "" },
+      { symbol: "AMD",   name: "AMD",        change: null, amount: +280,  color: "#ed1c24", bg: "#ed1c2422", letter: "A" },
+      { symbol: "SNCLD", name: "Soundcloud", change: null, amount: -90,   color: "#ff5500", bg: "#ff550022", letter: "S" },
+      { symbol: "MCD",   name: "McDonald's", change: null, amount: -340,  color: "#ffbc0d", bg: "#ffbc0d22", letter: "M" },
     ],
-    portfolioValue: "$93,314.56",
-    portfolioGain: "+$8,461.16 this month",
+    portfolioValue: "$93,314",
+    portfolioGain: "+$8,461 this month",
     tradingScore: "$1,184,600",
     tradingPoints: 6280,
   },
@@ -74,8 +72,8 @@ const MARKET_DATA: Record<string, {
       { symbol: "BNB",  name: "BNB",       change: null, amount: +210,  color: "#f3ba2f", bg: "#f3ba2f22", letter: "B" },
       { symbol: "AVAX", name: "Avalanche", change: null, amount: -90,   color: "#e84142", bg: "#e8414222", letter: "A" },
     ],
-    portfolioValue: "$28,540.00",
-    portfolioGain: "+$3,120.80 this month",
+    portfolioValue: "$28,540",
+    portfolioGain: "+$3,120 this month",
     tradingScore: "$842,000",
     tradingPoints: 3140,
   },
@@ -88,20 +86,18 @@ const MARKET_DATA: Record<string, {
       { symbol: "USD/CAD", shares: 6000,  color: "#ef4444", bg: "#ef444422", letter: "C" },
     ],
     transactions: [
-      { symbol: "EUR/USD", name: "Euro/Dollar",   change: +1,   amount: -1200, color: "#3b82f6", bg: "#3b82f622", letter: "€" },
-      { symbol: "GBP/USD", name: "Pound/Dollar",  change: -2,   amount: +800,  color: "#8b5cf6", bg: "#8b5cf622", letter: "£" },
-      { symbol: "USD/JPY", name: "Dollar/Yen",    change: null, amount: +450,  color: "#f59e0b", bg: "#f59e0b22", letter: "¥" },
-      { symbol: "AUD/USD", name: "Aussie/Dollar", change: null, amount: -320,  color: "#10b981", bg: "#10b98122", letter: "A" },
-      { symbol: "USD/CAD", name: "Dollar/CAD",    change: null, amount: -180,  color: "#ef4444", bg: "#ef444422", letter: "C" },
+      { symbol: "EUR/USD", name: "EUR/USD", change: +1,   amount: -1200, color: "#3b82f6", bg: "#3b82f622", letter: "€" },
+      { symbol: "GBP/USD", name: "GBP/USD", change: -2,  amount: +800,  color: "#8b5cf6", bg: "#8b5cf622", letter: "£" },
+      { symbol: "USD/JPY", name: "USD/JPY", change: null, amount: +450,  color: "#f59e0b", bg: "#f59e0b22", letter: "¥" },
+      { symbol: "AUD/USD", name: "AUD/USD", change: null, amount: -320,  color: "#10b981", bg: "#10b98122", letter: "A" },
+      { symbol: "USD/CAD", name: "USD/CAD", change: null, amount: -180,  color: "#ef4444", bg: "#ef444422", letter: "C" },
     ],
-    portfolioValue: "$48,720.00",
-    portfolioGain: "+$3,210.50 this month",
+    portfolioValue: "$48,720",
+    portfolioGain: "+$3,210 this month",
     tradingScore: "$2,340,000",
     tradingPoints: 8940,
   },
 };
-
-// ─── Static data ──────────────────────────────────────────────────────────────
 
 const ALL_BUY_SELL_DATA = [
   { date: "Sep", value: 4200, daysAgo: 240 },
@@ -117,9 +113,7 @@ const ALL_BUY_SELL_DATA = [
 ];
 
 function filterDashboardData(range: string) {
-  const cutoffs: Record<string, number> = {
-    "1D": 1, "7D": 7, "1M": 30, "1Y": 365, "All": 9999,
-  };
+  const cutoffs: Record<string, number> = { "1D": 1, "7D": 7, "1M": 30, "1Y": 365, "All": 9999 };
   const maxDays = cutoffs[range] ?? 9999;
   const filtered = ALL_BUY_SELL_DATA.filter(d => d.daysAgo <= maxDays);
   return filtered.length >= 2 ? filtered : ALL_BUY_SELL_DATA.slice(-2);
@@ -146,106 +140,91 @@ const BAR_HEIGHTS: Record<string, number[]> = {
 
 const EVENT_PINS: Record<string, { label: string; letter: string; color: string; left: string; top: string }[]> = {
   IN: [
-    { label: "Reliance Q3 Results Strong",  letter: "R", color: "#8FFFD6", left: "8%",  top: "60%" },
-    { label: "TCS Reports Record Revenue",  letter: "T", color: "#fff",    left: "52%", top: "10%" },
-    { label: "HDFC Bank Merger Complete",   letter: "H", color: "#ef4444", left: "60%", top: "28%" },
+    { label: "Reliance Q3 Strong",  letter: "R", color: "#8FFFD6", left: "8%",  top: "60%" },
+    { label: "TCS Record Revenue",  letter: "T", color: "#fff",    left: "52%", top: "10%" },
+    { label: "HDFC Merger Done",    letter: "H", color: "#ef4444", left: "68%", top: "28%" },
   ],
   US: [
-    { label: "NVIDIA Reports Strong Q3 Earnings",     letter: "N", color: "#8FFFD6", left: "8%",  top: "60%" },
-    { label: "Apple Reports Record Services Revenue", letter: "A", color: "#fff",    left: "52%", top: "10%" },
-    { label: "Tesla Launches Full Self-Driving 2.0",  letter: "T", color: "#ef4444", left: "60%", top: "28%" },
+    { label: "NVIDIA Q3 Earnings",  letter: "N", color: "#8FFFD6", left: "8%",  top: "60%" },
+    { label: "Apple Record Revenue",letter: "A", color: "#fff",    left: "52%", top: "10%" },
+    { label: "Tesla FSD 2.0",       letter: "T", color: "#ef4444", left: "68%", top: "28%" },
   ],
   CRYPTO: [
-    { label: "Bitcoin ETF Approval",      letter: "₿", color: "#8FFFD6", left: "8%",  top: "60%" },
-    { label: "Ethereum Dencun Upgrade",   letter: "Ξ", color: "#fff",    left: "52%", top: "10%" },
-    { label: "Solana Network Congestion", letter: "S", color: "#ef4444", left: "60%", top: "28%" },
+    { label: "BTC ETF Approval",    letter: "₿", color: "#8FFFD6", left: "8%",  top: "60%" },
+    { label: "ETH Dencun Upgrade",  letter: "Ξ", color: "#fff",    left: "52%", top: "10%" },
+    { label: "SOL Congestion",      letter: "S", color: "#ef4444", left: "68%", top: "28%" },
   ],
   FX: [
-    { label: "Fed Rate Decision Impact",  letter: "F", color: "#8FFFD6", left: "8%",  top: "60%" },
-    { label: "ECB Rate Cut Announcement", letter: "E", color: "#fff",    left: "52%", top: "10%" },
-    { label: "USD/JPY Hits 5-Year High",  letter: "¥", color: "#ef4444", left: "60%", top: "28%" },
+    { label: "Fed Rate Decision",   letter: "F", color: "#8FFFD6", left: "8%",  top: "60%" },
+    { label: "ECB Rate Cut",        letter: "E", color: "#fff",    left: "52%", top: "10%" },
+    { label: "USD/JPY 5-Year High", letter: "¥", color: "#ef4444", left: "68%", top: "28%" },
   ],
 };
 
 const TIME_RANGES = ["1D", "7D", "1M", "1Y", "All"];
 
-// ─── Logo helpers ─────────────────────────────────────────────────────────────
-
 const LOGO_DOMAINS: Record<string, string> = {
-  TSLA: "tesla.com",       AAPL: "apple.com",       AMD: "amd.com",
-  MSFT: "microsoft.com",   NVDA: "nvidia.com",       ADBE: "adobe.com",
-  KO: "coca-cola.com",     MCD: "mcdonalds.com",     SNCLD: "soundcloud.com",
-  AMZN: "amazon.com",      GOOGL: "google.com",      META: "meta.com",
-  NFLX: "netflix.com",     INTC: "intel.com",        UBER: "uber.com",
-  SPOT: "spotify.com",     PYPL: "paypal.com",       SHOP: "shopify.com",
-  RELIANCE: "ril.com",     TCS: "tcs.com",           INFY: "infosys.com",
-  HDFCBANK: "hdfcbank.com",WIPRO: "wipro.com",       TATAMOTORS: "tatamotors.com",
+  TSLA: "tesla.com", AAPL: "apple.com", AMD: "amd.com",
+  MSFT: "microsoft.com", NVDA: "nvidia.com", ADBE: "adobe.com",
+  KO: "coca-cola.com", MCD: "mcdonalds.com", SNCLD: "soundcloud.com",
+  RELIANCE: "ril.com", TCS: "tcs.com", INFY: "infosys.com",
+  HDFCBANK: "hdfcbank.com", WIPRO: "wipro.com",
 };
 
-function getLogoUrl(cleanSymbol: string, domain: string | undefined): string {
-  if (domain) return `https://icons.duckduckgo.com/ip3/${domain}.ico`;
-  return `https://unavatar.io/clearbit/${cleanSymbol.toLowerCase()}`;
+function getLogoUrl(sym: string, domain?: string) {
+  return domain
+    ? `https://icons.duckduckgo.com/ip3/${domain}.ico`
+    : `https://unavatar.io/clearbit/${sym.toLowerCase()}`;
 }
 
-/**
- * Appends .BSE for Indian stocks so the backend/WebSocket resolves correctly.
- * Pass the raw display symbol (e.g. "RELIANCE") and marketId (e.g. "IN").
- */
-function resolveSymbol(symbol: string, marketId: string): string {
-  if (marketId === "IN" && !symbol.includes(".") && !symbol.includes("/")) {
+function resolveSymbol(symbol: string, marketId: string) {
+  if (marketId === "IN" && !symbol.includes(".") && !symbol.includes("/"))
     return `${symbol}.BSE`;
-  }
   return symbol;
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function StockAvatar({ symbol, color, bg, letter, px = 36 }: {
+function StockAvatar({ symbol, color, bg, letter, px = 32 }: {
   symbol: string; color: string; bg: string; letter: string; px?: number;
 }) {
   const [imgError, setImgError] = useState(false);
-  const cleanSymbol = symbol.replace(/\.BSE$/, "").replace(/^FX_/, "").toUpperCase();
-  const isFxPair = symbol.includes("/");
-  const domain   = LOGO_DOMAINS[cleanSymbol];
-  const logoUrl  = getLogoUrl(cleanSymbol, domain);
-
+  const clean = symbol.replace(/\.BSE$/, "").toUpperCase();
+  const isFx  = symbol.includes("/");
+  const url   = getLogoUrl(clean, LOGO_DOMAINS[clean]);
   return (
-    <div
-      className="rounded-full flex items-center justify-center font-bold flex-shrink-0 overflow-hidden"
-      style={{ width: px, height: px, background: bg, color, border: `1px solid ${color}33`, fontSize: px * 0.33 }}
-    >
-      {!imgError && !isFxPair ? (
+    <div style={{
+      width: px, height: px, borderRadius: "50%", flexShrink: 0,
+      background: bg, color, border: `1px solid ${color}33`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: px * 0.33, fontWeight: 700, overflow: "hidden",
+    }}>
+      {!imgError && !isFx ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={logoUrl} alt={symbol} width={px * 0.65} height={px * 0.65}
+        <img src={url} alt={symbol} width={px * 0.6} height={px * 0.6}
           style={{ objectFit: "contain", borderRadius: "50%" }}
           onError={() => setImgError(true)} />
-      ) : (
-        letter || cleanSymbol.charAt(0)
-      )}
+      ) : (letter || clean.charAt(0))}
     </div>
   );
 }
 
 function CoinSVG() {
   return (
-    <div className="absolute right-0 top-0 bottom-0 flex items-center justify-end overflow-hidden rounded-2xl" style={{ width: "45%" }}>
-      <svg width="180" height="180" viewBox="0 0 180 180" className="opacity-90">
+    <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "45%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+      <svg width="160" height="160" viewBox="0 0 180 180" style={{ opacity: 0.9 }}>
         <defs>
           <radialGradient id="cg1" cx="40%" cy="35%" r="60%">
-            <stop offset="0%" stopColor="#2d2d2d" /><stop offset="100%" stopColor="#111" />
+            <stop offset="0%" stopColor="#2d2d2d"/><stop offset="100%" stopColor="#111"/>
           </radialGradient>
           <radialGradient id="cg2" cx="40%" cy="35%" r="60%">
-            <stop offset="0%" stopColor="#353535" /><stop offset="100%" stopColor="#181818" />
+            <stop offset="0%" stopColor="#353535"/><stop offset="100%" stopColor="#181818"/>
           </radialGradient>
         </defs>
-        <ellipse cx="100" cy="115" rx="55" ry="55" fill="url(#cg1)" />
-        <ellipse cx="100" cy="115" rx="55" ry="55" fill="none" stroke="#2a2a2a" strokeWidth="2" />
-        <ellipse cx="100" cy="112" rx="48" ry="48" fill="url(#cg2)" />
-        <ellipse cx="80" cy="90" rx="58" ry="58" fill="url(#cg1)" />
-        <ellipse cx="80" cy="90" rx="58" ry="58" fill="none" stroke="#2a2a2a" strokeWidth="1.5" />
-        <ellipse cx="80" cy="87" rx="50" ry="50" fill="url(#cg2)" />
-        <polygon points="85,62 72,88 82,88 75,115 93,82 82,82" fill="#8FFFD6" opacity="0.95" />
-        <polygon points="105,68 90,92 100,92 92,118 112,85 100,85" fill="#8FFFD6" opacity="0.6" />
+        <ellipse cx="100" cy="115" rx="55" ry="55" fill="url(#cg1)"/>
+        <ellipse cx="100" cy="112" rx="48" ry="48" fill="url(#cg2)"/>
+        <ellipse cx="80" cy="90" rx="58" ry="58" fill="url(#cg1)"/>
+        <ellipse cx="80" cy="87" rx="50" ry="50" fill="url(#cg2)"/>
+        <polygon points="85,62 72,88 82,88 75,115 93,82 82,82" fill="#8FFFD6" opacity="0.95"/>
+        <polygon points="105,68 90,92 100,92 92,118 112,85 100,85" fill="#8FFFD6" opacity="0.6"/>
       </svg>
     </div>
   );
@@ -253,16 +232,27 @@ function CoinSVG() {
 
 function LiveDot() {
   return (
-    <span className="relative flex h-2 w-2 ml-1">
-      <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
-        style={{ background: "#8FFFD6" }} />
-      <span className="relative inline-flex rounded-full h-2 w-2"
-        style={{ background: "#8FFFD6" }} />
+    <span style={{ position: "relative", display: "inline-flex", width: 8, height: 8, marginLeft: 4 }}>
+      <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "#8FFFD6", opacity: 0.75, animation: "ping 1s cubic-bezier(0,0,0.2,1) infinite" }} />
+      <span style={{ position: "relative", borderRadius: "50%", width: 8, height: 8, background: "#8FFFD6", display: "inline-flex" }} />
     </span>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// Card wrapper
+function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={{
+      background: "var(--color-card)",
+      border: "1px solid var(--color-line)",
+      borderRadius: 16,
+      padding: 16,
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -275,307 +265,312 @@ export default function DashboardPage() {
   const currency = market.currency || "$";
   const pins     = EVENT_PINS[key] ?? EVENT_PINS["US"];
 
-  // ── Resolve symbols for WebSocket subscription ───────────────────────────
-  // Indian stocks need .BSE suffix so the WS server matches the right ticker.
-  // We keep a mapping so we can look up live data by the resolved key.
-  const txSymbols = md.transactions.map((t) => resolveSymbol(t.symbol, key));
+  const txSymbols  = md.transactions.map(t => resolveSymbol(t.symbol, key));
   const livePrices = useLivePrices(txSymbols);
 
   return (
-    <div className="min-h-screen p-5 flex flex-col gap-4"
-      style={{ background: "#0a0a0a", fontFamily: "'Geist', 'Inter', sans-serif" }}>
+    <div style={{
+      minHeight: "100vh",
+      padding: 16,
+      display: "flex",
+      flexDirection: "column",
+      gap: 12,
+      background: "var(--color-page)",
+      fontFamily: "'Geist', 'Inter', sans-serif",
+      boxSizing: "border-box",
+      width: "100%",
+      overflowX: "hidden",
+    }}>
 
-      {/* ── SEARCH BAR ── */}
-      <div style={{ maxWidth: 480 }}>
+      {/* Search */}
+      <div style={{ maxWidth: 440 }}>
         <StockSearch />
       </div>
 
-      {/* ── ROW 1 ── */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 320px" }}>
+      {/* ── ROW 1: Chart + Trading Score ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 240px", gap: 12 }}>
 
         {/* Buy & Sell Activity */}
-        <div className="rounded-2xl p-5 relative overflow-hidden"
-          style={{ background: "#111111", border: "1px solid #1f1f1f", minHeight: 260 }}>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-white font-semibold text-sm">Buy &amp; Sell Activity</span>
-            <div className="flex items-center gap-1.5">
-              {TIME_RANGES.map((r) => (
-                <button key={r} onClick={() => setActiveRange(r)}
-                  className="px-3 py-1 rounded-full text-xs font-semibold transition-all"
-                  style={{
-                    background: activeRange === r ? "#fff" : "transparent",
-                    color:      activeRange === r ? "#000" : "#555",
-                    border:     activeRange === r ? "none" : "1px solid #1f1f1f",
-                  }}>
+        <Card style={{ position: "relative", overflow: "hidden", minHeight: 240, padding: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>Buy &amp; Sell Activity</span>
+            <div style={{ display: "flex", gap: 4 }}>
+              {TIME_RANGES.map(r => (
+                <button key={r} onClick={() => setActiveRange(r)} style={{
+                  padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600,
+                  background: activeRange === r ? "var(--color-primary)" : "transparent",
+                  color: activeRange === r ? "var(--color-page)" : "var(--color-muted)",
+                  border: activeRange === r ? "none" : "1px solid var(--color-line)",
+                  cursor: "pointer",
+                }}>
                   {r}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="relative" style={{ height: 160 }}>
-            <div className="absolute inset-0 pointer-events-none z-10">
+          <div style={{ position: "relative", height: 150 }}>
+            {/* Event pins */}
+            <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 10 }}>
               {pins.map((pin, i) => (
-                <div key={i} className="absolute flex flex-col items-center" style={{ left: pin.left, top: pin.top }}>
-                  <div className="rounded-full px-2 py-0.5 text-[9px] font-semibold whitespace-nowrap mb-0.5"
-                    style={{
-                      background: pin.color === "#8FFFD6" ? "#8FFFD611" : pin.color === "#fff" ? "#ffffff11" : "#ef444411",
-                      color:      pin.color === "#8FFFD6" ? "#8FFFD6"   : pin.color === "#fff" ? "#fff"      : "#ef9999",
-                      border: `1px solid ${pin.color === "#8FFFD6" ? "#8FFFD633" : pin.color === "#fff" ? "#ffffff33" : "#ef444433"}`,
-                    }}>
-                    {pin.label}
-                  </div>
-                  <div className="w-px h-4" style={{ background: pin.color + "55" }} />
-                  <div className="w-3 h-3 rounded-full flex items-center justify-center text-[7px] font-bold"
-                    style={{ background: pin.color === "#8FFFD6" ? "#76b900" : pin.color === "#fff" ? "#555" : "#ef4444", color: "#fff" }}>
-                    {pin.letter}
-                  </div>
+                <div key={i} style={{ position: "absolute", left: pin.left, top: pin.top, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                  <div style={{
+                    borderRadius: 99, padding: "2px 6px", fontSize: 8, fontWeight: 600, whiteSpace: "nowrap", marginBottom: 2,
+                    background: pin.color === "#8FFFD6" ? "#8FFFD611" : pin.color === "#fff" ? "#88888811" : "#ef444411",
+                    color: pin.color === "#8FFFD6" ? "#8FFFD6" : pin.color === "#fff" ? "var(--color-primary)" : "#ef9999",
+                    border: `1px solid ${pin.color === "#8FFFD6" ? "#8FFFD633" : pin.color === "#fff" ? "var(--color-line)" : "#ef444433"}`,
+                  }}>{pin.label}</div>
+                  <div style={{ width: 1, height: 14, background: pin.color + "55" }} />
+                  <div style={{
+                    width: 12, height: 12, borderRadius: "50%", fontSize: 7, fontWeight: 700, color: "#fff",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: pin.color === "#8FFFD6" ? "#76b900" : pin.color === "#fff" ? "var(--color-muted)" : "#ef4444",
+                  }}>{pin.letter}</div>
                 </div>
               ))}
             </div>
-
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={filterDashboardData(activeRange)} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+              <AreaChart data={filterDashboardData(activeRange)} margin={{ top: 10, right: 8, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#ffffff" stopOpacity={0.08} />
-                    <stop offset="95%" stopColor="#ffffff" stopOpacity={0} />
+                    <stop offset="5%"  stopColor="#8FFFD6" stopOpacity={0.15}/>
+                    <stop offset="95%" stopColor="#8FFFD6" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="date" tick={{ fill: "#444", fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip contentStyle={{ background: "#161616", border: "1px solid #222", borderRadius: 10, fontSize: 11 }}
-                  itemStyle={{ color: "#fff" }} labelStyle={{ color: "#555" }} />
-                <Area type="monotone" dataKey="value" stroke="#ffffff" strokeWidth={1.5}
-                  fill="url(#actGrad)" dot={false} isAnimationActive={false} />
+                <XAxis dataKey="date" tick={{ fill: "var(--color-muted)", fontSize: 9 }} axisLine={false} tickLine={false}/>
+                <YAxis hide/>
+                <Tooltip
+                  contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-line)", borderRadius: 8, fontSize: 11 }}
+                  itemStyle={{ color: "var(--color-primary)" }}
+                  labelStyle={{ color: "var(--color-muted)" }}
+                />
+                <Area type="monotone" dataKey="value" stroke="var(--color-primary)" strokeWidth={1.5}
+                  fill="url(#actGrad)" dot={false} isAnimationActive={false}/>
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </Card>
 
         {/* Trading Score */}
-        <div className="rounded-2xl p-6 relative overflow-hidden"
-          style={{ background: "#111111", border: "1px solid #1f1f1f", minHeight: 260 }}>
+        <Card style={{ position: "relative", overflow: "hidden", minHeight: 240 }}>
           <CoinSVG />
-          <div className="relative z-10">
-            <p className="text-white font-semibold text-sm mb-8">Trading Score</p>
-            <p className="text-white font-bold" style={{ fontSize: 34, lineHeight: 1, letterSpacing: "-0.03em" }}>
+          <div style={{ position: "relative", zIndex: 10 }}>
+            <p style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 12, marginBottom: 20 }}>Trading Score</p>
+            <p style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 24, lineHeight: 1, letterSpacing: "-0.03em", margin: "0 0 4px" }}>
               {md.tradingScore}
             </p>
-            <p className="text-[#555] text-xs mt-1 mb-6">Total buy volume</p>
-            <div className="flex items-center gap-2">
-              <span className="text-white font-bold text-2xl">{md.tradingPoints.toLocaleString()}</span>
-              <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "#8FFFD622" }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="#8FFFD6"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
+            <p style={{ color: "var(--color-muted)", fontSize: 11, margin: "0 0 16px" }}>Total buy volume</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 20 }}>
+                {md.tradingPoints.toLocaleString()}
+              </span>
+              <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#8FFFD622", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="#8FFFD6"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
               </div>
             </div>
-            <p className="text-[#555] text-xs mt-1">Trading points</p>
+            <p style={{ color: "var(--color-muted)", fontSize: 11, marginTop: 2 }}>Trading points</p>
           </div>
-        </div>
+        </Card>
       </div>
 
-      {/* ── ROW 2 ── */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1.1fr 1fr" }}>
+      {/* ── ROW 2: Holdings | Portfolio | Transactions ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr)", gap: 12 }}>
 
-        {/* LEFT */}
-        <div className="flex flex-col gap-4">
+        {/* LEFT col */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
 
           {/* Total Holdings */}
-          <div className="rounded-2xl p-5" style={{ background: "#111111", border: "1px solid #1f1f1f" }}>
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-white font-semibold text-sm">Total holdings</span>
-              <button className="text-[#555] hover:text-white transition-colors">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M7 17L17 7M17 7H7M17 7v10" />
-                </svg>
-              </button>
+          <Card>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>Total holdings</span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {md.holdings.map((h) => {
-                // ── Navigate with the .BSE-resolved symbol + market param ──
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              {md.holdings.map(h => {
                 const navSymbol = resolveSymbol(h.symbol, key);
                 return (
                   <button key={h.symbol}
                     onClick={() => router.push(`/dashboard/stock/${navSymbol}?market=${key}`)}
-                    className="flex items-center gap-2 p-2 rounded-xl transition-colors hover:bg-[#1a1a1a]">
-                    <StockAvatar symbol={h.symbol} color={h.color} bg={h.bg} letter={h.letter} px={32} />
-                    <div className="text-left">
-                      <p className="text-white text-xs font-semibold">{h.shares} {h.shares > 999 ? "units" : "Shares"}</p>
-                      <p className="text-[#555] text-[10px] truncate max-w-[72px]">{h.symbol}</p>
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "6px 8px", borderRadius: 10, background: "transparent",
+                      border: "none", cursor: "pointer", textAlign: "left",
+                      transition: "background 0.15s",
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "var(--color-surface-hover)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <StockAvatar symbol={h.symbol} color={h.color} bg={h.bg} letter={h.letter} px={28} />
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 600, margin: 0 }}>
+                        {h.shares} {h.shares > 999 ? "u" : "Sh"}
+                      </p>
+                      <p style={{ color: "var(--color-muted)", fontSize: 9, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 60 }}>
+                        {h.symbol.replace(".BSE","")}
+                      </p>
                     </div>
                   </button>
                 );
               })}
             </div>
-          </div>
+          </Card>
 
           {/* Trading Activity */}
-          <div className="rounded-2xl p-5" style={{ background: "#111111", border: "1px solid #1f1f1f" }}>
-            <div className="flex items-center justify-between">
+          <Card>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <p className="text-white font-semibold text-sm mb-1">Trading Activity</p>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-white font-bold text-2xl">48</span>
-                  <span className="text-[#555] text-xs">/trades</span>
+                <p style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13, margin: "0 0 4px" }}>Trading Activity</p>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                  <span style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 22 }}>48</span>
+                  <span style={{ color: "var(--color-muted)", fontSize: 11 }}>/trades</span>
                 </div>
               </div>
-              <div className="flex items-end gap-0.5 h-12">
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 40 }}>
                 {WEEKLY_ACTIVITY.map((d, i) => (
-                  <div key={i} className="flex flex-col items-center gap-0.5">
-                    <div className="w-3 rounded-sm"
-                      style={{ height: `${(d.trades / 12) * 40}px`, background: i === 2 ? "#8FFFD6" : "#222" }} />
-                    <span className="text-[8px]" style={{ color: "#444" }}>{d.day}</span>
+                  <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                    <div style={{
+                      width: 10, borderRadius: 3,
+                      height: `${(d.trades / 12) * 34}px`,
+                      background: i === 2 ? "#8FFFD6" : "var(--color-line)",
+                    }}/>
+                    <span style={{ color: "var(--color-muted)", fontSize: 7 }}>{d.day}</span>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
+          </Card>
 
           {/* Next Dividend */}
-          <div className="rounded-2xl p-5" style={{ background: "#111111", border: "1px solid #1f1f1f" }}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-white font-semibold text-sm">Next Dividend Payout</span>
-              <button className="text-[#444]">···</button>
+          <Card>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>Next Dividend</span>
+              <span style={{ color: "var(--color-muted)", fontSize: 13 }}>···</span>
             </div>
-            <div className="flex items-center justify-between">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <p className="text-[#555] text-xs">Expected</p>
-                <p className="text-white font-bold text-lg">
+                <p style={{ color: "var(--color-muted)", fontSize: 10, margin: 0 }}>Expected</p>
+                <p style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 16, margin: "2px 0" }}>
                   {key === "IN" ? "₹2,840" : key === "FX" ? "$128.40" : "$342.80"}
                 </p>
-                <p className="text-[#555] text-[10px] mt-0.5">Jul 15, 2025</p>
+                <p style={{ color: "var(--color-muted)", fontSize: 9, margin: 0 }}>Jul 15, 2025</p>
               </div>
-              <div className="flex items-end gap-0.5 h-10">
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 1, height: 32 }}>
                 {[4,7,5,9,6,8,5,7,9,6,8,5].map((v, i) => (
-                  <div key={i} className="w-1.5 rounded-sm"
-                    style={{ height: `${(v / 9) * 36}px`, background: "#1f1f1f" }} />
+                  <div key={i} style={{ width: 4, borderRadius: 2, height: `${(v / 9) * 28}px`, background: "var(--color-line)" }}/>
                 ))}
               </div>
-              <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "#aaaaaa22" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="https://icons.duckduckgo.com/ip3/apple.com.ico" alt="AAPL" width={20} height={20}
-                  style={{ objectFit: "contain", borderRadius: "50%" }} />
-              </div>
             </div>
-          </div>
+          </Card>
         </div>
 
-        {/* CENTER: My Portfolio */}
-        <div className="rounded-2xl p-5 flex flex-col" style={{ background: "#111111", border: "1px solid #1f1f1f" }}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-white font-semibold text-sm">My Portfolio</span>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
-              style={{ background: "#fff", color: "#000" }}>
+        {/* CENTER: Portfolio */}
+        <Card style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>My Portfolio</span>
+            <button style={{
+              display: "flex", alignItems: "center", gap: 4,
+              padding: "5px 12px", borderRadius: 10, fontSize: 11, fontWeight: 600,
+              background: "var(--color-primary)", color: "var(--color-page)",
+              border: "none", cursor: "pointer",
+            }}>
               + Deposit
             </button>
           </div>
-          <div className="mb-4">
-            <p className="text-white font-bold" style={{ fontSize: 32, lineHeight: 1.1, letterSpacing: "-0.03em" }}>
-              {md.portfolioValue}
-            </p>
-            <p className="text-sm font-semibold mt-1" style={{ color: "#22c55e" }}>{md.portfolioGain}</p>
-          </div>
-          <div className="flex-1 flex flex-col gap-3">
-            {PORTFOLIO_CATEGORIES.map((cat) => (
+          <p style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 26, lineHeight: 1.1, letterSpacing: "-0.03em", margin: "0 0 4px" }}>
+            {md.portfolioValue}
+          </p>
+          <p style={{ color: "#22c55e", fontSize: 12, fontWeight: 600, margin: "0 0 12px" }}>{md.portfolioGain}</p>
+
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
+            {PORTFOLIO_CATEGORIES.map(cat => (
               <div key={cat.label}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[#888] text-xs">{cat.label}</span>
-                  <span className="text-white text-xs font-bold">{cat.pct}%</span>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ color: "var(--color-muted)", fontSize: 11 }}>{cat.label}</span>
+                  <span style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 700 }}>{cat.pct}%</span>
                 </div>
-                <div className="relative h-14 rounded-xl overflow-hidden" style={{ background: "#0d0d0d" }}>
-                  <div className="absolute bottom-0 left-0 right-0 flex items-end gap-px px-1 h-full">
+                <div style={{ height: 44, borderRadius: 10, overflow: "hidden", background: "var(--color-surface-hover)", position: "relative" }}>
+                  <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, display: "flex", alignItems: "flex-end", gap: 1, padding: "0 4px", height: "100%" }}>
                     {BAR_HEIGHTS[cat.label].map((h, i) => (
-                      <div key={i} className="flex-1 rounded-t-sm"
-                        style={{ height: `${h}%`, background: cat.color, opacity: 0.65 + (i / 60) }} />
+                      <div key={i} style={{ flex: 1, borderRadius: "2px 2px 0 0", height: `${h}%`, background: cat.color, opacity: 0.65 + i / 60 }}/>
                     ))}
                   </div>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
 
-        {/* RIGHT: Transactions — with LIVE prices */}
-        <div className="rounded-2xl p-5" style={{ background: "#111111", border: "1px solid #1f1f1f" }}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-white font-semibold text-sm">Transactions</span>
+        {/* RIGHT: Transactions */}
+        <Card style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>Transactions</span>
               {Object.values(livePrices).some(p => p.live) && <LiveDot />}
             </div>
-            <div className="flex items-center gap-2">
-              <button className="text-[#555] hover:text-white transition-colors">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-                </svg>
-              </button>
-              <button className="text-[#555] hover:text-white transition-colors">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/>
-                  <line x1="11" y1="18" x2="13" y2="18"/>
-                </svg>
-              </button>
-            </div>
           </div>
 
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[#555] text-xs">Today</span>
-            <span className="text-[#555] text-xs">5 Transactions</span>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ color: "var(--color-muted)", fontSize: 11 }}>Today</span>
+            <span style={{ color: "var(--color-muted)", fontSize: 11 }}>5 Transactions</span>
           </div>
 
-          <div className="space-y-1">
-            {md.transactions.map((tx) => {
-              // ── Look up live data by the resolved symbol key ──
-              const resolvedSym  = resolveSymbol(tx.symbol, key);
-              const live         = livePrices[resolvedSym];
-              const liveChange   = live?.changePct ?? null;
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {md.transactions.map(tx => {
+              const resolvedSym   = resolveSymbol(tx.symbol, key);
+              const live          = livePrices[resolvedSym];
+              const liveChange    = live?.changePct ?? null;
               const displayChange = live?.live ? liveChange : tx.change;
-              const isPositive   = displayChange !== null && displayChange > 0;
-              const isNegative   = displayChange !== null && displayChange < 0;
-              // Navigate with BSE-resolved symbol
-              const navSymbol = resolvedSym;
+              const isPos         = displayChange !== null && displayChange > 0;
+              const isNeg         = displayChange !== null && displayChange < 0;
 
               return (
                 <button key={tx.symbol}
-                  onClick={() => router.push(`/dashboard/stock/${navSymbol}?market=${key}`)}
-                  className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl transition-colors hover:bg-[#1a1a1a]">
+                  onClick={() => router.push(`/dashboard/stock/${resolvedSym}?market=${key}`)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "6px 6px", borderRadius: 10, width: "100%",
+                    background: "transparent", border: "none", cursor: "pointer",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "var(--color-surface-hover)")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                >
+                  <StockAvatar symbol={tx.symbol} color={tx.color} bg={tx.bg} letter={tx.letter} px={30} />
 
-                  <StockAvatar symbol={tx.symbol} color={tx.color} bg={tx.bg} letter={tx.letter} px={36} />
-
-                  <div className="flex-1 text-left min-w-0">
-                    <p className="text-white text-xs font-semibold truncate">{tx.symbol}</p>
+                  <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+                    <p style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {tx.symbol.replace(".BSE","")}
+                    </p>
                     {live?.live ? (
-                      <p className="text-[10px] font-semibold tabular-nums"
-                        style={{ color: isPositive ? "#22c55e" : isNegative ? "#ef4444" : "#555" }}>
+                      <p style={{ fontSize: 10, fontWeight: 600, margin: 0, color: isPos ? "#22c55e" : isNeg ? "#ef4444" : "var(--color-muted)" }}>
                         {currency}{live.price?.toFixed(2)}
                       </p>
                     ) : (
-                      <p className="text-[#555] text-[10px] truncate">{tx.name}</p>
+                      <p style={{ color: "var(--color-muted)", fontSize: 10, margin: 0 }}>{tx.name}</p>
                     )}
                   </div>
 
-                  {displayChange !== null ? (
-                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
-                      style={{
-                        background: isPositive ? "#22c55e22" : "#ef444422",
-                        color:      isPositive ? "#22c55e"   : "#ef4444",
-                      }}>
-                      {isPositive ? "+" : ""}
-                      {live?.live ? `${liveChange?.toFixed(2)}%` : displayChange}
-                    </span>
-                  ) : <div className="w-6" />}
-
-                  <span className="text-xs font-bold flex-shrink-0 px-2 py-1 rounded-xl"
-                    style={{
-                      background: tx.amount < 0 ? "#ef444422" : "#22c55e22",
-                      color:      tx.amount < 0 ? "#ef4444"   : "#22c55e",
+                  {displayChange !== null && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 99, flexShrink: 0,
+                      background: isPos ? "#22c55e22" : "#ef444422",
+                      color: isPos ? "#22c55e" : "#ef4444",
                     }}>
+                      {isPos ? "+" : ""}{live?.live ? `${liveChange?.toFixed(1)}%` : displayChange}
+                    </span>
+                  )}
+
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 8, flexShrink: 0,
+                    background: tx.amount < 0 ? "#ef444422" : "#22c55e22",
+                    color: tx.amount < 0 ? "#ef4444" : "#22c55e",
+                  }}>
                     {tx.amount < 0 ? "-" : "+"}{currency}{Math.abs(tx.amount)}
                   </span>
                 </button>
               );
             })}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

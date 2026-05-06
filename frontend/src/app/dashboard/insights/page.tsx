@@ -12,25 +12,11 @@ import {
 type SignalType = "BUY" | "SELL" | "HOLD";
 
 interface StockInsight {
-  symbol: string;
-  name: string;
-  color: string;
-  bg: string;
-  letter: string;
-  signal: SignalType;
-  signalStrength: number;
-  sentiment: number;
-  sentimentLabel: string;
-  newsCount: number;
-  socialScore: number;
-  priceTarget: string;
-  currentPrice: string;
-  upside: number;
-  riskRating: "LOW" | "MEDIUM" | "HIGH" | "EXTREME";
-  riskScore: number;
-  anomalyFlag: boolean;
-  anomalyDesc: string;
-  earningsSurprise: number | null;
+  symbol: string; name: string; color: string; bg: string; letter: string;
+  signal: SignalType; signalStrength: number; sentiment: number; sentimentLabel: string;
+  newsCount: number; socialScore: number; priceTarget: string; currentPrice: string;
+  upside: number; riskRating: "LOW" | "MEDIUM" | "HIGH" | "EXTREME"; riskScore: number;
+  anomalyFlag: boolean; anomalyDesc: string; earningsSurprise: number | null;
   sectorRotation: "INFLOW" | "OUTFLOW" | "NEUTRAL";
   radarData: { subject: string; value: number }[];
   priceHistory: { t: string; v: number }[];
@@ -38,7 +24,7 @@ interface StockInsight {
   socialSources: { source: string; score: number; color: string }[];
 }
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
+// ─── Data (unchanged from original) ──────────────────────────────────────────
 
 const INSIGHTS_DATA: Record<MarketId, StockInsight[]> = {
   US: [
@@ -157,7 +143,6 @@ const INSIGHTS_DATA: Record<MarketId, StockInsight[]> = {
       ],
     },
   ],
-
   IN: [
     {
       symbol: "RELIANCE", name: "Reliance Industries", color: "#0ea5e9", bg: "#0ea5e918", letter: "R",
@@ -273,14 +258,13 @@ const INSIGHTS_DATA: Record<MarketId, StockInsight[]> = {
       ],
     },
   ],
-
   CRYPTO: [
     {
       symbol: "BTC", name: "Bitcoin", color: "#f7931a", bg: "#f7931a18", letter: "₿",
       signal: "BUY", signalStrength: 86, sentiment: 72, sentimentLabel: "Very Bullish",
       newsCount: 94, socialScore: 96, priceTarget: "$112,000", currentPrice: "$96,400", upside: 16.2,
       riskRating: "HIGH", riskScore: 61, anomalyFlag: true,
-      anomalyDesc: "Whale wallets accumulated 18,400 BTC in 72h — largest since Nov 2023",
+      anomalyDesc: "Whale wallets accumulated 18,400 BTC in 72h",
       earningsSurprise: null, sectorRotation: "INFLOW",
       radarData: [
         { subject: "Momentum", value: 88 }, { subject: "Value", value: 52 },
@@ -378,7 +362,7 @@ const INSIGHTS_DATA: Record<MarketId, StockInsight[]> = {
         { t: "Apr", v: 568 }, { t: "May", v: 578 },
       ],
       newsFeed: [
-        { headline: "Binance receives regulatory approval in UAE for full operations", source: "Reuters", sentiment: "pos", ago: "5h" },
+        { headline: "Binance receives regulatory approval in UAE", source: "Reuters", sentiment: "pos", ago: "5h" },
         { headline: "BNB burn reduces supply by 1.8M tokens in Q1", source: "CoinDesk", sentiment: "pos", ago: "9h" },
         { headline: "CZ's prison release fuels short-term BNB speculation", source: "Bloomberg", sentiment: "neu", ago: "1d" },
         { headline: "SEC enforcement action against Binance.US still pending", source: "WSJ", sentiment: "neg", ago: "3d" },
@@ -389,93 +373,7 @@ const INSIGHTS_DATA: Record<MarketId, StockInsight[]> = {
         { source: "StockTwits", score: 62, color: "#8FFFD6" },
       ],
     },
-    {
-      symbol: "DOGE", name: "Dogecoin", color: "#c2a633", bg: "#c2a63318", letter: "Ð",
-      signal: "SELL", signalStrength: 67, sentiment: -34, sentimentLabel: "Mildly Bearish",
-      newsCount: 42, socialScore: 78, priceTarget: "$0.12", currentPrice: "$0.18", upside: -33.3,
-      riskRating: "EXTREME", riskScore: 88, anomalyFlag: true,
-      anomalyDesc: "Social volume 5.1× avg — historically precedes sharp reversal",
-      earningsSurprise: null, sectorRotation: "OUTFLOW",
-      radarData: [
-        { subject: "Momentum", value: 42 }, { subject: "Value", value: 14 },
-        { subject: "Growth", value: 22 }, { subject: "Quality", value: 18 },
-        { subject: "Sentiment", value: 44 }, { subject: "Technicals", value: 31 },
-      ],
-      priceHistory: [
-        { t: "Aug", v: 0.08 }, { t: "Sep", v: 0.09 }, { t: "Oct", v: 0.11 }, { t: "Nov", v: 0.14 },
-        { t: "Dec", v: 0.22 }, { t: "Jan", v: 0.28 }, { t: "Feb", v: 0.21 }, { t: "Mar", v: 0.19 },
-        { t: "Apr", v: 0.17 }, { t: "May", v: 0.18 },
-      ],
-      newsFeed: [
-        { headline: "DOGE soars 18% on Elon Musk tweet — then gives back gains", source: "CoinDesk", sentiment: "neg", ago: "6h" },
-        { headline: "D.O.G.E government dept rebranded — DOGE token unrelated", source: "Reuters", sentiment: "neu", ago: "10h" },
-        { headline: "On-chain fundamentals show zero developer activity growth", source: "Messari", sentiment: "neg", ago: "1d" },
-        { headline: "Retail FOMO buying accelerates despite analyst warnings", source: "Bloomberg", sentiment: "neg", ago: "2d" },
-      ],
-      socialSources: [
-        { source: "Reddit", score: 72, color: "#ff4500" },
-        { source: "Twitter/X", score: 84, color: "#1da1f2" },
-        { source: "StockTwits", score: 68, color: "#8FFFD6" },
-      ],
-    },
-    {
-      symbol: "XRP", name: "Ripple XRP", color: "#00aae4", bg: "#00aae418", letter: "✕",
-      signal: "HOLD", signalStrength: 62, sentiment: 38, sentimentLabel: "Mildly Bullish",
-      newsCount: 35, socialScore: 72, priceTarget: "$0.72", currentPrice: "$0.61", upside: 18.0,
-      riskRating: "HIGH", riskScore: 64, anomalyFlag: false, anomalyDesc: "",
-      earningsSurprise: null, sectorRotation: "NEUTRAL",
-      radarData: [
-        { subject: "Momentum", value: 62 }, { subject: "Value", value: 58 },
-        { subject: "Growth", value: 68 }, { subject: "Quality", value: 72 },
-        { subject: "Sentiment", value: 64 }, { subject: "Technicals", value: 60 },
-      ],
-      priceHistory: [
-        { t: "Aug", v: 0.42 }, { t: "Sep", v: 0.44 }, { t: "Oct", v: 0.48 }, { t: "Nov", v: 0.52 },
-        { t: "Dec", v: 0.64 }, { t: "Jan", v: 0.72 }, { t: "Feb", v: 0.61 }, { t: "Mar", v: 0.58 },
-        { t: "Apr", v: 0.60 }, { t: "May", v: 0.61 },
-      ],
-      newsFeed: [
-        { headline: "Ripple wins summary judgment — SEC appeal narrowed", source: "Reuters", sentiment: "pos", ago: "3h" },
-        { headline: "XRP Ledger processes $4.2B in institutional settlements in Q1", source: "CoinDesk", sentiment: "pos", ago: "7h" },
-        { headline: "RLUSD stablecoin crosses $800M market cap in 60 days", source: "The Block", sentiment: "pos", ago: "1d" },
-        { headline: "Legal uncertainty caps institutional adoption appetite", source: "Bloomberg", sentiment: "neg", ago: "3d" },
-      ],
-      socialSources: [
-        { source: "Reddit", score: 74, color: "#ff4500" },
-        { source: "Twitter/X", score: 70, color: "#1da1f2" },
-        { source: "StockTwits", score: 68, color: "#8FFFD6" },
-      ],
-    },
-    {
-      symbol: "AVAX", name: "Avalanche", color: "#e84142", bg: "#e8414218", letter: "A",
-      signal: "BUY", signalStrength: 68, sentiment: 46, sentimentLabel: "Bullish",
-      newsCount: 22, socialScore: 64, priceTarget: "$52", currentPrice: "$38", upside: 36.8,
-      riskRating: "EXTREME", riskScore: 82, anomalyFlag: false, anomalyDesc: "",
-      earningsSurprise: null, sectorRotation: "INFLOW",
-      radarData: [
-        { subject: "Momentum", value: 66 }, { subject: "Value", value: 54 },
-        { subject: "Growth", value: 78 }, { subject: "Quality", value: 68 },
-        { subject: "Sentiment", value: 58 }, { subject: "Technicals", value: 64 },
-      ],
-      priceHistory: [
-        { t: "Aug", v: 22 }, { t: "Sep", v: 24 }, { t: "Oct", v: 27 }, { t: "Nov", v: 32 },
-        { t: "Dec", v: 38 }, { t: "Jan", v: 42 }, { t: "Feb", v: 34 }, { t: "Mar", v: 36 },
-        { t: "Apr", v: 37 }, { t: "May", v: 38 },
-      ],
-      newsFeed: [
-        { headline: "Avalanche9000 upgrade cuts subnet launch cost by 99.9%", source: "CoinDesk", sentiment: "pos", ago: "5h" },
-        { headline: "Amazon AWS integrates Avalanche for enterprise blockchain", source: "The Block", sentiment: "pos", ago: "9h" },
-        { headline: "Subnet ecosystem crosses 100 active chains milestone", source: "Decrypt", sentiment: "pos", ago: "1d" },
-        { headline: "AVAX underperforms BTC and ETH YTD despite strong fundamentals", source: "Messari", sentiment: "neg", ago: "2d" },
-      ],
-      socialSources: [
-        { source: "Reddit", score: 66, color: "#ff4500" },
-        { source: "Twitter/X", score: 62, color: "#1da1f2" },
-        { source: "StockTwits", score: 64, color: "#8FFFD6" },
-      ],
-    },
   ],
-
   FX: [
     {
       symbol: "EUR/USD", name: "Euro / US Dollar", color: "#3b82f6", bg: "#3b82f618", letter: "€",
@@ -565,8 +463,6 @@ const INSIGHTS_DATA: Record<MarketId, StockInsight[]> = {
   ],
 };
 
-// ─── Sector Rotation ──────────────────────────────────────────────────────────
-
 const SECTOR_DATA: Record<MarketId, { sector: string; flow: number }[]> = {
   US: [
     { sector: "Technology", flow: 84 }, { sector: "Energy", flow: 61 },
@@ -610,14 +506,21 @@ function sentimentColor(v: number) {
 
 function SentimentBar({ value }: { value: number }) {
   const norm = (value + 100) / 200;
-  const col = sentimentColor(value);
+  const col  = sentimentColor(value);
   return (
-    <div className="relative h-1.5 rounded-full" style={{ background: "#1f1f1f" }}>
-      <div className="absolute top-0 left-1/2 h-full w-px" style={{ background: "#333" }} />
-      <div className="absolute top-0 h-full rounded-full transition-all duration-700"
-        style={{ left: value < 0 ? `${norm * 100}%` : "50%", width: `${Math.abs(value) / 2}%`, background: col }} />
-      <div className="absolute -top-0.5 h-2 w-0.5 rounded-full"
-        style={{ left: `${norm * 100}%`, background: col }} />
+    <div style={{ position: "relative", height: 6, borderRadius: 99, background: "var(--color-line)" }}>
+      <div style={{ position: "absolute", top: 0, left: "50%", height: "100%", width: 1, background: "var(--color-line-strong)" }} />
+      <div style={{
+        position: "absolute", top: 0, height: "100%", borderRadius: 99,
+        left: value < 0 ? `${norm * 100}%` : "50%",
+        width: `${Math.abs(value) / 2}%`,
+        background: col,
+        transition: "all 0.7s",
+      }} />
+      <div style={{
+        position: "absolute", top: -1, height: 8, width: 2, borderRadius: 99,
+        left: `${norm * 100}%`, background: col,
+      }} />
     </div>
   );
 }
@@ -625,16 +528,16 @@ function SentimentBar({ value }: { value: number }) {
 function MiniSparkline({ data, color }: { data: { t: string; v: number }[]; color: string }) {
   const id = `sg${color.replace(/[^a-z0-9]/gi, "")}`;
   return (
-    <ResponsiveContainer width="100%" height={48}>
+    <ResponsiveContainer width="100%" height={40}>
       <AreaChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
         <defs>
           <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor={color} stopOpacity={0.25} />
-            <stop offset="95%" stopColor={color} stopOpacity={0} />
+            <stop offset="5%"  stopColor={color} stopOpacity={0.25}/>
+            <stop offset="95%" stopColor={color} stopOpacity={0}/>
           </linearGradient>
         </defs>
         <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5}
-          fill={`url(#${id})`} dot={false} isAnimationActive={false} />
+          fill={`url(#${id})`} dot={false} isAnimationActive={false}/>
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -642,180 +545,214 @@ function MiniSparkline({ data, color }: { data: { t: string; v: number }[]; colo
 
 function SignalMeter({ value, signal }: { value: number; signal: SignalType }) {
   const col = signalColor(signal);
-  const c = 2 * Math.PI * 28;
+  const c   = 2 * Math.PI * 26;
   return (
-    <div className="relative flex items-center justify-center" style={{ width: 72, height: 72 }}>
-      <svg width="72" height="72" viewBox="0 0 72 72" style={{ transform: "rotate(-90deg)" }}>
-        <circle cx="36" cy="36" r="28" fill="none" stroke="#1f1f1f" strokeWidth="5" />
-        <circle cx="36" cy="36" r="28" fill="none" stroke={col} strokeWidth="5"
-          strokeDasharray={c} strokeDashoffset={c * (1 - value / 100)}
-          strokeLinecap="round" style={{ transition: "stroke-dashoffset 1s ease" }} />
+    <div style={{ position: "relative", width: 64, height: 64, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <svg width="64" height="64" viewBox="0 0 64 64" style={{ transform: "rotate(-90deg)", position: "absolute" }}>
+        <circle cx="32" cy="32" r="26" fill="none" stroke="var(--color-line)" strokeWidth="4"/>
+        <circle cx="32" cy="32" r="26" fill="none" stroke={col} strokeWidth="4"
+          strokeDasharray={c} strokeDashoffset={c * (1 - value / 100)} strokeLinecap="round"/>
       </svg>
-      <div className="absolute flex flex-col items-center">
-        <span className="text-white font-bold text-sm leading-none">{value}</span>
-        <span className="text-[9px] font-semibold mt-0.5" style={{ color: col }}>{signal}</span>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", zIndex: 1 }}>
+        <span style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 13, lineHeight: 1 }}>{value}</span>
+        <span style={{ color: col, fontSize: 9, fontWeight: 700, marginTop: 2 }}>{signal}</span>
       </div>
     </div>
   );
 }
 
 function useMlData(symbol: string | null) {
-  const [mlData, setMlData] = useState<any>(null);
+  const [mlData, setMlData]     = useState<any>(null);
   const [mlLoading, setMlLoading] = useState(false);
-
   useEffect(() => {
     if (!symbol) return;
     setMlLoading(true);
     fetch(`http://localhost:8082/ml/full/${symbol}`)
       .then(r => r.ok ? r.json() : null)
-      .then(d => { setMlData(d); setMlLoading(false); })
+      .then(d  => { setMlData(d); setMlLoading(false); })
       .catch(() => setMlLoading(false));
   }, [symbol]);
-
   return { mlData, mlLoading };
 }
 
 function InsightCard({ s, expanded, onToggle }: { s: StockInsight; expanded: boolean; onToggle: () => void }) {
-  const { mlData, mlLoading } = useMlData(expanded ? s.symbol : null);  return (
-    <div className="rounded-2xl cursor-pointer transition-all duration-300"
-      style={{ background: "#111111", border: `1px solid ${expanded ? s.color + "44" : "#1f1f1f"}`, overflow: "hidden" }}
-      onClick={onToggle}>
+  const { mlData, mlLoading } = useMlData(expanded ? s.symbol : null);
 
-      <div className="p-4 flex items-center gap-4">
-        <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
-          style={{ background: s.bg, color: s.color, border: `1px solid ${s.color}33` }}>
+  return (
+    <div
+      onClick={onToggle}
+      style={{
+        background: "var(--color-card)",
+        border: `1px solid ${expanded ? s.color + "44" : "var(--color-line)"}`,
+        borderRadius: 14, overflow: "hidden", cursor: "pointer",
+        transition: "border-color 0.2s",
+      }}
+    >
+      {/* Row */}
+      <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+        {/* Avatar */}
+        <div style={{
+          width: 38, height: 38, borderRadius: "50%", flexShrink: 0,
+          background: s.bg, color: s.color,
+          border: `1px solid ${s.color}33`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontWeight: 700, fontSize: 13,
+        }}>
           {s.letter || s.symbol.charAt(0)}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-white font-semibold text-sm leading-none">{s.symbol}</p>
-          <p className="text-[#555] text-[11px] mt-0.5 truncate">{s.name}</p>
+
+        {/* Name */}
+        <div style={{ flex: "0 0 auto", minWidth: 0, width: 90 }}>
+          <p style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.symbol}</p>
+          <p style={{ color: "var(--color-muted)", fontSize: 10, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</p>
         </div>
-        <div className="w-24 hidden sm:block">
+
+        {/* Sparkline */}
+        <div style={{ flex: 1, minWidth: 0 }}>
           <MiniSparkline data={s.priceHistory} color={s.upside >= 0 ? "#22c55e" : "#ef4444"} />
         </div>
-        <div className="text-right hidden md:block">
-          <p className="text-white font-bold text-sm">{s.currentPrice}</p>
-          <p className="text-[11px] font-semibold" style={{ color: s.upside >= 0 ? "#22c55e" : "#ef4444" }}>
+
+        {/* Price */}
+        <div style={{ textAlign: "right", flexShrink: 0, width: 70 }}>
+          <p style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 12, margin: 0 }}>{s.currentPrice}</p>
+          <p style={{ fontSize: 10, fontWeight: 600, margin: 0, color: s.upside >= 0 ? "#22c55e" : "#ef4444" }}>
             {s.upside >= 0 ? "▲" : "▼"} {Math.abs(s.upside)}%
           </p>
         </div>
+
+        {/* Signal meter */}
         <SignalMeter value={s.signalStrength} signal={s.signal} />
-        <div className="hidden lg:flex flex-col gap-1 items-end">
-          <div className="flex items-center gap-2">
-            <div className="flex gap-0.5">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="w-1.5 rounded-sm"
-                  style={{ height: 6 + i * 3, background: s.riskScore > i * 25 ? riskColor(s.riskRating) : "#1f1f1f" }} />
+
+        {/* Risk */}
+        <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ display: "flex", gap: 2, alignItems: "flex-end" }}>
+              {[0,1,2,3].map(i => (
+                <div key={i} style={{
+                  width: 4, borderRadius: 2,
+                  height: `${8 + i * 4}px`,
+                  background: s.riskScore > i * 25 ? riskColor(s.riskRating) : "var(--color-line)",
+                }}/>
               ))}
             </div>
-            <span className="text-xs font-bold" style={{ color: riskColor(s.riskRating) }}>{s.riskRating}</span>
+            <span style={{ color: riskColor(s.riskRating), fontSize: 10, fontWeight: 700 }}>{s.riskRating}</span>
           </div>
           {s.anomalyFlag && (
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-              style={{ background: "#f59e0b18", color: "#f59e0b" }}>⚡ ANOMALY</span>
+            <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 99, background: "#f59e0b18", color: "#f59e0b" }}>
+              ⚡ ANOMALY
+            </span>
           )}
         </div>
-        <div className="ml-1 text-[#333] transition-transform duration-300"
-          style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
+
+        {/* Chevron */}
+        <div style={{ color: "var(--color-muted)", flexShrink: 0, transition: "transform 0.3s", transform: expanded ? "rotate(180deg)" : "none" }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <polyline points="6 9 12 15 18 9" />
+            <polyline points="6 9 12 15 18 9"/>
           </svg>
         </div>
       </div>
 
-      <div className="px-4 pb-3">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[#444] text-[10px]">Bearish</span>
-          <span className="text-[11px] font-semibold" style={{ color: sentimentColor(s.sentiment) }}>{s.sentimentLabel}</span>
-          <span className="text-[#444] text-[10px]">Bullish</span>
+      {/* Sentiment bar */}
+      <div style={{ padding: "0 14px 10px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+          <span style={{ color: "var(--color-muted)", fontSize: 9 }}>Bearish</span>
+          <span style={{ fontSize: 10, fontWeight: 600, color: sentimentColor(s.sentiment) }}>{s.sentimentLabel}</span>
+          <span style={{ color: "var(--color-muted)", fontSize: 9 }}>Bullish</span>
         </div>
         <SentimentBar value={s.sentiment} />
       </div>
 
+      {/* Expanded panel */}
       {expanded && (
-        <div className="px-4 pb-4 border-t" style={{ borderColor: "#1a1a1a" }} onClick={(e) => e.stopPropagation()}>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-
-            <div className="flex flex-col gap-3">
-              <p className="text-[#555] text-[10px] font-semibold uppercase tracking-wider">Factor Radar</p>
-              <ResponsiveContainer width="100%" height={180}>
+        <div
+          style={{ padding: "0 14px 14px", borderTop: "1px solid var(--color-line)" }}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* ── 3-col detail grid — stacks on small screens ── */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: 16,
+            marginTop: 14,
+          }}>
+            {/* Col 1: Radar */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <p style={{ color: "var(--color-muted)", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, margin: 0 }}>Factor Radar</p>
+              <ResponsiveContainer width="100%" height={160}>
                 <RadarChart data={s.radarData}>
-                  <PolarGrid stroke="#1f1f1f" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: "#444", fontSize: 9 }} />
-                  <Radar dataKey="value" stroke={s.color} fill={s.color} fillOpacity={0.15} strokeWidth={1.5} />
+                  <PolarGrid stroke="var(--color-line)"/>
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: "var(--color-muted)", fontSize: 9 }}/>
+                  <Radar dataKey="value" stroke={s.color} fill={s.color} fillOpacity={0.15} strokeWidth={1.5}/>
                 </RadarChart>
               </ResponsiveContainer>
               {s.earningsSurprise !== null && (
-                <div className="rounded-xl p-3" style={{ background: "#0d0d0d", border: "1px solid #1f1f1f" }}>
-                  <p className="text-[#555] text-[10px] mb-1">Earnings Surprise</p>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-base" style={{ color: s.earningsSurprise >= 0 ? "#22c55e" : "#ef4444" }}>
+                <div style={{ padding: "10px 12px", borderRadius: 10, background: "var(--color-surface-hover)", border: "1px solid var(--color-line)" }}>
+                  <p style={{ color: "var(--color-muted)", fontSize: 10, margin: "0 0 4px" }}>Earnings Surprise</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontWeight: 700, fontSize: 16, color: s.earningsSurprise >= 0 ? "#22c55e" : "#ef4444" }}>
                       {s.earningsSurprise >= 0 ? "+" : ""}{s.earningsSurprise}%
                     </span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full"
-                      style={{ background: s.earningsSurprise >= 0 ? "#22c55e18" : "#ef444418", color: s.earningsSurprise >= 0 ? "#22c55e" : "#ef4444" }}>
+                    <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 99, background: s.earningsSurprise >= 0 ? "#22c55e18" : "#ef444418", color: s.earningsSurprise >= 0 ? "#22c55e" : "#ef4444" }}>
                       vs consensus
                     </span>
                   </div>
                 </div>
               )}
               {s.anomalyFlag && (
-                <div className="flex items-start gap-2 px-3 py-2 rounded-xl"
-                  style={{ background: "#f59e0b0e", border: "1px solid #f59e0b33" }}>
-                  <span className="text-sm mt-0.5">⚡</span>
-                  <p className="text-[11px] leading-snug" style={{ color: "#f59e0b" }}>{s.anomalyDesc}</p>
+                <div style={{ display: "flex", gap: 8, padding: "8px 10px", borderRadius: 10, background: "#f59e0b0e", border: "1px solid #f59e0b33" }}>
+                  <span style={{ fontSize: 13 }}>⚡</span>
+                  <p style={{ fontSize: 11, color: "#f59e0b", margin: 0, lineHeight: 1.4 }}>{s.anomalyDesc}</p>
                 </div>
               )}
             </div>
 
-            <div className="flex flex-col gap-3">
-              <p className="text-[#555] text-[10px] font-semibold uppercase tracking-wider">Sentiment Sources</p>
-              {s.socialSources.map((src) => (
+            {/* Col 2: Sentiment sources + ML */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <p style={{ color: "var(--color-muted)", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, margin: 0 }}>Sentiment Sources</p>
+              {s.socialSources.map(src => (
                 <div key={src.source}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[#888] text-xs">{src.source}</span>
-                    <span className="text-white text-xs font-bold">{src.score}</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ color: "var(--color-muted)", fontSize: 12 }}>{src.source}</span>
+                    <span style={{ color: "var(--color-primary)", fontSize: 12, fontWeight: 700 }}>{src.score}</span>
                   </div>
-                  <div className="h-1.5 rounded-full" style={{ background: "#1f1f1f" }}>
-                    <div className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${src.score}%`, background: src.color }} />
+                  <div style={{ height: 4, borderRadius: 99, background: "var(--color-line)" }}>
+                    <div style={{ height: "100%", borderRadius: 99, width: `${src.score}%`, background: src.color, transition: "width 0.7s" }}/>
                   </div>
                 </div>
               ))}
-              <div className="rounded-xl p-3 mt-1" style={{ background: "#0d0d0d", border: "1px solid #1f1f1f" }}>
-                <div className="flex items-center justify-between">
-                  <span className="text-[#555] text-[10px]">News articles (24h)</span>
-                  <span className="text-white font-bold text-sm">{s.newsCount}</span>
+              <div style={{ padding: "10px 12px", borderRadius: 10, background: "var(--color-surface-hover)", border: "1px solid var(--color-line)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "var(--color-muted)", fontSize: 10 }}>News articles (24h)</span>
+                  <span style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 13 }}>{s.newsCount}</span>
                 </div>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-[#555] text-[10px]">Social mentions</span>
-                  <span className="text-white font-bold text-sm">{(s.socialScore * 120).toLocaleString()}</span>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                  <span style={{ color: "var(--color-muted)", fontSize: 10 }}>Social mentions</span>
+                  <span style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 13 }}>{(s.socialScore * 120).toLocaleString()}</span>
                 </div>
               </div>
-              <div className="rounded-xl p-3" style={{ background: "#0d0d0d", border: "1px solid #1f1f1f" }}>
-                <p className="text-[#555] text-[10px] mb-1">ML Price Target (30d)</p>
+              <div style={{ padding: "10px 12px", borderRadius: 10, background: "var(--color-surface-hover)", border: "1px solid var(--color-line)" }}>
+                <p style={{ color: "var(--color-muted)", fontSize: 10, margin: "0 0 6px" }}>ML Price Target (30d)</p>
                 {mlLoading ? (
-                  <p className="text-[#555] text-xs">Fetching ML data…</p>
+                  <p style={{ color: "var(--color-muted)", fontSize: 11, margin: 0 }}>Fetching ML data…</p>
                 ) : mlData ? (
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-white font-bold text-base">${mlData.prediction.next_week.toFixed(2)}</span>
-                      <span className="text-xs font-semibold" style={{ color: mlData.prediction.next_week_change_pct >= 0 ? "#22c55e" : "#ef4444" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 15 }}>${mlData.prediction.next_week.toFixed(2)}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: mlData.prediction.next_week_change_pct >= 0 ? "#22c55e" : "#ef4444" }}>
                         {mlData.prediction.next_week_change_pct >= 0 ? "↑" : "↓"} {Math.abs(mlData.prediction.next_week_change_pct)}% (7d)
                       </span>
                     </div>
-                    <p className="text-[10px] mt-1" style={{ color: mlData.signal.signal_color }}>
+                    <p style={{ fontSize: 10, margin: "4px 0 0", color: mlData.signal.signal_color }}>
                       Signal: {mlData.signal.signal} · Strength: {mlData.signal.strength}%
                     </p>
-                    <p className="text-[#555] text-[10px] mt-1">RSI: {mlData.prediction.rsi} · Confidence: {mlData.prediction.confidence}%</p>
-                    {mlData.anomaly.is_anomaly && (
-                      <p className="text-[10px] mt-1" style={{ color: "#f59e0b" }}>⚡ {mlData.anomaly.summary}</p>
-                    )}
+                    <p style={{ color: "var(--color-muted)", fontSize: 10, margin: "2px 0 0" }}>
+                      RSI: {mlData.prediction.rsi} · Confidence: {mlData.prediction.confidence}%
+                    </p>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-white font-bold text-base">{s.priceTarget}</span>
-                    <span className="text-xs font-semibold" style={{ color: s.upside >= 0 ? "#22c55e" : "#ef4444" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 15 }}>{s.priceTarget}</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: s.upside >= 0 ? "#22c55e" : "#ef4444" }}>
                       {s.upside >= 0 ? "↑" : "↓"} {Math.abs(s.upside)}% upside
                     </span>
                   </div>
@@ -823,25 +760,22 @@ function InsightCard({ s, expanded, onToggle }: { s: StockInsight; expanded: boo
               </div>
             </div>
 
-            <div className="flex flex-col gap-3">
-              <p className="text-[#555] text-[10px] font-semibold uppercase tracking-wider">News Feed</p>
-              <div className="flex flex-col gap-2">
-                {s.newsFeed.map((n, i) => (
-                  <div key={i} className="flex gap-2.5 p-2.5 rounded-xl"
-                    style={{ background: "#0d0d0d", border: "1px solid #1a1a1a" }}>
-                    <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
-                      style={{ background: n.sentiment === "pos" ? "#22c55e" : n.sentiment === "neg" ? "#ef4444" : "#555" }} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-[11px] leading-snug">{n.headline}</p>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <span className="text-[#444] text-[9px]">{n.source}</span>
-                        <span className="text-[#333] text-[9px]">·</span>
-                        <span className="text-[#444] text-[9px]">{n.ago}</span>
-                      </div>
+            {/* Col 3: News */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <p style={{ color: "var(--color-muted)", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, margin: 0 }}>News Feed</p>
+              {s.newsFeed.map((n, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, padding: "10px", borderRadius: 10, background: "var(--color-surface-hover)", border: "1px solid var(--color-line)" }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, marginTop: 3, background: n.sentiment === "pos" ? "#22c55e" : n.sentiment === "neg" ? "#ef4444" : "var(--color-muted)" }}/>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ color: "var(--color-primary)", fontSize: 11, margin: 0, lineHeight: 1.4 }}>{n.headline}</p>
+                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                      <span style={{ color: "var(--color-muted)", fontSize: 9 }}>{n.source}</span>
+                      <span style={{ color: "var(--color-muted)", fontSize: 9 }}>·</span>
+                      <span style={{ color: "var(--color-muted)", fontSize: 9 }}>{n.ago}</span>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -851,70 +785,68 @@ function InsightCard({ s, expanded, onToggle }: { s: StockInsight; expanded: boo
 }
 
 function SectorRotationPanel({ marketKey }: { marketKey: MarketId }) {
-  const data = SECTOR_DATA[marketKey];
-  const maxAbs = Math.max(...data.map((d) => Math.abs(d.flow)));
+  const data   = SECTOR_DATA[marketKey];
+  const maxAbs = Math.max(...data.map(d => Math.abs(d.flow)));
   return (
-    <div className="rounded-2xl p-5" style={{ background: "#111111", border: "1px solid #1f1f1f" }}>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-white font-semibold text-sm">Sector Rotation</p>
-        <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-          style={{ background: "#8FFFD618", color: "#8FFFD6" }}>7D FLOW</span>
+    <div style={{ background: "var(--color-card)", border: "1px solid var(--color-line)", borderRadius: 14, padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <p style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13, margin: 0 }}>Sector Rotation</p>
+        <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 99, background: "#8FFFD618", color: "#8FFFD6", fontWeight: 600 }}>7D FLOW</span>
       </div>
-      <div className="flex flex-col gap-2">
-        {data.map((d) => {
-          const pct = (Math.abs(d.flow) / maxAbs) * 100;
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {data.map(d => {
+          const pct  = (Math.abs(d.flow) / maxAbs) * 100;
           const isIn = d.flow >= 0;
           return (
-            <div key={d.sector} className="flex items-center gap-3">
-              <span className="text-[#888] text-xs w-24 text-right flex-shrink-0">{d.sector}</span>
-              <div className="flex-1 flex items-center" style={{ height: 20 }}>
-                <div className="flex-1 flex justify-end">
-                  {!isIn && <div className="h-3 rounded-l-sm" style={{ width: `${pct}%`, background: "#ef444444" }} />}
+            <div key={d.sector} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: "var(--color-muted)", fontSize: 11, width: 80, textAlign: "right", flexShrink: 0 }}>{d.sector}</span>
+              <div style={{ flex: 1, display: "flex", alignItems: "center", height: 18 }}>
+                <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
+                  {!isIn && <div style={{ height: 10, borderRadius: "3px 0 0 3px", width: `${pct}%`, background: "#ef444433" }}/>}
                 </div>
-                <div className="w-px h-4 flex-shrink-0" style={{ background: "#333" }} />
-                <div className="flex-1">
-                  {isIn && <div className="h-3 rounded-r-sm" style={{ width: `${pct}%`, background: "#22c55e44" }} />}
+                <div style={{ width: 1, height: 14, background: "var(--color-line)", flexShrink: 0 }}/>
+                <div style={{ flex: 1 }}>
+                  {isIn && <div style={{ height: 10, borderRadius: "0 3px 3px 0", width: `${pct}%`, background: "#22c55e33" }}/>}
                 </div>
               </div>
-              <span className="text-xs font-bold w-12 flex-shrink-0" style={{ color: isIn ? "#22c55e" : "#ef4444" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, width: 40, flexShrink: 0, color: isIn ? "#22c55e" : "#ef4444" }}>
                 {isIn ? "+" : ""}{d.flow}%
               </span>
             </div>
           );
         })}
       </div>
-      <div className="flex items-center justify-between mt-3">
-        <span className="text-[#444] text-[9px]">← OUTFLOW</span>
-        <span className="text-[#444] text-[9px]">INFLOW →</span>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+        <span style={{ color: "var(--color-muted)", fontSize: 9 }}>← OUTFLOW</span>
+        <span style={{ color: "var(--color-muted)", fontSize: 9 }}>INFLOW →</span>
       </div>
     </div>
   );
 }
 
 function MarketPulse({ insights, marketKey }: { insights: StockInsight[]; marketKey: MarketId }) {
-  const buy  = insights.filter((s) => s.signal === "BUY").length;
-  const sell = insights.filter((s) => s.signal === "SELL").length;
-  const hold = insights.filter((s) => s.signal === "HOLD").length;
+  const buy  = insights.filter(s => s.signal === "BUY").length;
+  const sell = insights.filter(s => s.signal === "SELL").length;
+  const hold = insights.filter(s => s.signal === "HOLD").length;
   const avg  = Math.round(insights.reduce((a, s) => a + s.sentiment, 0) / insights.length);
   const labels: Record<MarketId, string> = { US: "NASDAQ 100", IN: "Nifty 50", CRYPTO: "Top Crypto", FX: "Major Pairs" };
   return (
-    <div className="rounded-2xl p-5" style={{ background: "#111111", border: "1px solid #1f1f1f" }}>
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#8FFFD6" }} />
-        <p className="text-white font-semibold text-sm">Market Pulse — {labels[marketKey]}</p>
-        <span className="text-[10px] px-2 py-0.5 rounded-full ml-auto"
-          style={{ background: "#8FFFD618", color: "#8FFFD6" }}>LIVE ML</span>
+    <div style={{ background: "var(--color-card)", border: "1px solid var(--color-line)", borderRadius: 14, padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+        <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#8FFFD6", animation: "pulse 2s infinite" }}/>
+        <p style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13, margin: 0 }}>Market Pulse — {labels[marketKey]}</p>
+        <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 99, background: "#8FFFD618", color: "#8FFFD6", fontWeight: 600, marginLeft: "auto" }}>LIVE ML</span>
       </div>
-      <div className="grid grid-cols-4 gap-3">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
         {[
-          { val: buy,  label: "BUY signals",  col: "#22c55e" },
-          { val: hold, label: "HOLD signals", col: "#f59e0b" },
-          { val: sell, label: "SELL signals", col: "#ef4444" },
-          { val: `${avg > 0 ? "+" : ""}${avg}`, label: "Avg sentiment", col: sentimentColor(avg) },
+          { val: buy,  label: "BUY",  col: "#22c55e" },
+          { val: hold, label: "HOLD", col: "#f59e0b" },
+          { val: sell, label: "SELL", col: "#ef4444" },
+          { val: `${avg > 0 ? "+" : ""}${avg}`, label: "Sentiment", col: sentimentColor(avg) },
         ].map(({ val, label, col }) => (
-          <div key={label} className="rounded-xl p-3 text-center" style={{ background: "#0d0d0d" }}>
-            <p className="text-2xl font-bold" style={{ color: col }}>{val}</p>
-            <p className="text-[10px] text-[#555] mt-0.5">{label}</p>
+          <div key={label} style={{ padding: "10px 8px", borderRadius: 10, background: "var(--color-surface-hover)", textAlign: "center" }}>
+            <p style={{ fontSize: 22, fontWeight: 700, color: col, margin: 0, lineHeight: 1 }}>{val}</p>
+            <p style={{ fontSize: 10, color: "var(--color-muted)", margin: "4px 0 0" }}>{label}</p>
           </div>
         ))}
       </div>
@@ -929,30 +861,42 @@ export default function InsightsPage() {
   const key = market.id as MarketId;
   const insights = INSIGHTS_DATA[key] ?? INSIGHTS_DATA["US"];
 
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
+  const [expandedIdx, setExpandedIdx]   = useState<number | null>(0);
   const [filterSignal, setFilterSignal] = useState<SignalType | "ALL">("ALL");
 
-  const filtered = filterSignal === "ALL" ? insights : insights.filter((s) => s.signal === filterSignal);
+  const filtered = filterSignal === "ALL" ? insights : insights.filter(s => s.signal === filterSignal);
 
   return (
-    <div className="min-h-screen p-5 flex flex-col gap-4"
-      style={{ background: "#0a0a0a", fontFamily: "'Geist', 'Inter', sans-serif" }}>
+    <div style={{
+      minHeight: "100vh",
+      padding: 16,
+      display: "flex",
+      flexDirection: "column",
+      gap: 12,
+      background: "var(--color-page)",
+      fontFamily: "'Geist', 'Inter', sans-serif",
+      boxSizing: "border-box",
+      width: "100%",
+      overflowX: "hidden",
+    }}>
 
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
         <div>
-          <h1 className="text-white font-bold text-xl tracking-tight">AI Insights</h1>
-          <p className="text-[#555] text-xs mt-0.5">ML-powered signals · {market.flag} {market.label}</p>
+          <h1 style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 20, margin: 0, letterSpacing: -0.3 }}>AI Insights</h1>
+          <p style={{ color: "var(--color-muted)", fontSize: 12, margin: "2px 0 0" }}>ML-powered signals · {market.flag} {market.label}</p>
         </div>
-        <div className="flex items-center gap-1.5">
-          {(["ALL", "BUY", "HOLD", "SELL"] as const).map((f) => (
+        <div style={{ display: "flex", gap: 6 }}>
+          {(["ALL", "BUY", "HOLD", "SELL"] as const).map(f => (
             <button key={f} onClick={() => { setFilterSignal(f); setExpandedIdx(null); }}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
               style={{
+                padding: "5px 12px", borderRadius: 99, fontSize: 11, fontWeight: 600,
+                cursor: "pointer",
                 background: filterSignal === f
-                  ? f === "ALL" ? "#fff" : f === "BUY" ? "#22c55e" : f === "SELL" ? "#ef4444" : "#f59e0b"
-                  : "#111",
-                color: filterSignal === f ? "#000" : "#555",
-                border: filterSignal === f ? "none" : "1px solid #1f1f1f",
+                  ? f === "ALL" ? "var(--color-primary)" : f === "BUY" ? "#22c55e" : f === "SELL" ? "#ef4444" : "#f59e0b"
+                  : "var(--color-card)",
+                color: filterSignal === f ? (f === "ALL" ? "var(--color-page)" : "#000") : "var(--color-muted)",
+                border: filterSignal === f ? "none" : "1px solid var(--color-line)",
               }}>
               {f}
             </button>
@@ -960,15 +904,17 @@ export default function InsightsPage() {
         </div>
       </div>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 340px" }}>
+      {/* Market Pulse + Sector Rotation — responsive */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,300px)", gap: 12 }}>
         <MarketPulse insights={insights} marketKey={key} />
         <SectorRotationPanel marketKey={key} />
       </div>
 
-      <div className="flex flex-col gap-3">
+      {/* Insight cards */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {filtered.length === 0 && (
-          <div className="rounded-2xl p-8 text-center" style={{ background: "#111111", border: "1px solid #1f1f1f" }}>
-            <p className="text-[#555] text-sm">No {filterSignal} signals for {market.label} right now.</p>
+          <div style={{ padding: "32px 16px", textAlign: "center", background: "var(--color-card)", border: "1px solid var(--color-line)", borderRadius: 14 }}>
+            <p style={{ color: "var(--color-muted)", fontSize: 13, margin: 0 }}>No {filterSignal} signals for {market.label} right now.</p>
           </div>
         )}
         {filtered.map((s, i) => (
@@ -978,7 +924,7 @@ export default function InsightsPage() {
         ))}
       </div>
 
-      <p className="text-[#333] text-[10px] text-center pb-2">
+      <p style={{ color: "var(--color-muted)", fontSize: 10, textAlign: "center", paddingBottom: 8, opacity: 0.5 }}>
         StockSense AI Insights are for informational purposes only and do not constitute financial advice.
       </p>
     </div>

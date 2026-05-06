@@ -3,223 +3,18 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useTheme } from "next-themes";
 import { login, googleAuth } from "@/lib/auth";
 
 declare global {
   interface Window {
     google?: {
-      accounts: {
-        id: {
-          initialize: (config: object) => void;
-          renderButton: (el: HTMLElement, config: object) => void;
-        };
-      };
+      accounts: { id: { initialize: (c: object) => void; renderButton: (el: HTMLElement, c: object) => void; }; };
     };
   }
 }
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-
-function LoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") ?? "/dashboard";
-  const expired = searchParams.get("reason") === "session_expired";
-
-  const [email, setEmail]             = useState("");
-  const [password, setPassword]       = useState("");
-  const [showPw, setShowPw]           = useState(false);
-  const [loading, setLoading]         = useState(false);
-  const [googleReady, setGoogleReady] = useState(false);
-  const [error, setError]             = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!GOOGLE_CLIENT_ID) return;
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      window.google?.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleCallback,
-      });
-      const btn = document.getElementById("google-btn");
-      if (btn) {
-        window.google?.accounts.id.renderButton(btn, {
-          theme: "filled_black",
-          size: "large",
-          width: btn.offsetWidth,
-          text: "continue_with",
-        });
-        setGoogleReady(true);
-      }
-    };
-    document.head.appendChild(script);
-    return () => { document.head.removeChild(script); };
-  }, []);
-
-  async function handleGoogleCallback(response: { credential: string }) {
-    setLoading(true);
-    setError(null);
-    try {
-      await googleAuth(response.credential);
-      router.push(redirectTo);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Google sign-in failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      await login(email, password);
-      router.push(redirectTo);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Login failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
-      <div
-        className="pointer-events-none fixed inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 60% 40% at 50% 0%, rgba(143,255,214,0.07) 0%, transparent 70%)",
-        }}
-      />
-
-      <div className="w-full max-w-md relative z-10">
-        {/* Logo */}
-        <div className="flex items-center gap-2 justify-center mb-8">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" fill="#8FFFD6" />
-          </svg>
-          <span className="text-white font-semibold text-lg tracking-tight">StockSense</span>
-        </div>
-
-        {/* Card */}
-        <div className="rounded-2xl p-8" style={{ background: "#111111", border: "1px solid #1f1f1f" }}>
-          <h1 className="text-white text-2xl font-semibold text-center mb-1">Welcome Back</h1>
-          <p className="text-[#666] text-sm text-center mb-6">Sign in to your StockSense account</p>
-
-          {expired && (
-            <div className="mb-4 px-4 py-3 rounded-lg bg-amber-950/40 border border-amber-800/40 text-amber-400 text-sm">
-              Your session expired. Please sign in again.
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-[#999] text-xs mb-1.5">Email Address</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-lg px-4 py-3 text-white text-sm placeholder-[#444] outline-none transition-all"
-                style={{ caretColor: "#8FFFD6" }}
-                onFocus={e => (e.target.style.borderColor = "#8FFFD6")}
-                onBlur={e  => (e.target.style.borderColor = "#1f1f1f")}
-              />
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="text-[#999] text-xs">Password</label>
-                <button
-                  type="button"
-                  onClick={() => setShowPw(v => !v)}
-                  className="text-[#666] text-xs hover:text-[#8FFFD6] transition-colors"
-                >
-                  {showPw ? "Hide" : "Show"} Password
-                </button>
-              </div>
-              <input
-                type={showPw ? "text" : "password"}
-                required
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-lg px-4 py-3 text-white text-sm placeholder-[#444] outline-none transition-all"
-                style={{ caretColor: "#8FFFD6" }}
-                onFocus={e => (e.target.style.borderColor = "#8FFFD6")}
-                onBlur={e  => (e.target.style.borderColor = "#1f1f1f")}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 rounded-lg font-semibold text-sm text-[#0a0a0a] transition-all mt-2"
-              style={{
-                background: loading ? "#5fa88a" : "#8FFFD6",
-                cursor: loading ? "not-allowed" : "pointer",
-              }}
-            >
-              {loading ? "Signing in…" : "Sign in"}
-            </button>
-          </form>
-
-          {/* Error — shown below form, not at top */}
-          {error && (
-            <div className="mt-4 px-4 py-3 rounded-lg bg-red-950/40 border border-red-800/40 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
-
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px bg-[#1f1f1f]" />
-            <span className="text-[#444] text-xs">or</span>
-            <div className="flex-1 h-px bg-[#1f1f1f]" />
-          </div>
-
-          {GOOGLE_CLIENT_ID ? (
-            <div
-              id="google-btn"
-              className="w-full flex justify-center"
-              style={{ minHeight: 44, visibility: googleReady ? "visible" : "hidden" }}
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() =>
-                setError("Google sign-in is not configured. Add NEXT_PUBLIC_GOOGLE_CLIENT_ID to .env.local.")
-              }
-              className="w-full flex items-center justify-center gap-3 py-3 rounded-lg border border-[#1f1f1f] text-[#555] text-sm hover:border-[#2a2a2a] hover:text-[#777] transition-all"
-            >
-              <GoogleIcon />
-              Continue with Google
-            </button>
-          )}
-
-          <p className="text-center text-[#555] text-sm mt-6">
-            Don&apos;t have an account?{" "}
-            <Link href="/register" className="text-[#8FFFD6] hover:underline">
-              Sign up
-            </Link>
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense>
-      <LoginForm />
-    </Suspense>
-  );
-}
 
 function GoogleIcon() {
   return (
@@ -230,4 +25,180 @@ function GoogleIcon() {
       <path fill="#EA4335" d="M9 3.583c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962L3.964 7.294C4.672 5.163 6.656 3.583 9 3.583z"/>
     </svg>
   );
+}
+
+function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") ?? "/dashboard";
+  const expired = searchParams.get("reason") === "session_expired";
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  const [email, setEmail]             = useState("");
+  const [password, setPassword]       = useState("");
+  const [showPw, setShowPw]           = useState(false);
+  const [loading, setLoading]         = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+
+  // ── Theme tokens ──────────────────────────────────────────────────────────
+  const isDark = mounted && resolvedTheme === "dark";
+  const T = {
+    pageBg:    isDark ? "#0a0a0a"  : "#F3F2F2",
+    cardBg:    isDark ? "#111111"  : "#ffffff",
+    cardBorder:isDark ? "#1f1f1f"  : "transparent",
+    cardShadow:isDark ? "none"     : "0 2px 16px rgba(0,0,0,0.06)",
+    primary:   isDark ? "#ffffff"  : "#18181A",
+    muted:     isDark ? "#6b7280"  : "#9ca3af",
+    inputBg:   isDark ? "#0a0a0a"  : "#ffffff",
+    inputBorder:isDark? "#2a2a2a"  : "#e5e7eb",
+    inputFocus:isDark ? "#8FFFD6"  : "#18181A",
+    divider:   isDark ? "#1f1f1f"  : "#f3f4f6",
+    logoBg:    "#18181A",
+    btnBg:     isDark ? "#8FFFD6"  : "#18181A",
+    btnColor:  isDark ? "#0a0a0a"  : "#ffffff",
+    googleBg:  isDark ? "#1a1a1a"  : "#ffffff",
+    googleBorder:isDark? "#2a2a2a" : "#e5e7eb",
+    googleHover:isDark ? "#222222" : "#f9fafb",
+    googleColor:isDark ? "#ffffff" : "#18181A",
+    linkColor: isDark ? "#8FFFD6"  : "#18181A",
+  };
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true; script.defer = true;
+    script.onload = () => {
+      window.google?.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCallback });
+      const btn = document.getElementById("google-btn");
+      if (btn) {
+        window.google?.accounts.id.renderButton(btn, { theme: isDark ? "filled_black" : "outline", size: "large", width: btn.offsetWidth, text: "continue_with" });
+        setGoogleReady(true);
+      }
+    };
+    document.head.appendChild(script);
+    return () => { document.head.removeChild(script); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDark]);
+
+  async function handleGoogleCallback(response: { credential: string }) {
+    setLoading(true); setError(null);
+    try { await googleAuth(response.credential); router.push(redirectTo); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : "Google sign-in failed"); }
+    finally { setLoading(false); }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault(); setLoading(true); setError(null);
+    try { await login(email, password); router.push(redirectTo); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : "Login failed"); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div style={{ minHeight:"100vh", background:T.pageBg, display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px", fontFamily:"var(--font-geist-sans,'Geist',sans-serif)", transition:"background 0.2s" }}>
+      <div style={{ width:"100%", maxWidth:400 }}>
+
+        <div style={{ background:T.cardBg, borderRadius:20, padding:"36px 32px", boxShadow:T.cardShadow, border:`1px solid ${T.cardBorder}`, transition:"background 0.2s, border-color 0.2s" }}>
+
+          {/* Logo */}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:24 }}>
+            <div style={{ width:32, height:32, background:T.logoBg, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" fill="#8FFFD6"/>
+              </svg>
+            </div>
+            <span style={{ color:T.primary, fontWeight:700, fontSize:16, letterSpacing:-0.3 }}>StockSense</span>
+          </div>
+
+          <h1 style={{ color:T.primary, fontSize:22, fontWeight:700, textAlign:"center", margin:"0 0 6px" }}>Welcome Back</h1>
+          <p style={{ color:T.muted, fontSize:13, textAlign:"center", margin:"0 0 24px" }}>Sign in to your StockSense account</p>
+
+          {expired && (
+            <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:10, background:isDark?"#78350f22":"#fff8e1", border:"1px solid #f59e0b44", color:"#b45309", fontSize:13 }}>
+              Your session expired. Please sign in again.
+            </div>
+          )}
+          {error && (
+            <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:10, background:isDark?"#7f1d1d22":"#fef2f2", border:"1px solid #ef444444", color:"#dc2626", fontSize:13 }}>
+              {error}
+            </div>
+          )}
+
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            {/* Email */}
+            <div>
+              <label style={{ display:"block", color:T.primary, fontSize:12, fontWeight:500, marginBottom:6 }}>Email Address</label>
+              <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address.com"
+                style={{ width:"100%", boxSizing:"border-box", background:T.inputBg, border:`1px solid ${T.inputBorder}`, borderRadius:10, padding:"10px 14px", fontSize:13, color:T.primary, outline:"none", transition:"border-color 0.15s" }}
+                onFocus={e=>(e.target.style.borderColor=T.inputFocus)}
+                onBlur={e=>(e.target.style.borderColor=T.inputBorder)}/>
+            </div>
+
+            {/* Password */}
+            <div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                <label style={{ color:T.primary, fontSize:12, fontWeight:500 }}>Password</label>
+                <button type="button" onClick={()=>setShowPw(v=>!v)} style={{ background:"none", border:"none", cursor:"pointer", color:T.muted, fontSize:12 }}>
+                  {showPw?"Hide Password":"Show Password"}
+                </button>
+              </div>
+              <div style={{ position:"relative" }}>
+                <input type={showPw?"text":"password"} required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password"
+                  style={{ width:"100%", boxSizing:"border-box", background:T.inputBg, border:`1px solid ${T.inputBorder}`, borderRadius:10, padding:"10px 40px 10px 14px", fontSize:13, color:T.primary, outline:"none", transition:"border-color 0.15s" }}
+                  onFocus={e=>(e.target.style.borderColor=T.inputFocus)}
+                  onBlur={e=>(e.target.style.borderColor=T.inputBorder)}/>
+                <button type="button" onClick={()=>setShowPw(v=>!v)}
+                  style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:T.muted, padding:0 }}>
+                  {showPw
+                    ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  }
+                </button>
+              </div>
+            </div>
+
+            {/* Sign in */}
+            <button type="button" disabled={loading} onClick={handleSubmit as unknown as React.MouseEventHandler}
+              style={{ width:"100%", padding:"11px 0", background:T.btnBg, color:T.btnColor, border:"none", borderRadius:10, fontSize:14, fontWeight:600, cursor:loading?"not-allowed":"pointer", transition:"background 0.15s", marginTop:4 }}>
+              {loading?"Signing in…":"Sign in"}
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div style={{ display:"flex", alignItems:"center", gap:12, margin:"20px 0" }}>
+            <div style={{ flex:1, height:1, background:T.divider }}/>
+            <span style={{ color:T.muted, fontSize:12 }}>or</span>
+            <div style={{ flex:1, height:1, background:T.divider }}/>
+          </div>
+
+          {/* Google */}
+          {GOOGLE_CLIENT_ID ? (
+            <div id="google-btn" style={{ width:"100%", display:"flex", justifyContent:"center", minHeight:44, visibility:googleReady?"visible":"hidden" }}/>
+          ) : (
+            <button type="button" onClick={()=>window.location.href="http://localhost:8081/oauth2/authorization/google"}
+              style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, padding:"10px 0", borderRadius:10, background:T.googleBg, border:`1px solid ${T.googleBorder}`, fontSize:13, fontWeight:500, color:T.googleColor, cursor:"pointer", transition:"background 0.15s" }}
+              onMouseEnter={e=>(e.currentTarget.style.background=T.googleHover)}
+              onMouseLeave={e=>(e.currentTarget.style.background=T.googleBg)}>
+              <GoogleIcon/>
+              Continue with Google
+            </button>
+          )}
+
+          <p style={{ textAlign:"center", color:T.muted, fontSize:13, marginTop:20 }}>
+            Don&apos;t have an account?{" "}
+            <Link href="/register" style={{ color:T.linkColor, fontWeight:600, textDecoration:"none" }}>Sign Up</Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return <Suspense><LoginForm/></Suspense>;
 }
