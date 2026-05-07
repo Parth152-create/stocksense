@@ -4,13 +4,12 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useTheme } from "next-themes";
+import { Sun, Moon } from "lucide-react";
 import { login, googleAuth } from "@/lib/auth";
 
 declare global {
   interface Window {
-    google?: {
-      accounts: { id: { initialize: (c: object) => void; renderButton: (el: HTMLElement, c: object) => void; }; };
-    };
+    google?: { accounts: { id: { initialize: (c: object) => void; renderButton: (el: HTMLElement, c: object) => void; }; }; };
   }
 }
 
@@ -27,15 +26,72 @@ function GoogleIcon() {
   );
 }
 
+// ── Floating theme toggle ────────────────────────────────────────────────────
+function FloatingThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  const isDark = resolvedTheme === "dark";
+  return (
+    <button
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      aria-label="Toggle theme"
+      style={{
+        position: "fixed", top: 20, right: 20, zIndex: 100,
+        width: 52, height: 28, borderRadius: 99,
+        background: isDark ? "rgba(143,255,214,0.15)" : "#e5e7eb",
+        border: isDark ? "1px solid rgba(143,255,214,0.3)" : "1px solid #d1d5db",
+        cursor: "pointer", flexShrink: 0,
+        transition: "background 0.2s, border-color 0.2s",
+        display: "flex", alignItems: "center", padding: "0 3px",
+      }}
+    >
+      <Sun  size={11} style={{ position: "absolute", left: 6,  color: isDark ? "transparent" : "#f59e0b", transition: "color 0.2s" }}/>
+      <Moon size={11} style={{ position: "absolute", right: 6, color: isDark ? "#8FFFD6" : "transparent", transition: "color 0.2s" }}/>
+      <span style={{
+        position: "relative", zIndex: 1, width: 22, height: 22, borderRadius: "50%",
+        background: isDark ? "#8FFFD6" : "#fff",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        transform: isDark ? "translateX(24px)" : "translateX(0px)",
+        transition: "transform 0.25s cubic-bezier(0.4,0,0.2,1), background 0.2s",
+      }}>
+        {isDark ? <Moon size={11} style={{ color: "#0a0a0a" }} strokeWidth={2.5}/> : <Sun size={11} style={{ color: "#f59e0b" }} strokeWidth={2.5}/>}
+      </span>
+    </button>
+  );
+}
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") ?? "/dashboard";
-  const expired = searchParams.get("reason") === "session_expired";
+  const expired    = searchParams.get("reason") === "session_expired";
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-
   useEffect(() => setMounted(true), []);
+
+  const isDark = mounted && resolvedTheme === "dark";
+  const T = {
+    pageBg:      isDark ? "#0a0a0a"  : "#F3F2F2",
+    cardBg:      isDark ? "#111111"  : "#ffffff",
+    cardBorder:  isDark ? "#1f1f1f"  : "transparent",
+    cardShadow:  isDark ? "none"     : "0 2px 16px rgba(0,0,0,0.06)",
+    primary:     isDark ? "#ffffff"  : "#18181A",
+    muted:       isDark ? "#6b7280"  : "#9ca3af",
+    inputBg:     isDark ? "#0a0a0a"  : "#ffffff",
+    inputBorder: isDark ? "#2a2a2a"  : "#e5e7eb",
+    inputFocus:  isDark ? "#8FFFD6"  : "#18181A",
+    divider:     isDark ? "#1f1f1f"  : "#f3f4f6",
+    btnBg:       isDark ? "#8FFFD6"  : "#18181A",
+    btnColor:    isDark ? "#0a0a0a"  : "#ffffff",
+    googleBg:    isDark ? "#1a1a1a"  : "#ffffff",
+    googleBorder:isDark ? "#2a2a2a"  : "#e5e7eb",
+    googleHover: isDark ? "#222222"  : "#f9fafb",
+    googleColor: isDark ? "#ffffff"  : "#18181A",
+    linkColor:   isDark ? "#8FFFD6"  : "#18181A",
+  };
 
   const [email, setEmail]             = useState("");
   const [password, setPassword]       = useState("");
@@ -43,29 +99,6 @@ function LoginForm() {
   const [loading, setLoading]         = useState(false);
   const [googleReady, setGoogleReady] = useState(false);
   const [error, setError]             = useState<string | null>(null);
-
-  // ── Theme tokens ──────────────────────────────────────────────────────────
-  const isDark = mounted && resolvedTheme === "dark";
-  const T = {
-    pageBg:    isDark ? "#0a0a0a"  : "#F3F2F2",
-    cardBg:    isDark ? "#111111"  : "#ffffff",
-    cardBorder:isDark ? "#1f1f1f"  : "transparent",
-    cardShadow:isDark ? "none"     : "0 2px 16px rgba(0,0,0,0.06)",
-    primary:   isDark ? "#ffffff"  : "#18181A",
-    muted:     isDark ? "#6b7280"  : "#9ca3af",
-    inputBg:   isDark ? "#0a0a0a"  : "#ffffff",
-    inputBorder:isDark? "#2a2a2a"  : "#e5e7eb",
-    inputFocus:isDark ? "#8FFFD6"  : "#18181A",
-    divider:   isDark ? "#1f1f1f"  : "#f3f4f6",
-    logoBg:    "#18181A",
-    btnBg:     isDark ? "#8FFFD6"  : "#18181A",
-    btnColor:  isDark ? "#0a0a0a"  : "#ffffff",
-    googleBg:  isDark ? "#1a1a1a"  : "#ffffff",
-    googleBorder:isDark? "#2a2a2a" : "#e5e7eb",
-    googleHover:isDark ? "#222222" : "#f9fafb",
-    googleColor:isDark ? "#ffffff" : "#18181A",
-    linkColor: isDark ? "#8FFFD6"  : "#18181A",
-  };
 
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) return;
@@ -101,16 +134,14 @@ function LoginForm() {
 
   return (
     <div style={{ minHeight:"100vh", background:T.pageBg, display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px", fontFamily:"var(--font-geist-sans,'Geist',sans-serif)", transition:"background 0.2s" }}>
+      <FloatingThemeToggle/>
       <div style={{ width:"100%", maxWidth:400 }}>
-
-        <div style={{ background:T.cardBg, borderRadius:20, padding:"36px 32px", boxShadow:T.cardShadow, border:`1px solid ${T.cardBorder}`, transition:"background 0.2s, border-color 0.2s" }}>
+        <div style={{ background:T.cardBg, borderRadius:20, padding:"36px 32px", boxShadow:T.cardShadow, border:`1px solid ${T.cardBorder}`, transition:"background 0.2s" }}>
 
           {/* Logo */}
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:24 }}>
-            <div style={{ width:32, height:32, background:T.logoBg, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" fill="#8FFFD6"/>
-              </svg>
+            <div style={{ width:32, height:32, background:"#18181A", borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" fill="#8FFFD6"/></svg>
             </div>
             <span style={{ color:T.primary, fontWeight:700, fontSize:16, letterSpacing:-0.3 }}>StockSense</span>
           </div>
@@ -118,28 +149,17 @@ function LoginForm() {
           <h1 style={{ color:T.primary, fontSize:22, fontWeight:700, textAlign:"center", margin:"0 0 6px" }}>Welcome Back</h1>
           <p style={{ color:T.muted, fontSize:13, textAlign:"center", margin:"0 0 24px" }}>Sign in to your StockSense account</p>
 
-          {expired && (
-            <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:10, background:isDark?"#78350f22":"#fff8e1", border:"1px solid #f59e0b44", color:"#b45309", fontSize:13 }}>
-              Your session expired. Please sign in again.
-            </div>
-          )}
-          {error && (
-            <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:10, background:isDark?"#7f1d1d22":"#fef2f2", border:"1px solid #ef444444", color:"#dc2626", fontSize:13 }}>
-              {error}
-            </div>
-          )}
+          {expired && <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:10, background:isDark?"#78350f22":"#fff8e1", border:"1px solid #f59e0b44", color:"#b45309", fontSize:13 }}>Your session expired. Please sign in again.</div>}
+          {error   && <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:10, background:isDark?"#7f1d1d22":"#fef2f2", border:"1px solid #ef444444", color:"#dc2626", fontSize:13 }}>{error}</div>}
 
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            {/* Email */}
             <div>
               <label style={{ display:"block", color:T.primary, fontSize:12, fontWeight:500, marginBottom:6 }}>Email Address</label>
               <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address.com"
                 style={{ width:"100%", boxSizing:"border-box", background:T.inputBg, border:`1px solid ${T.inputBorder}`, borderRadius:10, padding:"10px 14px", fontSize:13, color:T.primary, outline:"none", transition:"border-color 0.15s" }}
-                onFocus={e=>(e.target.style.borderColor=T.inputFocus)}
-                onBlur={e=>(e.target.style.borderColor=T.inputBorder)}/>
+                onFocus={e=>(e.target.style.borderColor=T.inputFocus)} onBlur={e=>(e.target.style.borderColor=T.inputBorder)}/>
             </div>
 
-            {/* Password */}
             <div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                 <label style={{ color:T.primary, fontSize:12, fontWeight:500 }}>Password</label>
@@ -150,10 +170,8 @@ function LoginForm() {
               <div style={{ position:"relative" }}>
                 <input type={showPw?"text":"password"} required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password"
                   style={{ width:"100%", boxSizing:"border-box", background:T.inputBg, border:`1px solid ${T.inputBorder}`, borderRadius:10, padding:"10px 40px 10px 14px", fontSize:13, color:T.primary, outline:"none", transition:"border-color 0.15s" }}
-                  onFocus={e=>(e.target.style.borderColor=T.inputFocus)}
-                  onBlur={e=>(e.target.style.borderColor=T.inputBorder)}/>
-                <button type="button" onClick={()=>setShowPw(v=>!v)}
-                  style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:T.muted, padding:0 }}>
+                  onFocus={e=>(e.target.style.borderColor=T.inputFocus)} onBlur={e=>(e.target.style.borderColor=T.inputBorder)}/>
+                <button type="button" onClick={()=>setShowPw(v=>!v)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:T.muted, padding:0 }}>
                   {showPw
                     ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                     : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -162,30 +180,23 @@ function LoginForm() {
               </div>
             </div>
 
-            {/* Sign in */}
             <button type="button" disabled={loading} onClick={handleSubmit as unknown as React.MouseEventHandler}
               style={{ width:"100%", padding:"11px 0", background:T.btnBg, color:T.btnColor, border:"none", borderRadius:10, fontSize:14, fontWeight:600, cursor:loading?"not-allowed":"pointer", transition:"background 0.15s", marginTop:4 }}>
               {loading?"Signing in…":"Sign in"}
             </button>
           </div>
 
-          {/* Divider */}
           <div style={{ display:"flex", alignItems:"center", gap:12, margin:"20px 0" }}>
-            <div style={{ flex:1, height:1, background:T.divider }}/>
-            <span style={{ color:T.muted, fontSize:12 }}>or</span>
-            <div style={{ flex:1, height:1, background:T.divider }}/>
+            <div style={{ flex:1, height:1, background:T.divider }}/><span style={{ color:T.muted, fontSize:12 }}>or</span><div style={{ flex:1, height:1, background:T.divider }}/>
           </div>
 
-          {/* Google */}
           {GOOGLE_CLIENT_ID ? (
             <div id="google-btn" style={{ width:"100%", display:"flex", justifyContent:"center", minHeight:44, visibility:googleReady?"visible":"hidden" }}/>
           ) : (
             <button type="button" onClick={()=>window.location.href="http://localhost:8081/oauth2/authorization/google"}
               style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, padding:"10px 0", borderRadius:10, background:T.googleBg, border:`1px solid ${T.googleBorder}`, fontSize:13, fontWeight:500, color:T.googleColor, cursor:"pointer", transition:"background 0.15s" }}
-              onMouseEnter={e=>(e.currentTarget.style.background=T.googleHover)}
-              onMouseLeave={e=>(e.currentTarget.style.background=T.googleBg)}>
-              <GoogleIcon/>
-              Continue with Google
+              onMouseEnter={e=>(e.currentTarget.style.background=T.googleHover)} onMouseLeave={e=>(e.currentTarget.style.background=T.googleBg)}>
+              <GoogleIcon/> Continue with Google
             </button>
           )}
 

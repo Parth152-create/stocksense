@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTheme } from "next-themes";
+import { Sun, Moon } from "lucide-react";
 import { register, googleAuth } from "@/lib/auth";
 
 declare global {
@@ -37,6 +38,43 @@ function GoogleIcon() {
       <path fill="#FBBC05" d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332z"/>
       <path fill="#EA4335" d="M9 3.583c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962L3.964 7.294C4.672 5.163 6.656 3.583 9 3.583z"/>
     </svg>
+  );
+}
+
+// ── Floating theme toggle ────────────────────────────────────────────────────
+function FloatingThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  const isDark = resolvedTheme === "dark";
+  return (
+    <button
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      aria-label="Toggle theme"
+      style={{
+        position: "fixed", top: 20, right: 20, zIndex: 100,
+        width: 52, height: 28, borderRadius: 99,
+        background: isDark ? "rgba(143,255,214,0.15)" : "#e5e7eb",
+        border: isDark ? "1px solid rgba(143,255,214,0.3)" : "1px solid #d1d5db",
+        cursor: "pointer", flexShrink: 0,
+        transition: "background 0.2s, border-color 0.2s",
+        display: "flex", alignItems: "center", padding: "0 3px",
+      }}
+    >
+      <Sun  size={11} style={{ position: "absolute", left: 6,  color: isDark ? "transparent" : "#f59e0b", transition: "color 0.2s" }}/>
+      <Moon size={11} style={{ position: "absolute", right: 6, color: isDark ? "#8FFFD6" : "transparent", transition: "color 0.2s" }}/>
+      <span style={{
+        position: "relative", zIndex: 1, width: 22, height: 22, borderRadius: "50%",
+        background: isDark ? "#8FFFD6" : "#fff",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        transform: isDark ? "translateX(24px)" : "translateX(0px)",
+        transition: "transform 0.25s cubic-bezier(0.4,0,0.2,1), background 0.2s",
+      }}>
+        {isDark ? <Moon size={11} style={{ color: "#0a0a0a" }} strokeWidth={2.5}/> : <Sun size={11} style={{ color: "#f59e0b" }} strokeWidth={2.5}/>}
+      </span>
+    </button>
   );
 }
 
@@ -127,7 +165,9 @@ export default function RegisterPage() {
   }
 
   return (
-    <div style={{ minHeight:"100vh", background:T.pageBg, display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px", fontFamily:"var(--font-geist-sans,'Geist',sans-serif)", transition:"background 0.2s" }}>
+    <>
+      <FloatingThemeToggle />
+      <div style={{ minHeight:"100vh", background:T.pageBg, display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px", fontFamily:"var(--font-geist-sans,'Geist',sans-serif)", transition:"background 0.2s" }}>
       <div style={{ width:"100%", maxWidth:400 }}>
 
         <div style={{ background:T.cardBg, borderRadius:20, padding:"36px 32px", boxShadow:T.cardShadow, border:`1px solid ${T.cardBorder}`, transition:"background 0.2s, border-color 0.2s" }}>
@@ -241,5 +281,6 @@ export default function RegisterPage() {
         </p>
       </div>
     </div>
+    </>
   );
 }
