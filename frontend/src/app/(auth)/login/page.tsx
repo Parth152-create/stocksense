@@ -125,10 +125,10 @@ function LoginForm() {
     finally { setLoading(false); }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); setLoading(true); setError(null);
     try { await login(email, password); router.push(redirectTo); }
-    catch (e: unknown) { setError(e instanceof Error ? e.message : "Login failed"); }
+    catch (err: unknown) { setError(err instanceof Error ? err.message : "Login failed"); }
     finally { setLoading(false); }
   }
 
@@ -152,7 +152,7 @@ function LoginForm() {
           {expired && <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:10, background:isDark?"#78350f22":"#fff8e1", border:"1px solid #f59e0b44", color:"#b45309", fontSize:13 }}>Your session expired. Please sign in again.</div>}
           {error   && <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:10, background:isDark?"#7f1d1d22":"#fef2f2", border:"1px solid #ef444444", color:"#dc2626", fontSize:13 }}>{error}</div>}
 
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <form onSubmit={handleSubmit} style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <div>
               <label style={{ display:"block", color:T.primary, fontSize:12, fontWeight:500, marginBottom:6 }}>Email Address</label>
               <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address.com"
@@ -180,11 +180,11 @@ function LoginForm() {
               </div>
             </div>
 
-            <button type="button" disabled={loading} onClick={handleSubmit as unknown as React.MouseEventHandler}
+            <button type="submit" disabled={loading}
               style={{ width:"100%", padding:"11px 0", background:T.btnBg, color:T.btnColor, border:"none", borderRadius:10, fontSize:14, fontWeight:600, cursor:loading?"not-allowed":"pointer", transition:"background 0.15s", marginTop:4 }}>
               {loading?"Signing in…":"Sign in"}
             </button>
-          </div>
+          </form>
 
           <div style={{ display:"flex", alignItems:"center", gap:12, margin:"20px 0" }}>
             <div style={{ flex:1, height:1, background:T.divider }}/><span style={{ color:T.muted, fontSize:12 }}>or</span><div style={{ flex:1, height:1, background:T.divider }}/>

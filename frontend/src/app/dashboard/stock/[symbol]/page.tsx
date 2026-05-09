@@ -8,7 +8,6 @@ import {
   Plus, Minus, Activity, BarChart2, Clock, AlertCircle, CheckCircle2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -339,12 +338,20 @@ export default function StockDetailPage() {
                   <span style={{color:C.primary,fontWeight:600,fontSize:14}}>Price Chart</span>
                   <span style={{fontSize:10,padding:"2px 8px",background:"#8FFFD611",border:"1px solid #8FFFD633",borderRadius:99,color:"#8FFFD6",fontWeight:600}}>TradingView</span>
                 </div>
-                <Tabs value={chartType} onValueChange={v=>setChartType(v as ChartType)}>
-                  <TabsList className="bg-[var(--color-page)] border border-[var(--color-line)]">
-                    <TabsTrigger value="candlestick" className="flex items-center gap-1.5 text-xs data-[state=active]:text-[#8FFFD6]"><BarChart2 size={12}/> Candlestick</TabsTrigger>
-                    <TabsTrigger value="area"        className="flex items-center gap-1.5 text-xs data-[state=active]:text-[#8FFFD6]"><Activity  size={12}/> Area</TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                <div style={{ display:"flex", background:"var(--color-page)", border:"1px solid var(--color-line)", borderRadius:8, padding:3, gap:2 }}>
+                  {(["candlestick","area"] as ChartType[]).map(t => (
+                    <button key={t} onClick={() => setChartType(t)} style={{
+                      display:"flex", alignItems:"center", gap:5,
+                      padding:"5px 10px", borderRadius:6, border:"none",
+                      cursor:"pointer", fontSize:11, fontWeight:600,
+                      background: chartType===t ? "var(--color-card)" : "transparent",
+                      color: chartType===t ? "#8FFFD6" : "var(--color-muted)",
+                      transition:"all 0.15s",
+                    }}>
+                      {t==="candlestick" ? <><BarChart2 size={12}/> Candlestick</> : <><Activity size={12}/> Area</>}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div style={{display:"flex",gap:6,marginBottom:16}}>

@@ -12,7 +12,7 @@ import { useTheme } from "next-themes";
 import { MarketProvider } from "@/lib/MarketContext";
 import MarketSwitcher from "@/components/MarketSwitcher";
 import NotificationsDrawer, { AppNotification } from "@/components/NotificationsDrawer";
-import { getAuthHeaders } from "@/lib/auth";
+import { getAuthHeaders, getToken, logout } from "@/lib/auth";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const NAV_ITEMS = [
@@ -74,11 +74,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router   = useRouter();
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // ── Auth guard ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    const token = getToken();
+    if (!token) {
+      router.replace(`/login?redirect=${pathname}`);
+    } else {
+      setAuthChecked(true);
+    }
+  }, [pathname, router]);
 
   const isDark = !mounted || resolvedTheme === "dark";
 
-  // ── Dynamic colors that can't use CSS vars (sidebar uses inline styles) ──
   const sidebarBg    = isDark ? "#0d0d0d"  : "#ffffff";
   const sidebarBorder= isDark ? "#1f1f1f"  : "#e5e7eb";
   const headerBg     = isDark ? "#0d0d0d"  : "#ffffff";
@@ -144,10 +154,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     await fetch("http://localhost:8081/api/notifications/read-all", { method: "POST", headers: getAuthHeaders() }).catch(() => {});
   }, []);
 
-  const handleLogout = () => {
-    document.cookie = "token=; path=/; Max-Age=0";
-    router.push("/login");
-  };
+  const handleLogout = () => logout();
 
   const breadcrumb = (() => {
     const segments = pathname.split("/").filter(Boolean);
@@ -157,6 +164,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       isLast: i === segments.length - 1,
     }));
   })();
+
+  // Don't render dashboard until auth is confirmed
+  if (!authChecked) return null;
 
   return (
     <MarketProvider>

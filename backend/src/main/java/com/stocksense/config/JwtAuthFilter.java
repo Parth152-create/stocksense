@@ -23,15 +23,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     @Override
-protected boolean shouldNotFilter(HttpServletRequest request) {
-    String path = request.getRequestURI();
-
-    return path.startsWith("/api/stocks")
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path.startsWith("/api/stocks")
             || path.startsWith("/api/auth")
-            || path.startsWith("/ws") 
+            || path.startsWith("/ws")
             || path.equals("/api/users/register")
             || path.equals("/api/users/login");
-}
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -40,9 +40,9 @@ protected boolean shouldNotFilter(HttpServletRequest request) {
 
         String authHeader = request.getHeader("Authorization");
 
+        // No token — let Spring Security's own rules decide (permitAll vs authenticated)
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("Missing or invalid Authorization header");
+            filterChain.doFilter(request, response);
             return;
         }
 
@@ -51,11 +51,11 @@ protected boolean shouldNotFilter(HttpServletRequest request) {
         try {
             String email = jwtService.extractEmail(token);
 
-            //  Set authentication in SecurityContext so Spring allows the request
-            UsernamePasswordAuthenticationToken authentication =
+            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(email, null, List.of());
-
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
 
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
