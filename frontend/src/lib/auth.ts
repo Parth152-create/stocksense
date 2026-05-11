@@ -44,7 +44,7 @@ async function silentRefresh(): Promise<boolean> {
 
   _refreshPromise = (async () => {
     try {
-      const res = await fetch("/api/auth/refresh", {
+      const res = await fetch("http://localhost:8081/api/auth/refresh", {
         method: "POST",
         credentials: "include",
       });
@@ -55,8 +55,10 @@ async function silentRefresh(): Promise<boolean> {
       }
 
       const data = await res.json();
-      if (data.accessToken) {
-        setToken(data.accessToken);
+      // Backend returns { token: "..." } not { accessToken: "..." }
+      const incoming = data.token ?? data.accessToken;
+      if (incoming) {
+        setToken(incoming);
         return true;
       }
       return false;
@@ -84,7 +86,10 @@ export async function fetchWithAuth(
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(url, {
+  // Prefix relative URLs with backend base
+  const fullUrl = url.startsWith("http") ? url : `http://localhost:8081${url}`;
+
+  const response = await fetch(fullUrl, {
     ...options,
     headers,
     credentials: "include",
@@ -99,8 +104,7 @@ export async function fetchWithAuth(
       if (newToken) {
         retryHeaders.set("Authorization", `Bearer ${newToken}`);
       }
-
-      return fetch(url, {
+      return fetch(fullUrl, {
         ...options,
         headers: retryHeaders,
         credentials: "include",
@@ -123,17 +127,18 @@ export function getWebSocketUrl(symbol?: string): string {
 }
 
 export interface LoginResponse {
-  accessToken: string;
+  token: string;       // ← backend field name
+  accessToken?: string; // ← fallback in case it changes
   email: string;
-  name: string;
-  id: number;
+  name?: string;
+  id?: number;
 }
 
 export async function login(
   email: string,
   password: string
 ): Promise<LoginResponse> {
-  const res = await fetch("/api/auth/login", {
+  const res = await fetch("http://localhost:8081/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -146,7 +151,9 @@ export async function login(
   }
 
   const data: LoginResponse = await res.json();
-  setToken(data.accessToken);
+  // Accept either field name from backend
+  const incoming = data.token ?? data.accessToken;
+  if (incoming) setToken(incoming);
   return data;
 }
 
@@ -155,7 +162,7 @@ export async function register(
   email: string,
   password: string
 ): Promise<void> {
-  const res = await fetch("/api/auth/register", {
+  const res = await fetch("http://localhost:8081/api/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -168,11 +175,12 @@ export async function register(
   }
 
   const data = await res.json();
-  if (data.accessToken) setToken(data.accessToken);
+  const incoming = data.token ?? data.accessToken;
+  if (incoming) setToken(incoming);
 }
 
 export async function googleAuth(credential: string): Promise<void> {
-  const res = await fetch("/api/auth/google", {
+  const res = await fetch("http://localhost:8081/api/auth/google", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -185,12 +193,13 @@ export async function googleAuth(credential: string): Promise<void> {
   }
 
   const data = await res.json();
-  if (data.accessToken) setToken(data.accessToken);
+  const incoming = data.token ?? data.accessToken;
+  if (incoming) setToken(incoming);
 }
 
 export async function logout(): Promise<void> {
   try {
-    await fetch("/api/auth/logout", {
+    await fetch("http://localhost:8081/api/auth/logout", {
       method: "POST",
       credentials: "include",
     });

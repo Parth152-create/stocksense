@@ -1,559 +1,526 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import dynamic from "next/dynamic";
+import { useParams, useRouter } from "next/navigation";
+import { fetchWithAuth } from "@/lib/auth";
+import { useLivePrices } from "@/lib/websocket";
+import { useMarket } from "@/lib/MarketContext";
 import {
-  ArrowLeft, TrendingUp, TrendingDown, Star, StarOff,
-  Plus, Minus, Activity, BarChart2, Clock, AlertCircle, CheckCircle2,
+  TrendingUp, TrendingDown, ArrowLeft, Star, StarOff,
+  BarChart2, AlertCircle, RefreshCw,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import StockInsightsPanel from "@/components/StockInsightsPanel";
 
-const TradingViewChart = dynamic(() => import("@/components/TradingViewChart"), { ssr: false });
-
-let useMarketHook: () => { market?: { currency?: string; id?: string } | null };
-try {
-  useMarketHook = require("@/hooks/useMarket").useMarket;
-} catch {
-  try { useMarketHook = require("@/context/MarketContext").useMarket; }
-  catch { useMarketHook = () => ({ market: null }); }
+interface StockOverview {
+  symbol: string; name: string; exchange: string;
+  sector: string; industry: string; marketCap: number;
+  peRatio: number; eps: number; dividendYield: number;
+  week52High: number; week52Low: number; description: string;
 }
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface StockQuote {
-  symbol: string; price: number; open: number; high: number; low: number;
-  previousClose: number; change: number; changePercent: number; volume: number;
-  latestTradingDay: string; analystBuy: number; analystHold: number; analystSell: number;
+interface AnalystRating {
+  strongBuy: number; buy: number; hold: number;
+  sell: number; strongSell: number; targetPrice: number;
 }
-
-interface Candle {
-  date: string; open: number; high: number; low: number; close: number; volume: number;
+interface Insight {
+  id: string; type: "BULLISH" | "BEARISH" | "NEUTRAL";
+  title: string; body: string; source: string; publishedAt: string;
 }
+interface OrderForm { type: "BUY" | "SELL"; qty: string; }
 
-type ChartType  = "area" | "candlestick";
-type OrderType  = "buy" | "sell";
-type TimeRange  = "1D" | "7D" | "1M" | "3M" | "1Y" | "All";
-
-const TIME_RANGES: TimeRange[] = ["1D", "7D", "1M", "3M", "1Y", "All"];
-
-function filterCandles(candles: Candle[], range: TimeRange): Candle[] {
-  if (!candles.length || range === "All") return candles;
-  const now = new Date();
-  const cutoff = new Date(now);
-  switch (range) {
-    case "1D": cutoff.setDate(now.getDate() - 1);         break;
-    case "7D": cutoff.setDate(now.getDate() - 7);         break;
-    case "1M": cutoff.setMonth(now.getMonth() - 1);       break;
-    case "3M": cutoff.setMonth(now.getMonth() - 3);       break;
-    case "1Y": cutoff.setFullYear(now.getFullYear() - 1); break;
-  }
-  const cutoffStr = cutoff.toISOString().split("T")[0];
-  const filtered  = candles.filter(c => c.date >= cutoffStr);
-  return filtered.length >= 2 ? filtered : candles;
-}
-
-// ─── Theme constants ──────────────────────────────────────────────────────────
-
-const C = {
-  page:    "var(--color-page)",
-  card:    "var(--color-card)",
-  line:    "var(--color-line)",
-  hover:   "var(--color-surface-hover)",
-  primary: "var(--color-primary)",
-  muted:   "var(--color-muted)",
-};
-
-// ─── Logo / Avatar ─────────────────────────────────────────────────────────────
-
-const LOGO_DOMAINS: Record<string, string> = {
-  TSLA:"tesla.com", AAPL:"apple.com", AMD:"amd.com", MSFT:"microsoft.com",
-  NVDA:"nvidia.com", ADBE:"adobe.com", KO:"coca-cola.com", MCD:"mcdonalds.com",
-  AMZN:"amazon.com", GOOGL:"google.com", META:"meta.com", NFLX:"netflix.com",
-  INTC:"intel.com", PYPL:"paypal.com", BABA:"alibaba.com", DIS:"disney.com",
-  UBER:"uber.com", LYFT:"lyft.com", SHOP:"shopify.com", SNAP:"snap.com",
-  SPOT:"spotify.com", COIN:"coinbase.com",
-  "RELIANCE.BSE":"ril.com", "TCS.BSE":"tcs.com", "INFY.BSE":"infosys.com",
-  "HDFCBANK.BSE":"hdfcbank.com", "WIPRO.BSE":"wipro.com",
-};
-
-const AVATAR_COLORS = [
-  ["#8FFFD6","#00c896"], ["#818cf8","#6366f1"], ["#f59e0b","#d97706"],
-  ["#f472b6","#ec4899"], ["#34d399","#10b981"], ["#60a5fa","#3b82f6"],
-];
-
-function StockAvatar({ symbol, size = 52 }: { symbol: string; size?: number }) {
-  const [imgError, setImgError] = useState(false);
-  const clean  = symbol.replace(".BSE","").replace(".NSE","");
-  const domain = LOGO_DOMAINS[symbol] ?? LOGO_DOMAINS[clean];
-  const logoUrl = domain ? `https://icons.duckduckgo.com/ip3/${domain}.ico` : null;
-  const [from, to] = AVATAR_COLORS[clean.charCodeAt(0) % AVATAR_COLORS.length];
-  const gid = `ag-${clean}`;
-  if (!logoUrl || imgError) {
-    return (
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <defs>
-          <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor={from}/><stop offset="100%" stopColor={to}/>
-          </linearGradient>
-        </defs>
-        <circle cx={size/2} cy={size/2} r={size/2} fill={`url(#${gid})`}/>
-        <text x={size/2} y={size/2+1} textAnchor="middle" dominantBaseline="middle"
-          fill="#0a0a0a" fontWeight="800" fontSize={size*0.32} fontFamily="Geist,sans-serif">
-          {clean.slice(0,2)}
-        </text>
-      </svg>
-    );
-  }
+function Skeleton({ w, h = 16 }: { w: string | number; h?: number }) {
   return (
-    <div style={{width:size,height:size,borderRadius:"50%",overflow:"hidden",background:"var(--color-surface-hover)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"1px solid var(--color-line)"}}>
-      <img src={logoUrl} alt={clean} width={size*0.6} height={size*0.6} onError={()=>setImgError(true)} style={{objectFit:"contain"}}/>
+    <div style={{
+      width: w, height: h, borderRadius: 4,
+      background: "var(--color-line)",
+      animation: "pulse 1.5s ease-in-out infinite",
+    }} />
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div style={{
+      background: "var(--color-card)", border: "1px solid var(--color-line)",
+      borderRadius: 10, padding: "12px 16px",
+    }}>
+      <p style={{ margin: 0, fontSize: 11, color: "var(--color-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</p>
+      <p style={{ margin: "4px 0 0", fontSize: 15, fontWeight: 700 }}>{value}</p>
     </div>
   );
 }
 
-// ─── Toast ────────────────────────────────────────────────────────────────────
+function AnalystBar({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {
+  const pct = total > 0 ? (count / total) * 100 : 0;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+      <span style={{ width: 72, color: "var(--color-muted)", fontSize: 12 }}>{label}</span>
+      <div style={{ flex: 1, height: 6, background: "var(--color-line)", borderRadius: 3, overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 3, transition: "width .5s ease" }} />
+      </div>
+      <span style={{ width: 20, textAlign: "right", fontWeight: 600 }}>{count}</span>
+    </div>
+  );
+}
 
-const Toast = ({ message, type }: { message: string; type: "success" | "error" }) => (
-  <div style={{position:"fixed",bottom:32,right:32,background:"var(--color-card)",border:`1px solid ${type==="success"?"#8FFFD6":"#ef4444"}`,borderRadius:10,padding:"14px 20px",display:"flex",alignItems:"center",gap:10,zIndex:9999,animation:"fadeInUp 0.3s ease",boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}}>
-    {type==="success" ? <CheckCircle2 size={18} color="#8FFFD6"/> : <AlertCircle size={18} color="#ef4444"/>}
-    <span style={{color:"var(--color-primary)",fontSize:14}}>{message}</span>
-  </div>
-);
+function TradingViewChart({ symbol }: { symbol: string }) {
+  function toTradingViewSymbol(sym: string): string {
+    if (sym.endsWith(".BSE")) return `BSE:${sym.replace(".BSE", "")}`;
+    if (sym.endsWith(".NSE")) return `NSE:${sym.replace(".NSE", "")}`;
+    return sym;
+  }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+  const tvSymbol    = toTradingViewSymbol(symbol);
+  const containerId = `tv-${symbol.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-export default function StockDetailPage() {
-  const { symbol }     = useParams<{ symbol: string }>();
-  const router         = useRouter();
-  const searchParams   = useSearchParams();
-  const { market: ctxMarket } = useMarketHook() ?? {};
-  const marketIdFromUrl = searchParams.get("market") ?? ctxMarket?.id ?? "US";
-  const isIndian   = symbol?.endsWith(".BSE") || symbol?.endsWith(".NSE") || marketIdFromUrl === "IN";
-  const currencySymbol = ctxMarket?.currency ?? (isIndian ? "₹" : "$");
-  const mlSymbol = symbol?.replace(".BSE","").replace(".NSE","") ?? "";
-
-  const [quote, setQuote]               = useState<StockQuote | null>(null);
-  const [history, setHistory]           = useState<Candle[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [histLoading, setHistLoading]   = useState(true);
-  const [error]                         = useState<string | null>(null);
-  const [chartType, setChartType]       = useState<ChartType>("candlestick");
-  const [activeRange, setActiveRange]   = useState<TimeRange>("3M");
-  const [orderType, setOrderType]       = useState<OrderType>("buy");
-  const [quantity, setQuantity]         = useState(1);
-  const [orderLoading, setOrderLoading] = useState(false);
-  const [toast, setToast]               = useState<{ message: string; type: "success"|"error" } | null>(null);
-  const [watchlisted, setWatchlisted]   = useState(false);
-  const [watchlistLoading, setWatchlistLoading] = useState(false);
-  const [confirmOpen, setConfirmOpen]   = useState(false);
-
-  const isPositive  = (quote?.change ?? 0) >= 0;
-  const orderTotal  = quote ? quote.price * quantity : 0;
-  const getToken    = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  const authHeaders = useCallback(() => ({ "Content-Type":"application/json", Authorization:`Bearer ${getToken()}` }), []);
-
-  const showToast = (message: string, type: "success"|"error") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  };
-
-  // ── Watchlist ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!symbol) return;
-    fetch("http://localhost:8081/api/watchlist", { headers: authHeaders() })
-      .then(r => r.ok ? r.json() : [])
-      .then((list: { symbol: string }[]) => setWatchlisted(list.some(w => w.symbol === symbol?.toUpperCase())))
-      .catch(() => {});
-  }, [symbol, authHeaders]);
+    const existing = document.getElementById(containerId);
+    if (existing) existing.innerHTML = "";
+
+    const initializeWidget = () => {
+      if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>).TradingView) {
+        const TV = (window as unknown as Record<string, unknown>).TradingView as {
+          widget: new (config: Record<string, unknown>) => void;
+        };
+        new TV.widget({
+          container_id: containerId,
+          symbol: tvSymbol,
+          interval: "D",
+          timezone: "Asia/Kolkata",
+          theme: document.documentElement.classList.contains("dark") ? "dark" : "light",
+          style: "1",
+          locale: "en",
+          enable_publishing: false,
+          allow_symbol_change: true,
+          hide_top_toolbar: false,
+          save_image: false,
+          autosize: true,
+          height: 420,
+        });
+      }
+    };
+
+    const existingScript = document.querySelector('script[src="https://s3.tradingview.com/tv.js"]');
+    if (existingScript) {
+      initializeWidget();
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://s3.tradingview.com/tv.js";
+      script.async = true;
+      script.onload = initializeWidget;
+      document.head.appendChild(script);
+    }
+
+    return () => {
+      const el = document.getElementById(containerId);
+      if (el) el.innerHTML = "";
+    };
+  }, [tvSymbol, containerId]);
+
+  return (
+    <div style={{
+      background: "var(--color-card)", border: "1px solid var(--color-line)",
+      borderRadius: 12, overflow: "hidden", marginBottom: 20,
+    }}>
+      <div id={containerId} style={{ width: "100%", height: 420 }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          height: 420, color: "var(--color-muted)", gap: 8, fontSize: 14,
+        }}>
+          <RefreshCw size={16} style={{ animation: "spin 1s linear infinite" }} />
+          Loading chart…
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function StockPage() {
+  const params = useParams();
+  const router = useRouter();
+  const symbol = ((params?.symbol as string) ?? "").toUpperCase();
+
+  const { market, formatPrice } = useMarket();
+
+  const [overview, setOverview]   = useState<StockOverview | null>(null);
+  const [ratings, setRatings]     = useState<AnalystRating | null>(null);
+  const [insights, setInsights]   = useState<Insight[]>([]);
+  const [watchlisted, setWatchlisted] = useState(false);
+  const [orderForm, setOrderForm] = useState<OrderForm>({ type: "BUY", qty: "" });
+  const [orderStatus, setOrderStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [orderMsg, setOrderMsg]   = useState("");
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState<string | null>(null);
+
+  const prices = useLivePrices([symbol]);
+  const live   = prices[symbol];
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [ovRes, ratRes, insRes, wlRes] = await Promise.all([
+        fetchWithAuth(`/api/stocks/${symbol}/overview`),
+        fetchWithAuth(`/api/stocks/${symbol}/ratings`),
+        fetchWithAuth(`/api/stocks/${symbol}/insights`),
+        fetchWithAuth(`/api/watchlist`),
+      ]);
+
+      if (!ovRes.ok) throw new Error(`Symbol not found: ${symbol}`);
+      setOverview(await ovRes.json());
+      if (ratRes.ok) setRatings(await ratRes.json());
+      if (insRes.ok) setInsights(await insRes.json());
+      if (wlRes.ok) {
+        const wl: { symbol: string }[] = await wlRes.json();
+        setWatchlisted(wl.some(w => w.symbol === symbol));
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load stock data");
+    } finally {
+      setLoading(false);
+    }
+  }, [symbol]);
+
+  useEffect(() => { void load(); }, [load]);
 
   const toggleWatchlist = async () => {
-    if (!symbol) return;
-    setWatchlistLoading(true);
-    try {
-      if (watchlisted) {
-        await fetch(`http://localhost:8081/api/watchlist/${symbol}`, { method:"DELETE", headers:authHeaders() });
-        setWatchlisted(false);
-        showToast(`${symbol} removed from watchlist`, "success");
-      } else {
-        await fetch("http://localhost:8081/api/watchlist", { method:"POST", headers:authHeaders(), body:JSON.stringify({ symbol: symbol.toUpperCase() }) });
-        setWatchlisted(true);
-        showToast(`${symbol} added to watchlist`, "success");
-      }
-    } catch { showToast("Watchlist update failed", "error"); }
-    finally { setWatchlistLoading(false); }
+    const method = watchlisted ? "DELETE" : "POST";
+    const res = await fetchWithAuth(`/api/watchlist/${symbol}`, { method });
+    if (res.ok) setWatchlisted(w => !w);
   };
 
-  // ── Mock helpers ───────────────────────────────────────────────────────────
-  const getMockQuote = useCallback((sym: string): StockQuote => {
-    const indian = sym.endsWith(".BSE") || sym.endsWith(".NSE");
-    const seed   = sym.split("").reduce((a,c) => a + c.charCodeAt(0), 0);
-    const price  = indian ? 500 + (seed % 4500) : 20 + (seed % 480);
-    return { symbol:sym.toUpperCase(), price:+price.toFixed(2), open:+(price*0.987).toFixed(2), high:+(price*1.021).toFixed(2), low:+(price*0.968).toFixed(2), previousClose:+(price*0.994).toFixed(2), change:+(price*0.006).toFixed(2), changePercent:0.58, volume:4823100, latestTradingDay:new Date().toISOString().split("T")[0], analystBuy:65, analystHold:25, analystSell:10 };
-  }, []);
-
-  const getMockHistory = useCallback((sym: string): Candle[] => {
-    const indian = sym.endsWith(".BSE") || sym.endsWith(".NSE");
-    const seed   = sym.split("").reduce((a,c) => a + c.charCodeAt(0), 0);
-    let base = indian ? 500 + (seed % 4500) : 20 + (seed % 480);
-    const candles: Candle[] = [];
-    for (let i = 365; i >= 0; i--) {
-      const d = new Date(); d.setDate(d.getDate() - i);
-      if (d.getDay()===0 || d.getDay()===6) continue;
-      const open  = base + (Math.random()-0.5)*base*0.02;
-      const close = open + (Math.random()-0.47)*base*0.018;
-      const high  = Math.max(open,close) + Math.random()*base*0.01;
-      const low   = Math.min(open,close) - Math.random()*base*0.01;
-      candles.push({ date:d.toISOString().split("T")[0], open:+open.toFixed(2), high:+high.toFixed(2), low:+low.toFixed(2), close:+close.toFixed(2), volume:Math.floor(Math.random()*5000000+500000) });
-      base = close;
+  const placeOrder = async () => {
+    if (!orderForm.qty || isNaN(Number(orderForm.qty)) || Number(orderForm.qty) <= 0) {
+      setOrderMsg("Enter a valid quantity");
+      setOrderStatus("error");
+      return;
     }
-    return candles;
-  }, []);
-
-  // ── Fetch ──────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!symbol) return;
-    setLoading(true);
-    fetch(`/api/stocks/${symbol}?market=${marketIdFromUrl}`, { headers: authHeaders() })
-      .then(async r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(data => setQuote(!data?.price || Number(data.price)===0 ? getMockQuote(symbol) : data))
-      .catch(() => setQuote(getMockQuote(symbol)))
-      .finally(() => setLoading(false));
-  }, [symbol, marketIdFromUrl, authHeaders, getMockQuote]);
-
-  useEffect(() => {
-    if (!symbol) return;
-    setHistLoading(true);
-    fetch(`/api/stocks/${symbol}/history?market=${marketIdFromUrl}`, { headers: authHeaders() })
-      .then(async r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(data => setHistory(data?.candles?.length > 0 ? data.candles : getMockHistory(symbol)))
-      .catch(() => setHistory(getMockHistory(symbol)))
-      .finally(() => setHistLoading(false));
-  }, [symbol, marketIdFromUrl, authHeaders, getMockHistory]);
-
-  // ── Order ──────────────────────────────────────────────────────────────────
-  const handleOrder = async () => {
-    if (!quote || quantity <= 0) return;
-    setOrderLoading(true);
+    setOrderStatus("loading");
+    setOrderMsg("");
     try {
-      const meRes = await fetch("/api/users/me", { headers: authHeaders() });
-      if (!meRes.ok) throw new Error("Auth failed");
-      const me = await meRes.json();
-      const res = await fetch("/api/holdings", { method:"POST", headers:authHeaders(), body:JSON.stringify({ portfolioId:me.portfolioId, symbol:quote.symbol, quantity:orderType==="sell"?-quantity:quantity, buyPrice:quote.price }) });
-      if (!res.ok) throw new Error(`Order failed: ${res.status}`);
-      showToast(`${orderType==="buy"?"Bought":"Sold"} ${quantity} × ${quote.symbol} @ ${currencySymbol}${quote.price.toLocaleString("en-IN",{minimumFractionDigits:2})}`, "success");
-      setQuantity(1);
-    } catch (e: any) { showToast(e.message ?? "Order failed", "error"); }
-    finally { setOrderLoading(false); }
+      const res = await fetchWithAuth("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol, type: orderForm.type,
+          qty: Number(orderForm.qty), price: live?.price ?? 0,
+        }),
+      });
+      if (!res.ok) throw new Error("Order failed");
+      setOrderStatus("success");
+      setOrderMsg(`${orderForm.type} order placed for ${orderForm.qty} shares`);
+      setOrderForm(f => ({ ...f, qty: "" }));
+      setTimeout(() => setOrderStatus("idle"), 3000);
+    } catch {
+      setOrderStatus("error");
+      setOrderMsg("Order failed — try again");
+    }
   };
 
-  const fmt    = (n:number) => (n??0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
-  const fmtVol = (n:number) => { if (!n) return "—"; if (n>=1e7) return (n/1e7).toFixed(2)+" Cr"; if (n>=1e5) return (n/1e5).toFixed(2)+" L"; return n.toLocaleString("en-IN"); };
+  const price     = live?.price ?? null;
+  const changePct = live?.changePct ?? null;
+  const isUp      = (changePct ?? 0) >= 0;
+  const totalRatings = ratings
+    ? ratings.strongBuy + ratings.buy + ratings.hold + ratings.sell + ratings.strongSell : 0;
 
-  // ── Loading / Error states ─────────────────────────────────────────────────
-  if (loading) return (
-    <div style={{padding:"24px 32px",maxWidth:1200,margin:"0 auto",background:C.page,minHeight:"100vh"}}>
-      <Skeleton className="h-4 w-24 mb-6"/>
-      <div className="flex items-center gap-4 mb-8">
-        <Skeleton className="h-14 w-14 rounded-full"/>
-        <div className="space-y-2"><Skeleton className="h-6 w-32"/><Skeleton className="h-4 w-48"/></div>
-      </div>
-      <div className="grid gap-5" style={{gridTemplateColumns:"1fr 340px"}}>
-        <Skeleton className="h-[400px] rounded-2xl"/><Skeleton className="h-[400px] rounded-2xl"/>
-      </div>
-    </div>
-  );
+  // Use market currency for capacity formatting
+  const fmtCap = (n: number) => {
+    if (n >= 1e12) return `${market.currency}${(n / 1e12).toFixed(2)}T`;
+    if (n >= 1e9)  return `${market.currency}${(n / 1e9).toFixed(2)}B`;
+    if (n >= 1e6)  return `${market.currency}${(n / 1e6).toFixed(2)}M`;
+    return formatPrice(n, 0);
+  };
 
-  if (error) return (
-    <div style={{padding:"40px 32px",textAlign:"center",background:C.page,minHeight:"100vh"}}>
-      <AlertCircle size={40} color="#ef4444" style={{margin:"0 auto 12px",display:"block"}}/>
-      <p style={{color:"#ef4444",fontWeight:600}}>{error}</p>
-      <button onClick={()=>router.back()} style={{marginTop:16,color:"#8FFFD6",background:"none",border:"none",cursor:"pointer"}}>← Go back</button>
-    </div>
-  );
-
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <>
+    <div style={{ padding: "32px 28px", maxWidth: 1100, margin: "0 auto" }}>
       <style>{`
-        @keyframes spin{to{transform:rotate(360deg);}}
-        @keyframes fadeInUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
-        .ss-back:hover{color:#8FFFD6!important;}
-        .ss-order:hover{filter:brightness(1.1);}
-        .ss-order:active{transform:scale(0.98);}
-        .ss-qty:hover{background:var(--color-surface-hover)!important;}
-        .ss-stat:hover{border-color:var(--color-line-strong)!important;}
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+        @keyframes spin { to { transform: rotate(360deg) } }
+        .order-tab { flex: 1; padding: 8px; border: none; cursor: pointer;
+          font-size: 13px; font-weight: 600; border-radius: 6px; transition: all .15s; }
       `}</style>
 
-      <div style={{padding:"24px 32px",maxWidth:1200,margin:"0 auto",animation:"fadeInUp 0.4s ease",background:C.page,minHeight:"100vh"}}>
+      <button onClick={() => router.back()} style={{
+        display: "flex", alignItems: "center", gap: 6,
+        background: "none", border: "none", cursor: "pointer",
+        color: "var(--color-muted)", fontSize: 13, marginBottom: 20, padding: 0,
+      }}>
+        <ArrowLeft size={14} /> Back
+      </button>
 
-        {/* ── Header ── */}
-        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:28}}>
+      {error ? (
+        <div style={{
+          display: "flex", flexDirection: "column", alignItems: "center",
+          justifyContent: "center", height: 300, gap: 12, color: "var(--color-bear)",
+        }}>
+          <AlertCircle size={32} />
+          <p style={{ margin: 0, fontSize: 16 }}>{error}</p>
+          <button onClick={load} style={{
+            padding: "8px 20px", borderRadius: 8, background: "var(--color-primary)",
+            color: "#000", border: "none", cursor: "pointer", fontWeight: 600,
+          }}>Retry</button>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20, alignItems: "start" }}>
+
+          {/* ── LEFT COLUMN ── */}
           <div>
-            <button className="ss-back" onClick={()=>router.back()}
-              style={{display:"flex",alignItems:"center",gap:6,color:C.muted,background:"none",border:"none",cursor:"pointer",fontSize:13,marginBottom:16,padding:0,transition:"color 0.2s"}}>
-              <ArrowLeft size={14}/> Back
-            </button>
-            <div style={{display:"flex",alignItems:"center",gap:16}}>
-              <StockAvatar symbol={quote?.symbol ?? symbol ?? ""} size={52}/>
+            {/* Hero header */}
+            <div style={{
+              background: "var(--color-card)", border: "1px solid var(--color-line)",
+              borderRadius: 12, padding: "20px 24px", marginBottom: 20,
+              display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+            }}>
               <div>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <h1 style={{fontSize:22,fontWeight:700,color:C.primary,margin:0}}>{quote?.symbol ?? symbol}</h1>
-                  <span style={{fontSize:11,padding:"2px 8px",background:C.hover,borderRadius:6,color:C.muted,border:`1px solid ${C.line}`}}>
-                    {symbol?.endsWith(".BSE")?"BSE":symbol?.endsWith(".NSE")?"NSE":marketIdFromUrl==="IN"?"NSE":"NASDAQ"}
-                  </span>
+                {loading ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <Skeleton w={120} h={28} /><Skeleton w={200} /><Skeleton w={80} />
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800 }}>{symbol}</h1>
+                      <span style={{
+                        padding: "2px 8px", borderRadius: 6, fontSize: 11,
+                        background: "var(--color-line)", color: "var(--color-muted)",
+                      }}>{overview?.exchange}</span>
+                    </div>
+                    <p style={{ margin: "4px 0", color: "var(--color-muted)", fontSize: 14 }}>{overview?.name}</p>
+                    <p style={{ margin: 0, fontSize: 12, color: "var(--color-muted)" }}>
+                      {overview?.sector} · {overview?.industry}
+                    </p>
+                  </>
+                )}
+              </div>
+
+              <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                {loading ? (
+                  <><Skeleton w={100} h={32} /><Skeleton w={70} /></>
+                ) : price !== null ? (
+                  <>
+                    <span style={{ fontSize: 28, fontWeight: 800 }}>{formatPrice(price)}</span>
+                    <span style={{
+                      display: "flex", alignItems: "center", gap: 4, fontSize: 14, fontWeight: 600,
+                      color: isUp ? "var(--color-bull)" : "var(--color-bear)",
+                    }}>
+                      {isUp ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                      {isUp ? "+" : ""}{changePct?.toFixed(2)}%
+                    </span>
+                  </>
+                ) : (
+                  <span style={{ color: "var(--color-muted)", fontSize: 14 }}>Price unavailable</span>
+                )}
+                <button onClick={toggleWatchlist} style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "6px 12px", borderRadius: 8, cursor: "pointer", fontSize: 12,
+                  background: watchlisted ? "color-mix(in srgb, var(--color-primary) 15%, transparent)" : "transparent",
+                  border: `1px solid ${watchlisted ? "var(--color-primary)" : "var(--color-line)"}`,
+                  color: watchlisted ? "var(--color-primary)" : "var(--color-muted)", fontWeight: 600,
+                }}>
+                  {watchlisted ? <Star size={12} fill="currentColor" /> : <StarOff size={12} />}
+                  {watchlisted ? "Watchlisted" : "Add to Watchlist"}
+                </button>
+              </div>
+            </div>
+
+            {/* TradingView Chart */}
+            <TradingViewChart symbol={symbol} />
+
+            {/* Key stats */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+              {loading ? Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} style={{
+                  background: "var(--color-card)", border: "1px solid var(--color-line)",
+                  borderRadius: 10, padding: "12px 16px",
+                }}>
+                  <Skeleton w="60%" h={11} />
+                  <div style={{ marginTop: 6 }}><Skeleton w="80%" h={18} /></div>
                 </div>
-                <p style={{color:C.muted,fontSize:13,margin:"4px 0 0"}}>
-                  {quote?.latestTradingDay ? `Last updated: ${new Date(quote.latestTradingDay).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}` : "Live data"}
+              )) : overview ? (
+                <>
+                  <StatCard label="Market Cap"  value={fmtCap(overview.marketCap)} />
+                  <StatCard label="P/E Ratio"   value={overview.peRatio?.toFixed(2) ?? "N/A"} />
+                  <StatCard label="EPS"         value={formatPrice(overview.eps ?? 0)} />
+                  <StatCard label="Div. Yield"  value={overview.dividendYield ? `${(overview.dividendYield * 100).toFixed(2)}%` : "N/A"} />
+                  <StatCard label="52W High"    value={formatPrice(overview.week52High ?? 0)} />
+                  <StatCard label="52W Low"     value={formatPrice(overview.week52Low ?? 0)} />
+                  <StatCard label="Sector"      value={overview.sector ?? "—"} />
+                  <StatCard label="Exchange"    value={overview.exchange ?? "—"} />
+                </>
+              ) : null}
+            </div>
+
+            {/* About */}
+            {!loading && overview?.description && (
+              <div style={{
+                background: "var(--color-card)", border: "1px solid var(--color-line)",
+                borderRadius: 12, padding: "18px 20px", marginBottom: 20,
+              }}>
+                <h3 style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700 }}>About</h3>
+                <p style={{ margin: 0, fontSize: 13, color: "var(--color-muted)", lineHeight: 1.7 }}>
+                  {overview.description}
                 </p>
               </div>
-            </div>
-          </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontSize:32,fontWeight:800,color:C.primary,letterSpacing:-1}}>{currencySymbol}{fmt(quote?.price??0)}</div>
-            <Badge variant="outline" className="text-sm font-semibold px-3 py-1 mt-2"
-              style={{background:isPositive?"rgba(143,255,214,0.08)":"rgba(239,68,68,0.08)",borderColor:isPositive?"rgba(143,255,214,0.2)":"rgba(239,68,68,0.2)",color:isPositive?"#8FFFD6":"#ef4444"}}>
-              {isPositive?<TrendingUp size={13} className="mr-1"/>:<TrendingDown size={13} className="mr-1"/>}
-              {isPositive?"+":""}{fmt(quote?.change??0)} ({isPositive?"+":""}{(quote?.changePercent??0).toFixed(2)}%)
-            </Badge>
-          </div>
-        </div>
-
-        {/* ── Two-col layout ── */}
-        <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 340px",gap:20,alignItems:"start"}}>
-
-          {/* LEFT */}
-          <div style={{display:"flex",flexDirection:"column",gap:16}}>
-
-            {/* Chart card */}
-            <div style={{background:C.card,border:`1px solid ${C.line}`,borderRadius:14,padding:"20px 24px"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <Activity size={15} color="#8FFFD6"/>
-                  <span style={{color:C.primary,fontWeight:600,fontSize:14}}>Price Chart</span>
-                  <span style={{fontSize:10,padding:"2px 8px",background:"#8FFFD611",border:"1px solid #8FFFD633",borderRadius:99,color:"#8FFFD6",fontWeight:600}}>TradingView</span>
-                </div>
-                <div style={{ display:"flex", background:"var(--color-page)", border:"1px solid var(--color-line)", borderRadius:8, padding:3, gap:2 }}>
-                  {(["candlestick","area"] as ChartType[]).map(t => (
-                    <button key={t} onClick={() => setChartType(t)} style={{
-                      display:"flex", alignItems:"center", gap:5,
-                      padding:"5px 10px", borderRadius:6, border:"none",
-                      cursor:"pointer", fontSize:11, fontWeight:600,
-                      background: chartType===t ? "var(--color-card)" : "transparent",
-                      color: chartType===t ? "#8FFFD6" : "var(--color-muted)",
-                      transition:"all 0.15s",
-                    }}>
-                      {t==="candlestick" ? <><BarChart2 size={12}/> Candlestick</> : <><Activity size={12}/> Area</>}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{display:"flex",gap:6,marginBottom:16}}>
-                {TIME_RANGES.map(r=>(
-                  <button key={r} onClick={()=>setActiveRange(r)}
-                    style={{padding:"4px 12px",borderRadius:99,fontSize:11,fontWeight:600,cursor:"pointer",transition:"all 0.15s",border:"none",background:activeRange===r?"#8FFFD6":C.hover,color:activeRange===r?"#0a0a0a":C.muted}}>
-                    {r}
-                  </button>
-                ))}
-              </div>
-
-              {histLoading ? (
-                <div className="space-y-2 pt-2"><Skeleton className="h-[300px] w-full rounded-lg"/></div>
-              ) : (
-                <TradingViewChart candles={filterCandles(history, activeRange)} type={chartType}/>
-              )}
-              <p style={{color:C.muted,fontSize:10,marginTop:8,textAlign:"right",opacity:0.5}}>Volume bars shown below price</p>
-            </div>
-
-            {/* Stats row 1 */}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-              {[
-                {label:"Open",        value:`${currencySymbol}${fmt(quote?.open??0)}`},
-                {label:"Day High",    value:`${currencySymbol}${fmt(quote?.high??0)}`,      color:"#8FFFD6"},
-                {label:"Day Low",     value:`${currencySymbol}${fmt(quote?.low??0)}`,       color:"#ef4444"},
-                {label:"Prev. Close", value:`${currencySymbol}${fmt(quote?.previousClose??0)}`},
-              ].map(({label,value,color})=>(
-                <div key={label} className="ss-stat" style={{background:C.card,border:`1px solid ${C.line}`,borderRadius:10,padding:"14px 16px",transition:"border-color 0.2s"}}>
-                  <p style={{color:C.muted,fontSize:11,margin:"0 0 6px",textTransform:"uppercase",letterSpacing:0.5}}>{label}</p>
-                  <p style={{color:color??C.primary,fontWeight:600,fontSize:15,margin:0}}>{value}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Stats row 2 */}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10}}>
-              {[
-                {label:"Volume",           value:fmtVol(quote?.volume??0)},
-                {label:"Last Trading Day", value:quote?.latestTradingDay??"—"},
-              ].map(({label,value})=>(
-                <div key={label} className="ss-stat" style={{background:C.card,border:`1px solid ${C.line}`,borderRadius:10,padding:"14px 16px",display:"flex",alignItems:"center",gap:10,transition:"border-color 0.2s"}}>
-                  <Clock size={14} color="var(--color-muted)"/>
-                  <div>
-                    <p style={{color:C.muted,fontSize:11,margin:"0 0 3px",textTransform:"uppercase",letterSpacing:0.5}}>{label}</p>
-                    <p style={{color:C.primary,fontWeight:600,fontSize:14,margin:0}}>{value}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            )}
 
             {/* Analyst Ratings */}
-            <div style={{background:C.card,border:`1px solid ${C.line}`,borderRadius:14,padding:"20px 24px"}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:20}}>
-                <Star size={15} color="#8FFFD6"/>
-                <span style={{color:C.primary,fontWeight:600,fontSize:14}}>Analyst Ratings</span>
-                <span style={{marginLeft:"auto",fontSize:11,color:C.muted,background:C.page,border:`1px solid ${C.line}`,padding:"2px 8px",borderRadius:5}}>AI-powered</span>
-              </div>
-              <div style={{display:"flex",gap:10,marginBottom:20}}>
-                {[
-                  {label:"Strong Buy",val:quote?.analystBuy??65,  color:"#8FFFD6",bg:"rgba(143,255,214,0.07)"},
-                  {label:"Hold",      val:quote?.analystHold??25, color:"#f59e0b",bg:"rgba(245,158,11,0.07)"},
-                  {label:"Sell",      val:quote?.analystSell??10, color:"#ef4444",bg:"rgba(239,68,68,0.07)"},
-                ].map(({label,val,color,bg})=>(
-                  <div key={label} style={{flex:1,textAlign:"center",background:bg,border:`1px solid ${color}22`,borderRadius:10,padding:"12px 8px"}}>
-                    <div style={{fontSize:22,fontWeight:800,color}}>{val}%</div>
-                    <div style={{fontSize:11,color:C.muted,marginTop:3}}>{label}</div>
-                  </div>
-                ))}
-              </div>
-              {[
-                {label:"Buy",  val:quote?.analystBuy??65,  color:"#8FFFD6",tip:"Analysts recommending to buy this stock"},
-                {label:"Hold", val:quote?.analystHold??25, color:"#f59e0b",tip:"Analysts recommending to hold this stock"},
-                {label:"Sell", val:quote?.analystSell??10, color:"#ef4444",tip:"Analysts recommending to sell this stock"},
-              ].map(({label,val,color,tip})=>(
-                <div key={label} style={{marginBottom:12}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-                    <span style={{fontSize:12,color:C.muted}}>{label}</span>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span style={{fontSize:12,color,fontWeight:600,cursor:"help"}}>{val}%</span>
-                      </TooltipTrigger>
-                      <TooltipContent side="left"><p className="text-xs">{tip}</p></TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <div style={{height:5,background:C.line,borderRadius:3,overflow:"hidden"}}>
-                    <div style={{height:"100%",width:`${val}%`,background:color,borderRadius:3,transition:"width 0.8s cubic-bezier(0.16,1,0.3,1)"}}/>
-                  </div>
+            <div style={{
+              background: "var(--color-card)", border: "1px solid var(--color-line)",
+              borderRadius: 12, padding: "18px 20px", marginBottom: 20,
+            }}>
+              <h3 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                <BarChart2 size={15} /> Analyst Ratings
+              </h3>
+              {loading ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} w="100%" h={10} />)}
                 </div>
-              ))}
+              ) : ratings ? (
+                <>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+                    <AnalystBar label="Strong Buy"  count={ratings.strongBuy}  total={totalRatings} color="#22c55e" />
+                    <AnalystBar label="Buy"         count={ratings.buy}        total={totalRatings} color="#86efac" />
+                    <AnalystBar label="Hold"        count={ratings.hold}       total={totalRatings} color="#f59e0b" />
+                    <AnalystBar label="Sell"        count={ratings.sell}       total={totalRatings} color="#fca5a5" />
+                    <AnalystBar label="Strong Sell" count={ratings.strongSell} total={totalRatings} color="#ef4444" />
+                  </div>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--color-muted)" }}>
+                    Consensus target:{" "}
+                    <strong style={{ color: "var(--color-primary)" }}>{formatPrice(ratings.targetPrice)}</strong>
+                    {price !== null && (
+                      <span> ({((ratings.targetPrice - price) / price * 100).toFixed(1)}% upside)</span>
+                    )}
+                  </p>
+                </>
+              ) : (
+                <p style={{ margin: 0, color: "var(--color-muted)", fontSize: 13 }}>No analyst data available</p>
+              )}
             </div>
 
             {/* AI Insights */}
-            <StockInsightsPanel symbol={mlSymbol} market={ctxMarket as any}/>
+            <div style={{
+              background: "var(--color-card)", border: "1px solid var(--color-line)",
+              borderRadius: 12, padding: "18px 20px",
+            }}>
+              <h3 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 700 }}>AI Insights</h3>
+              {loading ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <Skeleton w="40%" h={12} /><Skeleton w="100%" /><Skeleton w="80%" />
+                    </div>
+                  ))}
+                </div>
+              ) : insights.length === 0 ? (
+                <p style={{ margin: 0, color: "var(--color-muted)", fontSize: 13 }}>No insights available</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {insights.map(ins => (
+                    <div key={ins.id} style={{
+                      padding: "12px 14px", borderRadius: 8,
+                      border: "1px solid var(--color-line)",
+                      borderLeft: `3px solid ${ins.type === "BULLISH" ? "#22c55e" : ins.type === "BEARISH" ? "#ef4444" : "#f59e0b"}`,
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
+                          color: ins.type === "BULLISH" ? "#22c55e" : ins.type === "BEARISH" ? "#ef4444" : "#f59e0b",
+                        }}>{ins.type}</span>
+                        <span style={{ fontSize: 11, color: "var(--color-muted)" }}>
+                          {new Date(ins.publishedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 600 }}>{ins.title}</p>
+                      <p style={{ margin: 0, fontSize: 12, color: "var(--color-muted)", lineHeight: 1.6 }}>{ins.body}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* RIGHT — Order Panel */}
-          <div style={{background:C.card,border:`1px solid ${C.line}`,borderRadius:14,padding:"20px",position:"sticky",top:20}}>
-            <h3 style={{color:C.primary,fontWeight:700,fontSize:15,margin:"0 0 18px"}}>Place Order</h3>
+          {/* ── RIGHT COLUMN — Order Panel ── */}
+          <div style={{ position: "sticky", top: 80 }}>
+            <div style={{
+              background: "var(--color-card)", border: "1px solid var(--color-line)",
+              borderRadius: 12, padding: "20px",
+            }}>
+              <h3 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 700 }}>Place Order</h3>
 
-            {/* Buy/Sell toggle */}
-            <div style={{display:"flex",background:C.page,border:`1px solid ${C.line}`,borderRadius:10,padding:4,marginBottom:20}}>
-              {(["buy","sell"] as OrderType[]).map(t=>(
-                <button key={t} onClick={()=>setOrderType(t)} style={{flex:1,padding:"10px 0",borderRadius:7,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,transition:"all 0.2s",background:orderType===t?(t==="buy"?"rgba(143,255,214,0.12)":"rgba(239,68,68,0.12)"):"transparent",color:orderType===t?(t==="buy"?"#8FFFD6":"#ef4444"):C.muted,borderTop:orderType===t?`2px solid ${t==="buy"?"#8FFFD6":"#ef4444"}`:"2px solid transparent"}}>
-                  {t.toUpperCase()}
-                </button>
-              ))}
-            </div>
-
-            {/* Market price */}
-            <div style={{background:C.page,border:`1px solid ${C.line}`,borderRadius:10,padding:"12px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <span style={{color:C.muted,fontSize:12}}>Market Price</span>
-              <span style={{color:C.primary,fontWeight:700,fontSize:16}}>{currencySymbol}{fmt(quote?.price??0)}</span>
-            </div>
-
-            {/* Quantity */}
-            <div style={{marginBottom:16}}>
-              <label style={{display:"block",color:C.muted,fontSize:12,marginBottom:8}}>Quantity</label>
-              <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <button className="ss-qty" onClick={()=>setQuantity(Math.max(1,quantity-1))}
-                  style={{width:36,height:36,background:C.card,border:`1px solid ${C.line}`,borderRadius:8,color:C.primary,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.15s"}}>
-                  <Minus size={14}/>
-                </button>
-                <input type="number" value={quantity} min={1} onChange={e=>setQuantity(Math.max(1,parseInt(e.target.value)||1))}
-                  style={{flex:1,background:C.page,border:`1px solid ${C.line}`,borderRadius:8,color:C.primary,fontSize:16,fontWeight:600,textAlign:"center",padding:"8px 0",outline:"none"}}/>
-                <button className="ss-qty" onClick={()=>setQuantity(quantity+1)}
-                  style={{width:36,height:36,background:C.card,border:`1px solid ${C.line}`,borderRadius:8,color:C.primary,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"background 0.15s"}}>
-                  <Plus size={14}/>
-                </button>
+              <div style={{
+                display: "flex", gap: 4, background: "var(--color-line)",
+                borderRadius: 8, padding: 3, marginBottom: 16,
+              }}>
+                {(["BUY", "SELL"] as const).map(t => (
+                  <button key={t} className="order-tab"
+                    onClick={() => setOrderForm(f => ({ ...f, type: t }))}
+                    style={{
+                      background: orderForm.type === t
+                        ? t === "BUY" ? "var(--color-bull)" : "var(--color-bear)"
+                        : "transparent",
+                      color: orderForm.type === t ? "#fff" : "var(--color-muted)",
+                    }}
+                  >{t}</button>
+                ))}
               </div>
-            </div>
 
-            {/* Order summary */}
-            <div style={{background:C.page,border:`1px solid ${C.line}`,borderRadius:10,padding:"14px 16px",marginBottom:20}}>
-              {[
-                {label:"Price per share",value:`${currencySymbol}${fmt(quote?.price??0)}`},
-                {label:"Quantity",       value:quantity.toString()},
-              ].map(({label,value})=>(
-                <div key={label} style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-                  <span style={{color:C.muted,fontSize:12}}>{label}</span>
-                  <span style={{color:C.muted,fontSize:12}}>{value}</span>
+              <div style={{
+                padding: "10px 12px", borderRadius: 8, marginBottom: 14,
+                background: "var(--color-page)", border: "1px solid var(--color-line)",
+                display: "flex", justifyContent: "space-between", fontSize: 13,
+              }}>
+                <span style={{ color: "var(--color-muted)" }}>Market Price</span>
+                <strong>{price !== null ? formatPrice(price) : "—"}</strong>
+              </div>
+
+              <label style={{ fontSize: 12, color: "var(--color-muted)", display: "block", marginBottom: 6 }}>
+                Quantity (shares)
+              </label>
+              <input
+                type="number" min={1} placeholder="0"
+                value={orderForm.qty}
+                onChange={e => setOrderForm(f => ({ ...f, qty: e.target.value }))}
+                style={{
+                  width: "100%", padding: "10px 12px", borderRadius: 8, fontSize: 14,
+                  background: "var(--color-page)", border: "1px solid var(--color-line)",
+                  color: "inherit", boxSizing: "border-box", outline: "none", marginBottom: 8,
+                }}
+              />
+
+              {price !== null && orderForm.qty && !isNaN(Number(orderForm.qty)) && (
+                <div style={{
+                  display: "flex", justifyContent: "space-between",
+                  fontSize: 13, marginBottom: 14, color: "var(--color-muted)",
+                }}>
+                  <span>Estimated Total</span>
+                  <strong style={{ color: "inherit" }}>{formatPrice(price * Number(orderForm.qty))}</strong>
                 </div>
-              ))}
-              <div style={{borderTop:`1px solid ${C.line}`,paddingTop:10,marginTop:4,display:"flex",justifyContent:"space-between"}}>
-                <span style={{color:C.muted,fontSize:13}}>Total</span>
-                <span style={{color:C.primary,fontWeight:700,fontSize:15}}>{currencySymbol}{orderTotal.toLocaleString("en-IN",{minimumFractionDigits:2})}</span>
-              </div>
+              )}
+
+              <button onClick={placeOrder} disabled={orderStatus === "loading"} style={{
+                width: "100%", padding: "11px", borderRadius: 8, cursor: "pointer",
+                border: "none", fontWeight: 700, fontSize: 14,
+                background: orderForm.type === "BUY" ? "var(--color-bull)" : "var(--color-bear)",
+                color: "#fff", opacity: orderStatus === "loading" ? 0.6 : 1,
+              }}>
+                {orderStatus === "loading" ? "Placing…" : `${orderForm.type} ${symbol}`}
+              </button>
+
+              {orderMsg && (
+                <p style={{
+                  margin: "10px 0 0", fontSize: 12, textAlign: "center",
+                  color: orderStatus === "success" ? "var(--color-bull)" : "var(--color-bear)",
+                }}>{orderMsg}</p>
+              )}
+
+              <p style={{
+                margin: "14px 0 0", fontSize: 11, color: "var(--color-muted)",
+                textAlign: "center", lineHeight: 1.5,
+              }}>
+                Orders execute at market price. Not financial advice.
+              </p>
             </div>
-
-            {/* Place order */}
-            <button className="ss-order" onClick={()=>setConfirmOpen(true)} disabled={orderLoading}
-              style={{width:"100%",padding:"14px 0",borderRadius:10,border:"none",cursor:orderLoading?"not-allowed":"pointer",fontWeight:700,fontSize:14,letterSpacing:0.3,transition:"all 0.2s",background:orderType==="buy"?"linear-gradient(135deg,#8FFFD6,#00c896)":"linear-gradient(135deg,#ef4444,#dc2626)",color:orderType==="buy"?"#0a0a0a":"#fff",opacity:orderLoading?0.7:1}}>
-              {orderLoading?"Processing…":`${orderType==="buy"?"Buy":"Sell"} ${quantity} × ${quote?.symbol??symbol}`}
-            </button>
-
-            {/* Watchlist */}
-            <button onClick={toggleWatchlist} disabled={watchlistLoading}
-              style={{width:"100%",marginTop:10,padding:"11px 0",borderRadius:10,border:`1px solid ${watchlisted?"#8FFFD6":C.line}`,cursor:"pointer",fontWeight:600,fontSize:13,background:"transparent",color:watchlisted?"#8FFFD6":C.muted,display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all 0.2s",opacity:watchlistLoading?0.6:1}}>
-              {watchlisted?<Star size={14} fill="#8FFFD6"/>:<StarOff size={14}/>}
-              {watchlistLoading?"Updating…":watchlisted?"Watchlisted":"Add to Watchlist"}
-            </button>
-
-            <p style={{color:C.muted,fontSize:11,textAlign:"center",marginTop:16,lineHeight:1.5,opacity:0.6}}>
-              Market orders are executed at prevailing prices. Past performance is not indicative of future results.
-            </p>
           </div>
         </div>
-      </div>
-
-      {toast && <Toast {...toast}/>}
-
-      {/* Confirm dialog */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="bg-[var(--color-card)] border-[var(--color-line)] text-[var(--color-primary)] max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-[var(--color-primary)]">Confirm {orderType==="buy"?"Purchase":"Sale"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            {[
-              {label:"Symbol", value:quote?.symbol??symbol??""                                          },
-              {label:"Action", value:orderType, color:orderType==="buy"?"#8FFFD6":"#ef4444"             },
-              {label:"Quantity",value:String(quantity)                                                  },
-              {label:"Price",  value:`${currencySymbol}${fmt(quote?.price??0)}`                         },
-            ].map(({label,value,color})=>(
-              <div key={label} className="flex justify-between text-sm">
-                <span style={{color:C.muted}}>{label}</span>
-                <span style={{fontWeight:600,color:color??"var(--color-primary)",textTransform:"capitalize"}}>{value}</span>
-              </div>
-            ))}
-            <div className="border-t pt-3 flex justify-between" style={{borderColor:"var(--color-line)"}}>
-              <span style={{color:C.muted,fontSize:14}}>Total</span>
-              <span style={{fontWeight:700,fontSize:16,color:C.primary}}>{currencySymbol}{orderTotal.toLocaleString("en-IN",{minimumFractionDigits:2})}</span>
-            </div>
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={()=>setConfirmOpen(false)} className="border-[var(--color-line)] text-[var(--color-muted)] hover:text-[var(--color-primary)]">Cancel</Button>
-            <Button onClick={()=>{setConfirmOpen(false);handleOrder();}} className="font-bold"
-              style={{background:orderType==="buy"?"linear-gradient(135deg,#8FFFD6,#00c896)":"linear-gradient(135deg,#ef4444,#dc2626)",color:orderType==="buy"?"#0a0a0a":"#fff",border:"none"}}>
-              Confirm {orderType==="buy"?"Buy":"Sell"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+      )}
+    </div>
   );
 }

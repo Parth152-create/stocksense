@@ -1,165 +1,195 @@
 /**
  * lib/websocket.ts
+ *
+ * Raw WebSocket client for live price updates.
+ * Connects to ws://localhost:8081/ws/prices?token=<jwt>
+ * Backend sends: {"symbol":"AAPL","price":182.50,"changePct":1.23}
  */
 
 import { useEffect, useState } from "react";
-import { getWebSocketUrl } from "./auth";
+import { getWebSocketUrl } from "@/lib/auth";
 
-export type PriceUpdate = {
-  symbol: string;
-  price: number;
-  change: number;
+export interface PriceUpdate {
+  symbol:    string;
+  price:     number;
   changePct: number;
-  changePercent: number;
-  volume: number;
-  timestamp: string;
-  live: boolean;
-};
+  // aliases used by different parts of the app
+  live?:     number;
+  changePct_?: number;
+}
 
-type MessageHandler = (update: PriceUpdate) => void;
-type StatusHandler = (status: "connected" | "disconnected" | "error") => void;
+type PriceMap = Record<string, PriceUpdate>;
+
+const MAX_RECONNECT  = 5;
+const RECONNECT_DELAY = 3000;
+
+// ── Singleton WebSocket manager ───────────────────────────────────────────────
 
 class StockWebSocket {
-  private ws: WebSocket | null = null;
-  private subscribers = new Map<string, Set<MessageHandler>>();
-  private statusHandlers = new Set<StatusHandler>();
+  private ws:           WebSocket | null = null;
+  private reconnects    = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
-  private intentionallyClosed = false;
+  private listeners     = new Set<(prices: PriceMap) => void>();
+  private prices:       PriceMap = {};
+  private closed        = false;
 
-  connect(): void {
-    this.intentionallyClosed = false;
-    this._openSocket();
-  }
+  connect() {
+    if (typeof window === "undefined") return;
+    if (
+      this.ws?.readyState === WebSocket.OPEN ||
+      this.ws?.readyState === WebSocket.CONNECTING
+    ) return;
 
-  private _openSocket(): void {
-    if (this.ws?.readyState === WebSocket.OPEN) return;
+    this.closed = false;
 
-    const url = getWebSocketUrl();
-    this.ws = new WebSocket(url);
+    try {
+      this.ws = new WebSocket(getWebSocketUrl());
+    } catch (e) {
+      console.warn("[WS] Failed to create WebSocket:", e);
+      this.scheduleReconnect();
+      return;
+    }
 
     this.ws.onopen = () => {
-      this.reconnectAttempts = 0;
-      this._notifyStatus("connected");
-
-      this.subscribers.forEach((_, symbol) => {
-        this._sendSubscribe(symbol);
-      });
+      console.log("[WS] Connected");
+      this.reconnects = 0;
+      this.closed     = false;
+      this.clearReconnectTimer();
     };
 
     this.ws.onmessage = (event) => {
       try {
-        const update: PriceUpdate = { ...JSON.parse(event.data), live: true };
-        const handlers = this.subscribers.get(update.symbol);
-        handlers?.forEach((h) => h(update));
-        this.subscribers.get("*")?.forEach((h) => h(update));
+        const data = JSON.parse(event.data) as {
+          symbol: string;
+          price: number;
+          changePct: number;
+        };
+
+        if (!data.symbol) return;
+
+        const update: PriceUpdate = {
+          symbol:    data.symbol,
+          price:     data.price,
+          changePct: data.changePct,
+          live:      data.price,       // alias for components using .live
+        };
+
+        // Store under both plain symbol and .BSE/.NSE variants
+        this.prices[data.symbol]              = update;
+        this.prices[`${data.symbol}.BSE`]    = update;
+        this.prices[`${data.symbol}.NSE`]    = update;
+
+        // Notify all subscribers with a new object reference to trigger re-render
+        const snapshot = { ...this.prices };
+        this.listeners.forEach(fn => fn(snapshot));
       } catch {
         // ignore malformed messages
       }
     };
 
     this.ws.onerror = () => {
-      this._notifyStatus("error");
+      // error event fires before close — let onclose handle reconnect
     };
 
     this.ws.onclose = () => {
-      this._notifyStatus("disconnected");
-      if (!this.intentionallyClosed) {
-        this._scheduleReconnect();
-      }
+      this.ws = null;
+      if (this.closed) return;
+      console.warn("[WS] Disconnected");
+      this.scheduleReconnect();
     };
   }
 
-  subscribe(symbol: string, handler: MessageHandler): () => void {
-    if (!this.subscribers.has(symbol)) {
-      this.subscribers.set(symbol, new Set());
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this._sendSubscribe(symbol);
-      }
+  private scheduleReconnect() {
+    if (this.closed || this.reconnectTimer) return;
+
+    if (this.reconnects >= MAX_RECONNECT) {
+      console.warn("[WS] Max reconnect attempts reached.");
+      return;
     }
-    this.subscribers.get(symbol)!.add(handler);
 
-    return () => this.unsubscribe(symbol, handler);
-  }
+    const nextAttempt = this.reconnects + 1;
 
-  unsubscribe(symbol: string, handler: MessageHandler): void {
-    const handlers = this.subscribers.get(symbol);
-    if (!handlers) return;
-    handlers.delete(handler);
-    if (handlers.size === 0) {
-      this.subscribers.delete(symbol);
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this._sendUnsubscribe(symbol);
-      }
-    }
-  }
-
-  onStatusChange(handler: StatusHandler): () => void {
-    this.statusHandlers.add(handler);
-    return () => this.statusHandlers.delete(handler);
-  }
-
-  disconnect(): void {
-    this.intentionallyClosed = true;
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-    }
+      this.reconnects = nextAttempt;
+      console.log(`[WS] Reconnecting... (${nextAttempt}/${MAX_RECONNECT})`);
+      this.connect();
+    }, RECONNECT_DELAY * nextAttempt);
+  }
+
+  private clearReconnectTimer() {
+    if (!this.reconnectTimer) return;
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+  }
+
+  disconnect() {
+    this.closed = true;
+    this.clearReconnectTimer();
     this.ws?.close();
     this.ws = null;
   }
 
-  private _sendSubscribe(symbol: string): void {
-    this.ws?.send(JSON.stringify({ action: "subscribe", symbol }));
+  subscribe(fn: (prices: PriceMap) => void) {
+    this.listeners.add(fn);
+    // Immediately emit current prices so component doesn't wait for next message
+    if (Object.keys(this.prices).length > 0) fn({ ...this.prices });
+    return () => {
+      this.listeners.delete(fn);
+      if (this.listeners.size === 0) this.disconnect();
+    };
   }
 
-  private _sendUnsubscribe(symbol: string): void {
-    this.ws?.send(JSON.stringify({ action: "unsubscribe", symbol }));
-  }
-
-  private _notifyStatus(status: "connected" | "disconnected" | "error"): void {
-    this.statusHandlers.forEach((h) => h(status));
-  }
-
-  private _scheduleReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.warn("[WS] Max reconnect attempts reached.");
-      return;
-    }
-    const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30_000);
-    this.reconnectAttempts++;
-    this.reconnectTimer = setTimeout(() => {
-      this._openSocket();
-    }, delay);
-  }
-
-  get isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN;
+  getPrices(): PriceMap {
+    return this.prices;
   }
 }
 
-export const stockWS = new StockWebSocket();
+// Single shared instance
+const wsManager = new StockWebSocket();
 
-export function useLivePrices(symbols: string[]): Record<string, PriceUpdate> {
-  const [prices, setPrices] = useState<Record<string, PriceUpdate>>({});
+// ── React hook ────────────────────────────────────────────────────────────────
+
+/**
+ * useLivePrices(symbols)
+ * Returns a map of symbol → PriceUpdate for the given symbols.
+ * Connects the shared WebSocket on first use, disconnects when all unmount.
+ */
+export function useLivePrices(symbols: string[]): PriceMap {
+  const [prices, setPrices] = useState<PriceMap>({});
+  const symbolsKey = JSON.stringify(symbols);
 
   useEffect(() => {
-    if (symbols.length === 0) return;
+    const symbolList = JSON.parse(symbolsKey) as string[];
 
-    stockWS.connect();
+    // Connect (no-op if already connected)
+    wsManager.connect();
 
-    const unsubscribers = symbols.map((symbol) =>
-      stockWS.subscribe(symbol, (update) => {
-        setPrices((prev) => ({ ...prev, [symbol]: update }));
-      })
-    );
+    // Subscribe to updates
+    const unsub = wsManager.subscribe((all) => {
+      const relevant: PriceMap = {};
+      let changed = false;
 
-    return () => {
-      unsubscribers.forEach((unsub) => unsub());
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbols.join(",")]);
+      for (const sym of symbolList) {
+        // Try exact match, then without suffix, then with suffix
+        const update = all[sym]
+          ?? all[sym.replace(".BSE", "").replace(".NSE", "")]
+          ?? null;
+
+        if (update) {
+          relevant[sym] = update;
+          changed = true;
+        }
+      }
+
+      if (changed) setPrices(prev => ({ ...prev, ...relevant }));
+    });
+
+    return unsub;
+  }, [symbolsKey]);
 
   return prices;
 }
+
+// Export manager for direct use
+export { wsManager as StockWebSocket };

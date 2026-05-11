@@ -18,7 +18,6 @@ function toCsv(rows: CsvRow[], headers?: string[]): string {
 
   const escape = (val: string | number | null | undefined): string => {
     const str = val == null ? "" : String(val);
-    // Wrap in quotes if it contains comma, quote, or newline
     if (str.includes(",") || str.includes('"') || str.includes("\n")) {
       return `"${str.replace(/"/g, '""')}"`;
     }
@@ -26,9 +25,7 @@ function toCsv(rows: CsvRow[], headers?: string[]): string {
   };
 
   const headerRow = keys.map(escape).join(",");
-  const dataRows = rows.map((row) =>
-    keys.map((k) => escape(row[k])).join(",")
-  );
+  const dataRows = rows.map((row) => keys.map((k) => escape(row[k])).join(","));
 
   return [headerRow, ...dataRows].join("\r\n");
 }
@@ -61,6 +58,7 @@ export interface HoldingRow {
   pnlPct: number;
 }
 
+// Synchronous — no await needed at call site
 export function exportPortfolioCsv(holdings: HoldingRow[]): void {
   const rows: CsvRow[] = holdings.map((h) => ({
     Symbol: h.symbol,
@@ -79,8 +77,12 @@ export function exportPortfolioCsv(holdings: HoldingRow[]): void {
 
 // ─── Orders export ────────────────────────────────────────────────────────────
 
+/**
+ * Matches the Order interface used in /dashboard/orders/page.tsx.
+ * `createdAt` is an ISO datetime string (e.g. "2024-03-15T10:30:00Z").
+ */
 export interface OrderRow {
-  date: string;
+  createdAt: string;   // ← was `date: string` — aligned with Order type from orders page
   symbol: string;
   type: "BUY" | "SELL" | string;
   qty: number;
@@ -89,9 +91,15 @@ export interface OrderRow {
   status: string;
 }
 
+// Synchronous — no await needed at call site
 export function exportOrdersCsv(orders: OrderRow[]): void {
   const rows: CsvRow[] = orders.map((o) => ({
-    Date: o.date,
+    // Format ISO datetime → readable date for the CSV column
+    Date: new Date(o.createdAt).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }),
     Symbol: o.symbol,
     Type: o.type,
     Quantity: o.qty,

@@ -1,64 +1,73 @@
 package com.stocksense.service;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import com.stocksense.model.User;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
-import java.util.Map;
+import java.util.Collections;
 
 /**
- * Verifies a Google ID token by calling Google's tokeninfo endpoint.
- * No extra dependency needed — uses the RestTemplate already configured.
+ * Verifies a Google ID token (credential) from the frontend and returns/creates
+ * the matching StockSense user.
  *
- * Flow:
- *   Frontend  →  Google Sign-In JS  →  gets idToken (JWT)
- *   Frontend  →  POST /api/auth/google { idToken }
- *   Backend   →  GET https://oauth2.googleapis.com/tokeninfo?id_token=<idToken>
- *   Google    →  { email, name, aud, ... }
- *   Backend   →  verifies aud == our clientId, returns our JWT
+ * Dependency (add to pom.xml):
+ * <dependency>
+ *   <groupId>com.google.api-client</groupId>
+ *   <artifactId>google-api-client</artifactId>
+ *   <version>2.2.0</version>
+ * </dependency>
  */
 @Service
 public class GoogleOAuthService {
 
+    private final UserService userService;
+
     @Value("${google.client-id}")
     private String clientId;
 
-    private final RestTemplate restTemplate;
-
-    public GoogleOAuthService(RestTemplate restTemplate) {
-        this.restTemplate = restTemplate;
+    public GoogleOAuthService(UserService userService) {
+        this.userService = userService;
     }
 
-    @SuppressWarnings("unchecked")
-    public GoogleUserInfo verify(String idToken) {
-        String url = "https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken;
+    /**
+     * Verifies the Google ID token and returns the corresponding User.
+     * Creates the user (via findOrCreateGoogleUser) if this is their first login.
+     *
+     * @param credential  The raw ID token string sent from the frontend
+     * @return            The StockSense User for this Google account
+     * @throws IllegalArgumentException  if the token is invalid or expired
+     */
+    public User verifyAndGetUser(String credential) {
+        GoogleIdToken idToken = verify(credential);
+        GoogleIdToken.Payload payload = idToken.getPayload();
 
-        Map<String, Object> payload;
+        String email  = payload.getEmail();
+        String name   = (String) payload.get("name");
+        return userService.findOrCreateGoogleUser(email, name);
+    }
+
+    // ─── Private ──────────────────────────────────────────────────────────────
+
+    private GoogleIdToken verify(String credential) {
         try {
-            payload = restTemplate.getForObject(url, Map.class);
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                    new NetHttpTransport(), GsonFactory.getDefaultInstance())
+                    .setAudience(Collections.singletonList(clientId))
+                    .build();
+
+            GoogleIdToken idToken = verifier.verify(credential);
+            if (idToken == null) {
+                throw new IllegalArgumentException("Invalid or expired Google token");
+            }
+            return idToken;
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to verify token with Google: " + e.getMessage());
+            throw new RuntimeException("Google token verification failed: " + e.getMessage(), e);
         }
-
-        if (payload == null) {
-            throw new RuntimeException("Empty response from Google tokeninfo");
-        }
-
-        // Validate audience matches our client ID
-        String aud = (String) payload.get("aud");
-        if (!clientId.equals(aud)) {
-            throw new RuntimeException("Token audience mismatch — possible token spoofing");
-        }
-
-        String email = (String) payload.get("email");
-        String name  = (String) payload.getOrDefault("name", email);
-
-        if (email == null) {
-            throw new RuntimeException("Google token does not contain email");
-        }
-
-        return new GoogleUserInfo(email, name);
     }
-
-    public record GoogleUserInfo(String email, String name) {}
 }

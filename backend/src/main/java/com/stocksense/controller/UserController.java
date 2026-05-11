@@ -1,12 +1,10 @@
 package com.stocksense.controller;
 
-import com.stocksense.dto.LoginRequestDTO;
-import com.stocksense.dto.LoginResponseDTO;
+import com.stocksense.dto.UserResponseDTO;
 import com.stocksense.model.User;
 import com.stocksense.service.JwtService;
 import com.stocksense.service.UserService;
 import org.springframework.http.ResponseEntity;
-import com.stocksense.dto.UserResponseDTO;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -21,23 +19,17 @@ public class UserController {
         this.jwtService = jwtService;
     }
 
-    @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody User user) {
-        userService.register(user);
-        return ResponseEntity.ok("User registered successfully");
-    }
-
-    @PostMapping("/login")
-    public ResponseEntity<LoginResponseDTO> login(@RequestBody LoginRequestDTO request) {
-        User user = userService.login(request.getEmail(), request.getPassword());
-        String token = jwtService.generateToken(user.getEmail());
-        return ResponseEntity.ok(new LoginResponseDTO(token, user.getEmail())); // ← fixed
-    }
-
+    /**
+     * GET /api/users/me
+     * Called by the dashboard layout sidebar to show the logged-in user's info.
+     * JWT is already validated by JwtAuthFilter — we just read the email claim.
+     */
     @GetMapping("/me")
-    public ResponseEntity<?> getCurrentUser(@RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<UserResponseDTO> getCurrentUser(
+            @RequestHeader("Authorization") String authHeader) {
+
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(401).body("Missing or invalid token");
+            return ResponseEntity.status(401).build();
         }
 
         String token = authHeader.substring(7);
@@ -47,6 +39,7 @@ public class UserController {
         UserResponseDTO response = new UserResponseDTO(
                 user.getId(),
                 user.getEmail(),
+                user.getName(),       // ← now included
                 user.getProvider(),
                 user.getCreatedAt(),
                 user.getPortfolioId()

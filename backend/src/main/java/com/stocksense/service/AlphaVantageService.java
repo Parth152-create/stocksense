@@ -48,6 +48,38 @@ public class AlphaVantageService {
         }
     }
 
+    // ── GET company overview (name, sector, market cap, P/E, EPS etc.) ────────
+    @Cacheable(value = "stockOverview", key = "#symbol")
+    public Map<String, Object> getOverview(String symbol) {
+        try {
+            String url = BASE + "?function=OVERVIEW&symbol=" + symbol + "&apikey=" + apiKey;
+            String json = restTemplate.getForObject(url, String.class);
+            JsonNode root = mapper.readTree(json);
+
+            // Rate limited or empty response
+            if (root.has("Note") || root.has("Information") || !root.has("Symbol")) {
+                return mockOverview(symbol);
+            }
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("Symbol",               root.path("Symbol").asText(symbol));
+            result.put("Name",                 root.path("Name").asText(symbol));
+            result.put("Exchange",             root.path("Exchange").asText("—"));
+            result.put("Sector",               root.path("Sector").asText("—"));
+            result.put("Industry",             root.path("Industry").asText("—"));
+            result.put("Description",          root.path("Description").asText(""));
+            result.put("MarketCapitalization", root.path("MarketCapitalization").asText("0"));
+            result.put("PERatio",              root.path("PERatio").asText("0"));
+            result.put("EPS",                  root.path("EPS").asText("0"));
+            result.put("DividendYield",        root.path("DividendYield").asText("0"));
+            result.put("52WeekHigh",           root.path("52WeekHigh").asText("0"));
+            result.put("52WeekLow",            root.path("52WeekLow").asText("0"));
+            return result;
+        } catch (Exception e) {
+            return mockOverview(symbol);
+        }
+    }
+
     @Cacheable(value = "stockHistory", key = "#symbol")
     public Map<String, Object> getDailyHistory(String symbol) {
         try {
@@ -77,8 +109,6 @@ public class AlphaVantageService {
         }
     }
 
-    // ── Search — debug version ────────────────────────────────────────────────
-
     public List<Map<String, Object>> search(String query) {
         try {
             String encoded = URLEncoder.encode(query, StandardCharsets.UTF_8);
@@ -86,7 +116,6 @@ public class AlphaVantageService {
 
             System.out.println("=== SEARCH DEBUG ===");
             System.out.println("Query   : " + query);
-            System.out.println("API Key : " + apiKey);
             System.out.println("URL     : " + url);
 
             String json = restTemplate.getForObject(url, String.class);
@@ -117,7 +146,6 @@ public class AlphaVantageService {
 
         } catch (Exception e) {
             System.out.println("SEARCH EXCEPTION: " + e.getClass().getName() + " — " + e.getMessage());
-            e.printStackTrace();
             return List.of();
         }
     }
@@ -132,6 +160,8 @@ public class AlphaVantageService {
         return results;
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
     private double parseDouble(String s) {
         try { return Double.parseDouble(s.trim()); } catch (Exception e) { return 0.0; }
     }
@@ -143,6 +173,8 @@ public class AlphaVantageService {
     private long parseLong(String s) {
         try { return Long.parseLong(s.trim()); } catch (Exception e) { return 0L; }
     }
+
+    // ── Mocks (used when API is rate-limited or unreachable) ──────────────────
 
     private Map<String, Object> mockQuote(String symbol) {
         double price = 100 + (Math.abs(symbol.hashCode()) % 900);
@@ -160,6 +192,24 @@ public class AlphaVantageService {
         result.put("analystBuy",      65);
         result.put("analystHold",     25);
         result.put("analystSell",     10);
+        return result;
+    }
+
+    private Map<String, Object> mockOverview(String symbol) {
+        double price = 100 + (Math.abs(symbol.hashCode()) % 900);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("Symbol",               symbol);
+        result.put("Name",                 symbol.replace(".BSE", "").replace(".NSE", "") + " Ltd.");
+        result.put("Exchange",             symbol.endsWith(".BSE") ? "BSE" : "NASDAQ");
+        result.put("Sector",               "Technology");
+        result.put("Industry",             "Software—Application");
+        result.put("Description",          "A leading company in its sector with a strong track record of growth and innovation.");
+        result.put("MarketCapitalization", String.valueOf((long)(price * 1_000_000)));
+        result.put("PERatio",              String.valueOf(20 + (Math.abs(symbol.hashCode()) % 15)));
+        result.put("EPS",                  String.valueOf(Math.round(price / 25.0 * 100) / 100.0));
+        result.put("DividendYield",        "0.012");
+        result.put("52WeekHigh",           String.valueOf(Math.round(price * 1.3 * 100) / 100.0));
+        result.put("52WeekLow",            String.valueOf(Math.round(price * 0.7 * 100) / 100.0));
         return result;
     }
 

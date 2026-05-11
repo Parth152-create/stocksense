@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
+import Link from "next/link";
 import { X, Bell, TrendingUp, ShoppingCart, BarChart2, AlertTriangle, CheckCheck } from "lucide-react";
-import { getAuthHeaders } from "@/lib/auth";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,10 +39,10 @@ function typeIcon(type: AppNotification["type"]) {
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1)   return "just now";
-  if (m < 60)  return `${m}m ago`;
+  if (m < 1)  return "just now";
+  if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
-  if (h < 24)  return `${h}h ago`;
+  if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
 }
 
@@ -53,7 +53,6 @@ export default function NotificationsDrawer({
 }: Props) {
   const drawerRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     function handler(e: MouseEvent) {
@@ -65,7 +64,6 @@ export default function NotificationsDrawer({
     return () => document.removeEventListener("mousedown", handler);
   }, [open, onClose]);
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
     function handler(e: KeyboardEvent) {
@@ -115,9 +113,7 @@ export default function NotificationsDrawer({
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <Bell size={16} color="#8FFFD6" />
-            <span style={{ color: "#fff", fontWeight: 600, fontSize: 15 }}>
-              Notifications
-            </span>
+            <span style={{ color: "#fff", fontWeight: 600, fontSize: 15 }}>Notifications</span>
             {unreadCount > 0 && (
               <span style={{
                 background: "#8FFFD6", color: "#0a0a0a",
@@ -193,7 +189,6 @@ export default function NotificationsDrawer({
                     if (!n.read) (e.currentTarget as HTMLDivElement).style.background = "#161616";
                   }}
                 >
-                  {/* Unread dot */}
                   {!n.read && (
                     <div style={{
                       position: "absolute", left: 8, top: "50%",
@@ -203,7 +198,6 @@ export default function NotificationsDrawer({
                     }} />
                   )}
 
-                  {/* Icon */}
                   <div style={{
                     width: 36, height: 36, borderRadius: 10,
                     background: bg, flexShrink: 0,
@@ -212,7 +206,6 @@ export default function NotificationsDrawer({
                     <Icon size={15} color={color} />
                   </div>
 
-                  {/* Content */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                       <p style={{
@@ -226,10 +219,7 @@ export default function NotificationsDrawer({
                         {timeAgo(n.createdAt)}
                       </span>
                     </div>
-                    <p style={{
-                      color: "#555", fontSize: 12, margin: "3px 0 0",
-                      lineHeight: 1.5,
-                    }}>
+                    <p style={{ color: "#555", fontSize: 12, margin: "3px 0 0", lineHeight: 1.5 }}>
                       {n.message}
                     </p>
                     {n.symbol && (
@@ -249,24 +239,23 @@ export default function NotificationsDrawer({
           )}
         </div>
 
-        {/* Footer */}
-        <div style={{
-          padding: "12px 20px",
-          borderTop: "1px solid #1f1f1f",
-          flexShrink: 0,
-        }}>
-          <a href="/dashboard/notifications" style={{
-            display: "block", textAlign: "center",
-            color: "#8FFFD6", fontSize: 13, textDecoration: "none",
-            padding: "8px", borderRadius: 8,
-            border: "1px solid #8FFFD622",
-            transition: "background 0.15s",
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = "#8FFFD611")}
-          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+        {/* Footer — ✅ Next <Link> instead of <a href> to prevent full page reload */}
+        <div style={{ padding: "12px 20px", borderTop: "1px solid #1f1f1f", flexShrink: 0 }}>
+          <Link
+            href="/dashboard/notifications"
+            onClick={onClose}
+            style={{
+              display: "block", textAlign: "center",
+              color: "#8FFFD6", fontSize: 13, textDecoration: "none",
+              padding: "8px", borderRadius: 8,
+              border: "1px solid #8FFFD622",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "#8FFFD611")}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
           >
             View all notifications →
-          </a>
+          </Link>
         </div>
       </div>
     </>

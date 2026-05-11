@@ -16,13 +16,15 @@ import { getAuthHeaders, getToken, logout } from "@/lib/auth";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const NAV_ITEMS = [
-  { href: "/dashboard",           label: "Dashboard",  icon: LayoutDashboard },
-  { href: "/dashboard/wallet",    label: "Wallet",     icon: Wallet },
-  { href: "/dashboard/portfolio", label: "Portfolio",  icon: Briefcase },
-  { href: "/dashboard/watchlist", label: "Watchlist",  icon: BookMarked },
-  { href: "/dashboard/analytics", label: "Analytics",  icon: BarChart3 },
-  { href: "/dashboard/insights",  label: "Insights",   icon: Sparkles },
-  { href: "/dashboard/settings",  label: "Settings",   icon: Settings },
+  { href: "/dashboard",                    label: "Dashboard",      icon: LayoutDashboard },
+  { href: "/dashboard/wallet",             label: "Wallet",         icon: Wallet },
+  { href: "/dashboard/portfolio",          label: "Portfolio",      icon: Briefcase },
+  { href: "/dashboard/watchlist",          label: "Watchlist",      icon: BookMarked },
+  { href: "/dashboard/analytics",          label: "Analytics",      icon: BarChart3 },
+  { href: "/dashboard/insights",           label: "Insights",       icon: Sparkles },
+  { href: "/dashboard/orders",             label: "Orders",         icon: BarChart3 },
+  { href: "/dashboard/notifications",      label: "Notifications",  icon: Bell },
+  { href: "/dashboard/settings",           label: "Settings",       icon: Settings },
 ];
 
 // ── iOS pill toggle ──────────────────────────────────────────────────────────
@@ -73,11 +75,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router   = useRouter();
   const { resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  const [mounted, setMounted]       = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // ── Auth guard ──────────────────────────────────────────────────────────
+  // ── Auth guard ─────────────────────────────────────────────────────────────
+  // CRITICAL: Run only ONCE on mount, not on every pathname change.
+  // Re-running on pathname causes authChecked to reset to false mid-navigation,
+  // which makes the layout return null and triggers the /login redirect.
   useEffect(() => {
     const token = getToken();
     if (!token) {
@@ -85,32 +90,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     } else {
       setAuthChecked(true);
     }
-  }, [pathname, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // ← empty deps: check auth once on mount only
 
   const isDark = !mounted || resolvedTheme === "dark";
 
-  const sidebarBg    = isDark ? "#0d0d0d"  : "#ffffff";
-  const sidebarBorder= isDark ? "#1f1f1f"  : "#e5e7eb";
-  const headerBg     = isDark ? "#0d0d0d"  : "#ffffff";
-  const headerBorder = isDark ? "#1f1f1f"  : "#e5e7eb";
-  const pageBg       = isDark ? "#0a0a0a"  : "#F3F2F2";
-  const primaryColor = isDark ? "#ffffff"  : "#18181A";
-  const mutedColor   = isDark ? "#666666"  : "#6b7280";
-  const sectionLabel = isDark ? "#3a3a3a"  : "#9ca3af";
-  const activeNavBg  = isDark ? "rgba(143,255,214,0.07)" : "rgba(143,255,214,0.12)";
-  const hoverNavBg   = isDark ? "#141414"  : "#f3f4f6";
-  const accountBg    = isDark ? "rgba(239,68,68,0.07)" : "rgba(239,68,68,0.06)";
-  const bellActiveBg = isDark ? "#8FFFD611" : "rgba(143,255,214,0.1)";
-  const bellBg       = isDark ? "#141414"  : "#f5f5f5";
-  const bellBorder   = isDark ? "#1f1f1f"  : "#e5e7eb";
-  const bellActiveBorder = isDark ? "#8FFFD633" : "rgba(143,255,214,0.3)";
-  const dateColor    = isDark ? "#444444"  : "#9ca3af";
-  const breadcrumbActive = isDark ? "#ffffff" : "#18181A";
-  const breadcrumbMuted  = isDark ? "#555555" : "#6b7280";
-  const chevronColor     = isDark ? "#333333" : "#d1d5db";
-  const avatarBg     = isDark ? "linear-gradient(135deg,#8FFFD6,#00c896)" : "linear-gradient(135deg,#8FFFD6,#00c896)";
-  const emailColor   = isDark ? "#cccccc"  : "#374151";
-  const planColor    = isDark ? "#444444"  : "#9ca3af";
+  const sidebarBg       = isDark ? "#0d0d0d"  : "#ffffff";
+  const sidebarBorder   = isDark ? "#1f1f1f"  : "#e5e7eb";
+  const headerBg        = isDark ? "#0d0d0d"  : "#ffffff";
+  const headerBorder    = isDark ? "#1f1f1f"  : "#e5e7eb";
+  const pageBg          = isDark ? "#0a0a0a"  : "#F3F2F2";
+  const primaryColor    = isDark ? "#ffffff"  : "#18181A";
+  const mutedColor      = isDark ? "#666666"  : "#6b7280";
+  const sectionLabel    = isDark ? "#3a3a3a"  : "#9ca3af";
+  const activeNavBg     = isDark ? "rgba(143,255,214,0.07)" : "rgba(143,255,214,0.12)";
+  const hoverNavBg      = isDark ? "#141414"  : "#f3f4f6";
+  const accountBg       = isDark ? "rgba(239,68,68,0.07)" : "rgba(239,68,68,0.06)";
+  const bellActiveBg    = isDark ? "#8FFFD611" : "rgba(143,255,214,0.1)";
+  const bellBg          = isDark ? "#141414"  : "#f5f5f5";
+  const bellBorder      = isDark ? "#1f1f1f"  : "#e5e7eb";
+  const bellActiveBorder= isDark ? "#8FFFD633" : "rgba(143,255,214,0.3)";
+  const dateColor       = isDark ? "#444444"  : "#9ca3af";
+  const breadcrumbActive= isDark ? "#ffffff"  : "#18181A";
+  const breadcrumbMuted = isDark ? "#555555"  : "#6b7280";
+  const chevronColor    = isDark ? "#333333"  : "#d1d5db";
+  const avatarBg        = "linear-gradient(135deg,#8FFFD6,#00c896)";
+  const emailColor      = isDark ? "#cccccc"  : "#374151";
+  const planColor       = isDark ? "#444444"  : "#9ca3af";
 
   const [userEmail, setUserEmail]         = useState("");
   const [hoveredLogout, setHoveredLogout] = useState(false);
@@ -119,11 +125,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [unreadCount, setUnreadCount]     = useState(0);
 
   useEffect(() => {
+    if (!authChecked) return;
     fetch("http://localhost:8081/api/users/me", { headers: getAuthHeaders() })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.email) setUserEmail(data.email); })
       .catch(() => {});
-  }, []);
+  }, [authChecked]);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -137,21 +144,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, []);
 
   useEffect(() => {
+    if (!authChecked) return;
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 30_000);
     return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  }, [authChecked, fetchNotifications]);
 
   const handleMarkRead = useCallback(async (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     setUnreadCount(prev => Math.max(0, prev - 1));
-    await fetch(`http://localhost:8081/api/notifications/${id}/read`, { method: "POST", headers: getAuthHeaders() }).catch(() => {});
+    await fetch(`http://localhost:8081/api/notifications/${id}/read`, {
+      method: "POST", headers: getAuthHeaders(),
+    }).catch(() => {});
   }, []);
 
   const handleMarkAllRead = useCallback(async () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     setUnreadCount(0);
-    await fetch("http://localhost:8081/api/notifications/read-all", { method: "POST", headers: getAuthHeaders() }).catch(() => {});
+    await fetch("http://localhost:8081/api/notifications/read-all", {
+      method: "POST", headers: getAuthHeaders(),
+    }).catch(() => {});
   }, []);
 
   const handleLogout = () => logout();
@@ -165,7 +177,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }));
   })();
 
-  // Don't render dashboard until auth is confirmed
+  // Hold render until auth is confirmed — prevents flash of dashboard before redirect
   if (!authChecked) return null;
 
   return (
@@ -173,7 +185,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <TooltipProvider>
         <div style={{ display: "flex", minHeight: "100vh", background: pageBg, color: primaryColor, fontFamily: "var(--font-geist-sans,'Geist',sans-serif)", transition: "background 0.2s, color 0.2s" }}>
 
-          {/* ── Sidebar ─────────────────────────────────────────────────── */}
+          {/* ── Sidebar ── */}
           <aside style={{ width: 220, minHeight: "100vh", background: sidebarBg, borderRight: `1px solid ${sidebarBorder}`, display: "flex", flexDirection: "column", padding: "0 0 24px", flexShrink: 0, position: "sticky", top: 0, height: "100vh", transition: "background 0.2s, border-color 0.2s" }}>
 
             {/* Logo */}
@@ -194,7 +206,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <nav style={{ padding: "10px 12px", flex: 1 }}>
               <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 6 }}>Main Menu</p>
               {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-                const isActive = href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
+                const isActive = href === "/dashboard"
+                  ? pathname === "/dashboard"
+                  : pathname.startsWith(href);
                 return (
                   <Link key={href} href={href} style={{
                     display: "flex", alignItems: "center", gap: 10,
@@ -242,7 +256,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </aside>
 
-          {/* ── Main area ───────────────────────────────────────────────── */}
+          {/* ── Main area ── */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
 
             {/* Topbar */}

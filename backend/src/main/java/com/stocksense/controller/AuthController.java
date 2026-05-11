@@ -1,131 +1,148 @@
 package com.stocksense.controller;
 
+import com.stocksense.dto.LoginRequestDTO;
+import com.stocksense.dto.LoginResponseDTO;
+import com.stocksense.dto.RegisterRequestDTO;
 import com.stocksense.model.RefreshToken;
 import com.stocksense.model.User;
-import com.stocksense.repository.UserRepository;
+import com.stocksense.service.GoogleOAuthService;
 import com.stocksense.service.JwtService;
 import com.stocksense.service.RefreshTokenService;
 import com.stocksense.service.UserService;
 import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    @Autowired
-    private UserService userService;
+    private final UserService userService;
+    private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
+    private final GoogleOAuthService googleOAuthService;
 
-    @Autowired
-    private JwtService jwtService;
+    public AuthController(UserService userService,
+                          JwtService jwtService,
+                          RefreshTokenService refreshTokenService,
+                          GoogleOAuthService googleOAuthService) {
+        this.userService = userService;
+        this.jwtService = jwtService;
+        this.refreshTokenService = refreshTokenService;
+        this.googleOAuthService = googleOAuthService;
+    }
 
-    @Autowired
-    private RefreshTokenService refreshTokenService;
+    // ─── POST /api/auth/register ──────────────────────────────────────────────
+    @PostMapping("/register")
+    public ResponseEntity<LoginResponseDTO> register(
+            @RequestBody RegisterRequestDTO request,
+            HttpServletResponse response) {
 
-    @Autowired
-    private UserRepository userRepository;
+        User user = new User();
+        user.setEmail(request.getEmail());
+        user.setPassword(request.getPassword()); // UserService BCrypts this
+        user.setName(request.getName());
+        user.setProvider("local");
 
+        User savedUser = userService.register(user);
+
+        return issueTokens(savedUser, response);
+    }
+
+    // ─── POST /api/auth/login ─────────────────────────────────────────────────
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> body, HttpServletResponse response) {
-        try {
-            User user = userService.login(body.get("email"), body.get("password"));
+    public ResponseEntity<LoginResponseDTO> login(
+            @RequestBody LoginRequestDTO request,
+            HttpServletResponse response) {
 
-            String accessToken = jwtService.generateToken(user.getEmail());
-
-            refreshTokenService.deleteByUserId(user.getId());
-            RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
-
-            Cookie cookie = new Cookie("refreshToken", refreshToken.getToken());
-            cookie.setHttpOnly(true);
-            cookie.setSecure(false);
-            cookie.setPath("/api/auth");
-            cookie.setMaxAge(7 * 24 * 60 * 60);
-            response.addCookie(cookie);
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("accessToken", accessToken);
-            result.put("email", user.getEmail());
-            result.put("name", user.getName());
-            result.put("id", user.getId());
-
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", e.getMessage() != null ? e.getMessage() : "Invalid credentials"));
-        }
+        User user = userService.login(request.getEmail(), request.getPassword());
+        return issueTokens(user, response);
     }
 
+    // ─── POST /api/auth/google ────────────────────────────────────────────────
+    /**
+     * Receives the Google ID token (credential) from the frontend
+     * googleAuth(credential) call in lib/auth.ts, verifies it,
+     * finds-or-creates the user, and returns the same JWT pair as login.
+     *
+     * Frontend sends: { credential: "<google-id-token>" }
+     */
+    @PostMapping("/google")
+    public ResponseEntity<LoginResponseDTO> googleAuth(
+            @RequestBody Map<String, String> body,
+            HttpServletResponse response) {
+
+        String credential = body.get("credential");
+        if (credential == null || credential.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        User user = googleOAuthService.verifyAndGetUser(credential);
+        return issueTokens(user, response);
+    }
+
+    // ─── POST /api/auth/refresh ───────────────────────────────────────────────
     @PostMapping("/refresh")
-    public ResponseEntity<?> refresh(HttpServletRequest request, HttpServletResponse response) {
-        String refreshTokenValue = null;
-        if (request.getCookies() != null) {
-            refreshTokenValue = Arrays.stream(request.getCookies())
-                .filter(c -> "refreshToken".equals(c.getName()))
-                .map(Cookie::getValue)
-                .findFirst()
-                .orElse(null);
+    public ResponseEntity<LoginResponseDTO> refresh(
+            @CookieValue(name = "refreshToken", required = false) String rawToken,
+            HttpServletResponse response) {
+
+        if (rawToken == null) {
+            return ResponseEntity.status(401).build();
         }
 
-        if (refreshTokenValue == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", "No refresh token", "reason", "session_expired"));
-        }
-
-        try {
-            RefreshToken refreshToken = refreshTokenService.findByToken(refreshTokenValue)
+        RefreshToken validated = refreshTokenService.findByToken(rawToken)
                 .orElseThrow(() -> new RuntimeException("Refresh token not found"));
+        refreshTokenService.verifyExpiration(validated);
 
-            refreshTokenService.verifyExpiration(refreshToken);
+        User user = validated.getUser();
+        refreshTokenService.deleteByUserId(user.getId());
+        RefreshToken rotated = refreshTokenService.createRefreshToken(user.getId());
 
-            String email = refreshToken.getUser().getEmail();
-            String newAccessToken = jwtService.generateToken(email);
+        String accessToken = jwtService.generateToken(user.getEmail());
+        setRefreshTokenCookie(response, rotated.getToken());
 
-            return ResponseEntity.ok(Map.of("accessToken", newAccessToken));
-        } catch (Exception e) {
-            Cookie cookie = new Cookie("refreshToken", "");
-            cookie.setHttpOnly(true);
-            cookie.setPath("/api/auth");
-            cookie.setMaxAge(0);
-            response.addCookie(cookie);
-
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", "Refresh token expired or invalid", "reason", "session_expired"));
-        }
+        return ResponseEntity.ok(new LoginResponseDTO(accessToken, user.getEmail()));
     }
 
+    // ─── POST /api/auth/logout ────────────────────────────────────────────────
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
-        if (request.getCookies() != null) {
-            Arrays.stream(request.getCookies())
-                .filter(c -> "refreshToken".equals(c.getName()))
-                .findFirst()
-                .ifPresent(c -> {
-                    refreshTokenService.findByToken(c.getValue())
-                        .ifPresent(rt -> refreshTokenService.deleteByUserId(rt.getUser().getId()));
-                });
+    public ResponseEntity<Void> logout(
+            @CookieValue(name = "refreshToken", required = false) String rawToken,
+            HttpServletResponse response) {
+
+        if (rawToken != null) {
+            refreshTokenService.findByToken(rawToken)
+                    .map(RefreshToken::getUser)
+                    .ifPresent(user -> refreshTokenService.deleteByUserId(user.getId()));
         }
 
         Cookie cookie = new Cookie("refreshToken", "");
         cookie.setHttpOnly(true);
-        cookie.setPath("/api/auth");
+        cookie.setPath("/");
         cookie.setMaxAge(0);
         response.addCookie(cookie);
 
-        return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
+        return ResponseEntity.ok().build();
     }
 
-    @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody Map<String, String> body) {
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)
-            .body(Map.of("error", "Use your existing UserService register endpoint"));
+    // ─── Shared helper ────────────────────────────────────────────────────────
+    private ResponseEntity<LoginResponseDTO> issueTokens(User user, HttpServletResponse response) {
+        String accessToken = jwtService.generateToken(user.getEmail());
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
+        setRefreshTokenCookie(response, refreshToken.getToken());
+        return ResponseEntity.ok(new LoginResponseDTO(accessToken, user.getEmail()));
+    }
+
+    private void setRefreshTokenCookie(HttpServletResponse response, String token) {
+        Cookie cookie = new Cookie("refreshToken", token);
+        cookie.setHttpOnly(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(7 * 24 * 60 * 60); // 7 days
+        // cookie.setSecure(true); // enable in production (HTTPS only)
+        response.addCookie(cookie);
     }
 }
