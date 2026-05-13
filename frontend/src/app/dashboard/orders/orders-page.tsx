@@ -1,238 +1,273 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useMarket } from "@/hooks/useMarket";
+import { Download, RefreshCw, Search } from "lucide-react";
 import { fetchWithAuth } from "@/lib/auth";
 import { exportOrdersCsv } from "@/lib/csv-export";
-import { Download, TrendingUp, TrendingDown, Clock, CheckCircle, XCircle, Filter } from "lucide-react";
 
-type OrderStatus = "PENDING" | "FILLED" | "CANCELLED" | "PARTIAL";
-type OrderType = "BUY" | "SELL";
+// ─── Types ────────────────────────────────────────────────────────────────────
+// NOTE: Backend Order response uses "quantity" — never "qty"
+// Frontend sends { symbol, type, qty, price, market } on POST (OrderController handles both)
+// Frontend READS order.quantity (backend field)
 
-interface Order {
+interface OrderRow {
   id: string;
+  userId: string;
   symbol: string;
-  type: OrderType;
-  qty: number;
+  market: string;
+  type: "BUY" | "SELL";
+  quantity: number;      // ← backend field is "quantity"
   price: number;
   total: number;
-  status: OrderStatus;
-  createdAt: string; // ISO datetime — matches OrderRow.createdAt in csv-export.ts
+  createdAt: string;
+  status: "FILLED" | "PENDING" | "CANCELLED" | "REJECTED";
 }
 
-const STATUS_CONFIG: Record<OrderStatus, { label: string; icon: React.ReactNode; color: string }> = {
-  FILLED:    { label: "Filled",    icon: <CheckCircle size={13} />, color: "var(--color-bull, #22c55e)" },
-  PENDING:   { label: "Pending",   icon: <Clock size={13} />,       color: "var(--color-primary, #8FFFD6)" },
-  CANCELLED: { label: "Cancelled", icon: <XCircle size={13} />,     color: "var(--color-bear, #ef4444)" },
-  PARTIAL:   { label: "Partial",   icon: <Clock size={13} />,       color: "#f59e0b" },
+interface BackendOrderRow extends Partial<Omit<OrderRow, "quantity">> {
+  quantity?: number;
+  qty?: number;
+}
+
+const C = {
+  page:    "var(--color-page)",
+  card:    "var(--color-card)",
+  line:    "var(--color-line)",
+  primary: "var(--color-primary)",
+  muted:   "var(--color-muted)",
+  hover:   "var(--color-surface-hover)",
 };
 
-function StatusBadge({ status }: { status: OrderStatus }) {
-  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.PENDING;
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 4,
-      padding: "2px 8px", borderRadius: 9999, fontSize: 12, fontWeight: 500,
-      color: cfg.color,
-      background: `color-mix(in srgb, ${cfg.color} 12%, transparent)`,
-      border: `1px solid color-mix(in srgb, ${cfg.color} 30%, transparent)`,
-    }}>
-      {cfg.icon}{cfg.label}
-    </span>
-  );
+const STATUS_COLOR: Record<string, string> = {
+  FILLED:    "#22c55e",
+  PENDING:   "#f59e0b",
+  CANCELLED: "var(--color-muted)",
+  REJECTED:  "#ef4444",
+};
+
+const STATUS_BG: Record<string, string> = {
+  FILLED:    "rgba(34,197,94,0.1)",
+  PENDING:   "rgba(245,158,11,0.1)",
+  CANCELLED: "var(--color-surface-hover)",
+  REJECTED:  "rgba(239,68,68,0.1)",
+};
+
+function formatDate(iso: string) {
+  try {
+    return new Date(iso).toLocaleString("en-IN", {
+      day: "numeric", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+  } catch { return iso; }
 }
 
-function Skeleton({ w, h = 16 }: { w: string | number; h?: number }) {
-  return (
-    <div style={{
-      width: w, height: h, borderRadius: 4,
-      background: "var(--color-line)",
-      animation: "pulse 1.5s ease-in-out infinite",
-    }} />
-  );
-}
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function OrdersPage() {
-  const [orders, setOrders]       = useState<Order[]>([]);
-  const [filtered, setFiltered]   = useState<Order[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
-  const [typeFilter, setTypeFilter]     = useState<"ALL" | OrderType>("ALL");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | OrderStatus>("ALL");
+  const { market } = useMarket();
+  const currency = market.currency || "$";
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetchWithAuth("/api/orders");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: Order[] = await res.json();
-        setOrders(data);
-        setFiltered(data);
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : "Failed to load orders");
-      } finally {
-        setLoading(false);
+  const [orders,   setOrders]   = useState<OrderRow[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [search,   setSearch]   = useState("");
+  const [typeFilter, setTypeFilter] = useState<"ALL" | "BUY" | "SELL">("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "FILLED" | "PENDING" | "CANCELLED">("ALL");
+
+  const loadOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetchWithAuth("/api/orders");
+      if (res.ok) {
+        const data = await res.json();
+        // Normalise: backend always returns quantity, but guard just in case
+        const normalised: OrderRow[] = (Array.isArray(data) ? data : []).map((o: BackendOrderRow) => ({
+          ...o,
+          quantity: o.quantity ?? o.qty ?? 0,   // ← prefer quantity, fallback qty
+        } as OrderRow));
+        setOrders(normalised);
       }
-    };
-    load();
+    } catch { /* non-fatal */ }
+    finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
-    let out = orders;
-    if (typeFilter !== "ALL")   out = out.filter(o => o.type === typeFilter);
-    if (statusFilter !== "ALL") out = out.filter(o => o.status === statusFilter);
-    setFiltered(out);
-  }, [orders, typeFilter, statusFilter]);
+    queueMicrotask(() => { void loadOrders(); });
+  }, [loadOrders]);
 
-  // Synchronous — no await, no exporting state needed
-  const handleExport = () => exportOrdersCsv(filtered);
+  const handleExportCsv = () => {
+    exportOrdersCsv(orders.map((order) => ({
+      ...order,
+      qty: order.quantity,
+    })));
+  };
 
-  const totalBought  = orders.filter(o => o.type === "BUY"  && o.status === "FILLED").reduce((s, o) => s + o.total, 0);
-  const totalSold    = orders.filter(o => o.type === "SELL" && o.status === "FILLED").reduce((s, o) => s + o.total, 0);
-  const pendingCount = orders.filter(o => o.status === "PENDING").length;
+  const filtered = orders.filter(o => {
+    const matchSearch =
+      o.symbol.toLowerCase().includes(search.toLowerCase()) ||
+      o.id.toLowerCase().includes(search.toLowerCase());
+    const matchType   = typeFilter === "ALL"   || o.type === typeFilter;
+    const matchStatus = statusFilter === "ALL" || o.status === statusFilter;
+    return matchSearch && matchType && matchStatus;
+  });
 
-  const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Aggregate stats
+  const totalBuys  = orders.filter(o => o.type === "BUY").length;
+  const totalSells = orders.filter(o => o.type === "SELL").length;
+  const totalValue = orders.reduce((s, o) => s + (o.total ?? 0), 0);
+  const pending    = orders.filter(o => o.status === "PENDING").length;
 
   return (
-    <div style={{ padding: "32px 28px", maxWidth: 1100, margin: "0 auto" }}>
-      <style>{`
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-        .orders-row:hover td { background: var(--color-surface-hover); }
-        .filter-btn { padding: 5px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;
-          border: 1px solid var(--color-line); background: transparent;
-          color: var(--color-muted); transition: all .15s; }
-        .filter-btn.active { background: var(--color-primary); color: #000;
-          border-color: var(--color-primary); font-weight: 600; }
-        .filter-btn:not(.active):hover { border-color: var(--color-primary); color: var(--color-primary); }
-      `}</style>
+    <div style={{ padding: "24px 32px", maxWidth: 1200, margin: "0 auto", fontFamily: "'Geist','Inter',sans-serif", background: C.page, minHeight: "100vh" }}>
 
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Order History</h1>
-          <p style={{ color: "var(--color-muted)", fontSize: 14, margin: "4px 0 0" }}>All your buy and sell orders</p>
+          <h1 style={{ color: C.primary, fontWeight: 700, fontSize: 20, margin: 0, letterSpacing: -0.3 }}>Order History</h1>
+          <p style={{ color: C.muted, fontSize: 12, margin: "4px 0 0" }}>
+            {market.flag} {market.label} · {orders.length} total orders
+          </p>
         </div>
-        <button
-          onClick={handleExport}
-          disabled={filtered.length === 0}
-          style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "8px 16px", borderRadius: 8, cursor: "pointer",
-            background: "var(--color-primary)", color: "#000",
-            border: "none", fontWeight: 600, fontSize: 13,
-            opacity: filtered.length === 0 ? 0.5 : 1,
-          }}
-        >
-          <Download size={14} /> Export CSV
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={handleExportCsv} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", borderRadius: 10, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+            <Download size={13} /> Export CSV
+          </button>
+          <button onClick={loadOrders} style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <RefreshCw size={14} />
+          </button>
+        </div>
       </div>
 
-      {/* Summary cards */}
-      {!loading && !error && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
-          {[
-            { label: "Total Bought", value: `$${fmt(totalBought)}`, color: "var(--color-bull)",    icon: <TrendingUp size={16} /> },
-            { label: "Total Sold",   value: `$${fmt(totalSold)}`,   color: "var(--color-bear)",    icon: <TrendingDown size={16} /> },
-            { label: "Pending",      value: pendingCount,            color: "var(--color-primary)", icon: <Clock size={16} /> },
-          ].map(card => (
-            <div key={card.label} style={{
-              background: "var(--color-card)", border: "1px solid var(--color-line)",
-              borderRadius: 12, padding: "16px 20px",
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-            }}>
-              <div>
-                <p style={{ margin: 0, fontSize: 12, color: "var(--color-muted)" }}>{card.label}</p>
-                <p style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 700 }}>{card.value}</p>
-              </div>
-              <div style={{ color: card.color, opacity: 0.8 }}>{card.icon}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Filters */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <Filter size={13} style={{ color: "var(--color-muted)" }} />
-          {(["ALL", "BUY", "SELL"] as const).map(t => (
-            <button key={t} className={`filter-btn${typeFilter === t ? " active" : ""}`}
-              onClick={() => setTypeFilter(t)}>{t}</button>
-          ))}
-        </div>
-        <div style={{ width: 1, background: "var(--color-line)" }} />
-        {(["ALL", "FILLED", "PENDING", "CANCELLED", "PARTIAL"] as const).map(s => (
-          <button key={s} className={`filter-btn${statusFilter === s ? " active" : ""}`}
-            onClick={() => setStatusFilter(s)}>{s === "ALL" ? "All Status" : s}</button>
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
+        {[
+          { label: "Total Orders",  value: orders.length,                                                       color: "#8FFFD6" },
+          { label: "Buy Orders",    value: totalBuys,                                                           color: "#22c55e" },
+          { label: "Sell Orders",   value: totalSells,                                                          color: "#ef4444" },
+          { label: "Pending",       value: pending,                                                             color: "#f59e0b" },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px" }}>
+            <p style={{ color: C.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 6px" }}>{label}</p>
+            <p style={{ color, fontWeight: 700, fontSize: 24, margin: 0 }}>{value}</p>
+          </div>
         ))}
       </div>
 
-      {/* Table */}
-      <div style={{
-        background: "var(--color-card)", border: "1px solid var(--color-line)",
-        borderRadius: 12, overflow: "hidden",
-      }}>
-        {loading ? (
-          <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 14 }}>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} style={{ display: "flex", gap: 20, alignItems: "center" }}>
-                <Skeleton w={80} /><Skeleton w={40} /><Skeleton w={50} />
-                <Skeleton w={60} /><Skeleton w={80} /><Skeleton w={90} /><Skeleton w={70} />
-              </div>
-            ))}
-          </div>
-        ) : error ? (
-          <div style={{ padding: 48, textAlign: "center", color: "var(--color-bear)" }}>⚠ {error}</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ padding: 64, textAlign: "center", color: "var(--color-muted)" }}>No orders found</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--color-line)" }}>
-                {["Date", "Symbol", "Type", "Qty", "Price", "Total", "Status"].map(h => (
-                  <th key={h} style={{
-                    padding: "12px 16px", textAlign: "left",
-                    color: "var(--color-muted)", fontWeight: 500, fontSize: 12,
-                  }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(order => (
-                <tr key={order.id} className="orders-row" style={{ borderBottom: "1px solid var(--color-line)" }}>
-                  <td style={{ padding: "12px 16px", color: "var(--color-muted)" }}>
-                    {new Date(order.createdAt).toLocaleDateString("en-US", {
-                      month: "short", day: "numeric", year: "numeric",
-                    })}
-                  </td>
-                  <td style={{ padding: "12px 16px", fontWeight: 600 }}>{order.symbol}</td>
-                  <td style={{ padding: "12px 16px" }}>
-                    <span style={{
-                      color: order.type === "BUY" ? "var(--color-bull)" : "var(--color-bear)",
-                      fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3,
-                    }}>
-                      {order.type === "BUY"
-                        ? <><TrendingUp size={12} />BUY</>
-                        : <><TrendingDown size={12} />SELL</>}
-                    </span>
-                  </td>
-                  <td style={{ padding: "12px 16px" }}>{order.qty.toLocaleString()}</td>
-                  <td style={{ padding: "12px 16px" }}>${fmt(order.price)}</td>
-                  <td style={{ padding: "12px 16px", fontWeight: 600 }}>${fmt(order.total)}</td>
-                  <td style={{ padding: "12px 16px" }}><StatusBadge status={order.status} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center" }}>
+        <div style={{ position: "relative", flex: 1 }}>
+          <Search size={14} color="var(--color-muted)" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by symbol or order ID…"
+            style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, color: C.primary, fontSize: 13, padding: "11px 14px 11px 38px", outline: "none", boxSizing: "border-box" }} />
+        </div>
+        <div style={{ display: "flex", gap: 4, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: 4 }}>
+          {(["ALL", "BUY", "SELL"] as const).map(f => (
+            <button key={f} onClick={() => setTypeFilter(f)} style={{ padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: typeFilter === f ? C.page : "transparent", color: typeFilter === f ? (f === "BUY" ? "#22c55e" : f === "SELL" ? "#ef4444" : "#8FFFD6") : C.muted }}>
+              {f}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 4, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: 4 }}>
+          {(["ALL", "FILLED", "PENDING", "CANCELLED"] as const).map(f => (
+            <button key={f} onClick={() => setStatusFilter(f)} style={{ padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: statusFilter === f ? C.page : "transparent", color: statusFilter === f ? "#8FFFD6" : C.muted }}>
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
 
-        {!loading && !error && filtered.length > 0 && (
-          <div style={{
-            padding: "10px 16px", borderTop: "1px solid var(--color-line)",
-            color: "var(--color-muted)", fontSize: 12,
-          }}>
-            Showing {filtered.length} of {orders.length} orders
+      {/* Table */}
+      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, overflow: "hidden" }}>
+        {/* Column Headers */}
+        <div style={{ display: "grid", gridTemplateColumns: "1.5fr 80px 80px 1fr 1fr 1fr 100px", padding: "11px 20px", borderBottom: `1px solid ${C.line}` }}>
+          {["Symbol", "Type", "Status", "Quantity", "Price", "Total", "Date"].map(h => (
+            <span key={h} style={{ color: C.muted, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{h}</span>
+          ))}
+        </div>
+
+        {loading ? (
+          <div style={{ padding: 40, textAlign: "center" }}>
+            <div style={{ width: 28, height: 28, border: `2px solid ${C.line}`, borderTop: "2px solid #8FFFD6", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
+            <p style={{ color: C.muted, fontSize: 13 }}>Loading orders…</p>
           </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: 48, textAlign: "center" }}>
+            <p style={{ color: "#8FFFD6", fontSize: 32, margin: "0 0 12px" }}>📋</p>
+            <p style={{ color: C.primary, fontSize: 14, fontWeight: 600, margin: "0 0 6px" }}>No orders found</p>
+            <p style={{ color: C.muted, fontSize: 13 }}>
+              {search || typeFilter !== "ALL" || statusFilter !== "ALL"
+                ? "Try adjusting your filters."
+                : "Place your first trade to see orders here."}
+            </p>
+          </div>
+        ) : (
+          filtered.map((order, i) => (
+            <div key={order.id}
+              style={{ display: "grid", gridTemplateColumns: "1.5fr 80px 80px 1fr 1fr 1fr 100px", padding: "13px 20px", borderBottom: i < filtered.length - 1 ? `1px solid ${C.line}` : "none", alignItems: "center", transition: "background 0.15s" }}
+              onMouseEnter={e => (e.currentTarget.style.background = C.hover)}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+
+              {/* Symbol */}
+              <div>
+                <p style={{ color: C.primary, fontWeight: 600, fontSize: 13, margin: 0 }}>
+                  {order.symbol.replace(/\.(BSE|NSE)$/i, "")}
+                </p>
+                <p style={{ color: C.muted, fontSize: 10, margin: "2px 0 0" }}>{order.market}</p>
+              </div>
+
+              {/* Type */}
+              <span style={{
+                display: "inline-block", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700,
+                color: order.type === "BUY" ? "#22c55e" : "#ef4444",
+                background: order.type === "BUY" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
+              }}>
+                {order.type}
+              </span>
+
+              {/* Status */}
+              <span style={{
+                display: "inline-block", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700,
+                color: STATUS_COLOR[order.status] ?? C.muted,
+                background: STATUS_BG[order.status] ?? C.hover,
+              }}>
+                {order.status}
+              </span>
+
+              {/* Quantity — reads order.quantity (backend field) */}
+              <span style={{ color: C.primary, fontSize: 13 }}>
+                {order.quantity?.toLocaleString() ?? "—"}
+              </span>
+
+              {/* Price */}
+              <span style={{ color: C.muted, fontSize: 13 }}>
+                {currency}{(order.price ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              </span>
+
+              {/* Total */}
+              <span style={{ color: C.primary, fontWeight: 600, fontSize: 13 }}>
+                {currency}{(order.total ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              </span>
+
+              {/* Date */}
+              <span style={{ color: C.muted, fontSize: 11 }}>
+                {formatDate(order.createdAt)}
+              </span>
+            </div>
+          ))
         )}
       </div>
+
+      {/* Total traded value footer */}
+      {orders.length > 0 && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, padding: "12px 20px", background: C.card, border: `1px solid ${C.line}`, borderRadius: 12 }}>
+          <span style={{ color: C.muted, fontSize: 12 }}>
+            Total traded volume: <span style={{ color: C.primary, fontWeight: 700 }}>
+              {currency}{totalValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            </span>
+          </span>
+        </div>
+      )}
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

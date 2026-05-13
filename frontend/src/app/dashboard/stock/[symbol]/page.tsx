@@ -62,10 +62,18 @@ function AnalystBar({ label, count, total, color }: { label: string; count: numb
 }
 
 function TradingViewChart({ symbol }: { symbol: string }) {
+  /**
+   * ✅ FIX: Plain ticker ONLY — no "BSE:" or "NSE:" prefix.
+   * TradingView free widget shows "symbol only available on TradingView"
+   * popup whenever an exchange prefix is used. Plain symbols work fine.
+   * Strip .BSE / .NSE suffix and return the bare ticker.
+   */
   function toTradingViewSymbol(sym: string): string {
-    if (sym.endsWith(".BSE")) return `BSE:${sym.replace(".BSE", "")}`;
-    if (sym.endsWith(".NSE")) return `NSE:${sym.replace(".NSE", "")}`;
-    return sym;
+    return sym
+      .replace(/\.BSE$/i, "")   // TCS.BSE  → TCS
+      .replace(/\.NSE$/i, "")   // TCS.NSE  → TCS
+      .replace(/^BSE:/i,  "")   // BSE:TCS  → TCS
+      .replace(/^NSE:/i,  "");  // NSE:TCS  → TCS
   }
 
   const tvSymbol    = toTradingViewSymbol(symbol);
@@ -75,41 +83,37 @@ function TradingViewChart({ symbol }: { symbol: string }) {
     const existing = document.getElementById(containerId);
     if (existing) existing.innerHTML = "";
 
-    const initializeWidget = () => {
-      if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>).TradingView) {
-        const TV = (window as unknown as Record<string, unknown>).TradingView as {
-          widget: new (config: Record<string, unknown>) => void;
-        };
-        new TV.widget({
-          container_id: containerId,
-          symbol: tvSymbol,
-          interval: "D",
-          timezone: "Asia/Kolkata",
-          theme: document.documentElement.classList.contains("dark") ? "dark" : "light",
-          style: "1",
-          locale: "en",
-          enable_publishing: false,
-          allow_symbol_change: true,
-          hide_top_toolbar: false,
-          save_image: false,
-          autosize: true,
-          height: 420,
-        });
-      }
+    const oldScript = document.querySelector('script[src="https://s3.tradingview.com/tv.js"]');
+    if (oldScript) oldScript.remove();
+
+    const script = document.createElement("script");
+    script.src   = "https://s3.tradingview.com/tv.js";
+    script.async = true;
+    script.onload = () => {
+      if (typeof window === "undefined") return;
+      const TV = (window as any).TradingView;
+      if (!TV) return;
+      new TV.widget({
+        container_id:        containerId,
+        symbol:              tvSymbol,   // ← plain ticker, e.g. "TCS" not "BSE:TCS"
+        interval:            "D",
+        timezone:            "Asia/Kolkata",
+        theme:               document.documentElement.classList.contains("dark") ? "dark" : "light",
+        style:               "1",
+        locale:              "en",
+        enable_publishing:   false,
+        allow_symbol_change: true,
+        hide_top_toolbar:    false,
+        save_image:          false,
+        autosize:            true,
+        height:              420,
+      });
     };
 
-    const existingScript = document.querySelector('script[src="https://s3.tradingview.com/tv.js"]');
-    if (existingScript) {
-      initializeWidget();
-    } else {
-      const script = document.createElement("script");
-      script.src = "https://s3.tradingview.com/tv.js";
-      script.async = true;
-      script.onload = initializeWidget;
-      document.head.appendChild(script);
-    }
+    document.head.appendChild(script);
 
     return () => {
+      try { document.head.removeChild(script); } catch { /* already removed */ }
       const el = document.getElementById(containerId);
       if (el) el.innerHTML = "";
     };
@@ -136,54 +140,89 @@ function TradingViewChart({ symbol }: { symbol: string }) {
 export default function StockPage() {
   const params = useParams();
   const router = useRouter();
-  const symbol = ((params?.symbol as string) ?? "").toUpperCase();
+
+  /**
+   * ✅ FIX: Strip .BSE/.NSE from the URL param immediately.
+   * URL might be /dashboard/stock/TCS.BSE — normalise to "TCS" for
+   * all API calls and display. The route param is whatever the user
+   * navigated to; we always work with the clean symbol internally.
+   */
+  const rawSymbol = ((params?.symbol as string) ?? "").toUpperCase();
+  const symbol    = rawSymbol
+    .replace(/\.BSE$/i, "")
+    .replace(/\.NSE$/i, "");
 
   const { market, formatPrice } = useMarket();
 
-  const [overview, setOverview]   = useState<StockOverview | null>(null);
-  const [ratings, setRatings]     = useState<AnalystRating | null>(null);
-  const [insights, setInsights]   = useState<Insight[]>([]);
-  const [watchlisted, setWatchlisted] = useState(false);
-  const [orderForm, setOrderForm] = useState<OrderForm>({ type: "BUY", qty: "" });
-  const [orderStatus, setOrderStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [orderMsg, setOrderMsg]   = useState("");
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
+  const [overview,       setOverview]       = useState<StockOverview | null>(null);
+  const [ratings,        setRatings]        = useState<AnalystRating | null>(null);
+  const [insights,       setInsights]       = useState<Insight[]>([]);
+  const [watchlisted,    setWatchlisted]    = useState(false);
+  const [fallbackPrice,  setFallbackPrice]  = useState<number | null>(null);
+  const [fallbackChange, setFallbackChange] = useState<number | null>(null);
+  const [orderForm,      setOrderForm]      = useState<OrderForm>({ type: "BUY", qty: "" });
+  const [orderStatus,    setOrderStatus]    = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [orderMsg,       setOrderMsg]       = useState("");
+  const [loading,        setLoading]        = useState(true);
+  const [error,          setError]          = useState<string | null>(null);
+  const [userName,       setUserName]       = useState<string>("");
 
   const prices = useLivePrices([symbol]);
   const live   = prices[symbol];
+
+  // ── Load user name for sidebar "Loading..." fix ──────────────────────────
+  useEffect(() => {
+    fetchWithAuth("/api/users/me")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.name) setUserName(data.name); })
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [ovRes, ratRes, insRes, wlRes] = await Promise.all([
+      const [ovRes, ratRes, insRes, wlRes, quoteRes] = await Promise.all([
         fetchWithAuth(`/api/stocks/${symbol}/overview`),
         fetchWithAuth(`/api/stocks/${symbol}/ratings`),
         fetchWithAuth(`/api/stocks/${symbol}/insights`),
         fetchWithAuth(`/api/watchlist`),
+        fetchWithAuth(`/api/stocks/${symbol}`),
       ]);
 
       if (!ovRes.ok) throw new Error(`Symbol not found: ${symbol}`);
       setOverview(await ovRes.json());
       if (ratRes.ok) setRatings(await ratRes.json());
       if (insRes.ok) setInsights(await insRes.json());
+
+      if (quoteRes.ok) {
+        const quote = await quoteRes.json();
+        if (quote.price && quote.price > 0) setFallbackPrice(quote.price);
+        if (quote.changePercent !== undefined) setFallbackChange(quote.changePercent);
+      }
+
       if (wlRes.ok) {
         const wl: { symbol: string }[] = await wlRes.json();
-        setWatchlisted(wl.some(w => w.symbol === symbol));
+        // Check both raw and clean symbol
+        setWatchlisted(wl.some(w =>
+          w.symbol === symbol ||
+          w.symbol === rawSymbol ||
+          w.symbol.replace(/\.(BSE|NSE)$/i, "") === symbol
+        ));
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load stock data");
     } finally {
       setLoading(false);
     }
-  }, [symbol]);
+  }, [symbol, rawSymbol]);
 
   useEffect(() => { void load(); }, [load]);
 
   const toggleWatchlist = async () => {
+    // Always use clean symbol for watchlist API
     const method = watchlisted ? "DELETE" : "POST";
-    const res = await fetchWithAuth(`/api/watchlist/${symbol}`, { method });
+    const res    = await fetchWithAuth(`/api/watchlist/${symbol}`, { method });
     if (res.ok) setWatchlisted(w => !w);
   };
 
@@ -200,8 +239,11 @@ export default function StockPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          symbol, type: orderForm.type,
-          qty: Number(orderForm.qty), price: live?.price ?? 0,
+          symbol,                        // clean symbol
+          market: market.id,
+          type:   orderForm.type,
+          qty:    Number(orderForm.qty), // frontend sends "qty" — backend handles both
+          price:  price ?? 0,
         }),
       });
       if (!res.ok) throw new Error("Order failed");
@@ -215,13 +257,15 @@ export default function StockPage() {
     }
   };
 
-  const price     = live?.price ?? null;
-  const changePct = live?.changePct ?? null;
+  const price     = live?.price     ?? fallbackPrice;
+  const changePct = live?.changePct ?? fallbackChange;
   const isUp      = (changePct ?? 0) >= 0;
-  const totalRatings = ratings
-    ? ratings.strongBuy + ratings.buy + ratings.hold + ratings.sell + ratings.strongSell : 0;
+  const isLive    = !!live?.price;
 
-  // Use market currency for capacity formatting
+  const totalRatings = ratings
+    ? ratings.strongBuy + ratings.buy + ratings.hold + ratings.sell + ratings.strongSell
+    : 0;
+
   const fmtCap = (n: number) => {
     if (n >= 1e12) return `${market.currency}${(n / 1e12).toFixed(2)}T`;
     if (n >= 1e9)  return `${market.currency}${(n / 1e9).toFixed(2)}B`;
@@ -233,9 +277,12 @@ export default function StockPage() {
     <div style={{ padding: "32px 28px", maxWidth: 1100, margin: "0 auto" }}>
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-        @keyframes spin { to { transform: rotate(360deg) } }
-        .order-tab { flex: 1; padding: 8px; border: none; cursor: pointer;
-          font-size: 13px; font-weight: 600; border-radius: 6px; transition: all .15s; }
+        @keyframes spin  { to { transform: rotate(360deg) } }
+        @keyframes ping  { 0%{transform:scale(1);opacity:.75} 100%{transform:scale(2);opacity:0} }
+        .order-tab {
+          flex: 1; padding: 8px; border: none; cursor: pointer;
+          font-size: 13px; font-weight: 600; border-radius: 6px; transition: all .15s;
+        }
       `}</style>
 
       <button onClick={() => router.back()} style={{
@@ -254,8 +301,9 @@ export default function StockPage() {
           <AlertCircle size={32} />
           <p style={{ margin: 0, fontSize: 16 }}>{error}</p>
           <button onClick={load} style={{
-            padding: "8px 20px", borderRadius: 8, background: "var(--color-primary)",
-            color: "#000", border: "none", cursor: "pointer", fontWeight: 600,
+            padding: "8px 20px", borderRadius: 8,
+            background: "var(--color-primary)", color: "#000",
+            border: "none", cursor: "pointer", fontWeight: 600,
           }}>Retry</button>
         </div>
       ) : (
@@ -263,6 +311,7 @@ export default function StockPage() {
 
           {/* ── LEFT COLUMN ── */}
           <div>
+
             {/* Hero header */}
             <div style={{
               background: "var(--color-card)", border: "1px solid var(--color-line)",
@@ -272,11 +321,14 @@ export default function StockPage() {
               <div>
                 {loading ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    <Skeleton w={120} h={28} /><Skeleton w={200} /><Skeleton w={80} />
+                    <Skeleton w={120} h={28} />
+                    <Skeleton w={200} />
+                    <Skeleton w={80} />
                   </div>
                 ) : (
                   <>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      {/* Show clean symbol in heading — no .BSE suffix */}
                       <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800 }}>{symbol}</h1>
                       <span style={{
                         padding: "2px 8px", borderRadius: 6, fontSize: 11,
@@ -296,13 +348,26 @@ export default function StockPage() {
                   <><Skeleton w={100} h={32} /><Skeleton w={70} /></>
                 ) : price !== null ? (
                   <>
-                    <span style={{ fontSize: 28, fontWeight: 800 }}>{formatPrice(price)}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      {isLive && (
+                        <span style={{ position: "relative", display: "inline-flex", width: 8, height: 8 }}>
+                          <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "#8FFFD6", opacity: 0.75, animation: "ping 1s cubic-bezier(0,0,0.2,1) infinite" }} />
+                          <span style={{ position: "relative", borderRadius: "50%", width: 8, height: 8, background: "#8FFFD6", display: "inline-flex" }} />
+                        </span>
+                      )}
+                      <span style={{ fontSize: 28, fontWeight: 800 }}>{formatPrice(price)}</span>
+                    </div>
                     <span style={{
                       display: "flex", alignItems: "center", gap: 4, fontSize: 14, fontWeight: 600,
                       color: isUp ? "var(--color-bull)" : "var(--color-bear)",
                     }}>
                       {isUp ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
                       {isUp ? "+" : ""}{changePct?.toFixed(2)}%
+                      {!isLive && (
+                        <span style={{ fontSize: 10, color: "var(--color-muted)", fontWeight: 400, marginLeft: 4 }}>
+                          delayed
+                        </span>
+                      )}
                     </span>
                   </>
                 ) : (
@@ -311,9 +376,12 @@ export default function StockPage() {
                 <button onClick={toggleWatchlist} style={{
                   display: "flex", alignItems: "center", gap: 5,
                   padding: "6px 12px", borderRadius: 8, cursor: "pointer", fontSize: 12,
-                  background: watchlisted ? "color-mix(in srgb, var(--color-primary) 15%, transparent)" : "transparent",
+                  background: watchlisted
+                    ? "color-mix(in srgb, var(--color-primary) 15%, transparent)"
+                    : "transparent",
                   border: `1px solid ${watchlisted ? "var(--color-primary)" : "var(--color-line)"}`,
-                  color: watchlisted ? "var(--color-primary)" : "var(--color-muted)", fontWeight: 600,
+                  color: watchlisted ? "var(--color-primary)" : "var(--color-muted)",
+                  fontWeight: 600,
                 }}>
                   {watchlisted ? <Star size={12} fill="currentColor" /> : <StarOff size={12} />}
                   {watchlisted ? "Watchlisted" : "Add to Watchlist"}
@@ -321,31 +389,30 @@ export default function StockPage() {
               </div>
             </div>
 
-            {/* TradingView Chart */}
-            <TradingViewChart symbol={symbol} />
+            {/* TradingView Chart — key={symbol} forces remount on symbol change */}
+            <TradingViewChart key={symbol} symbol={symbol} />
 
             {/* Key stats */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
-              {loading ? Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} style={{
-                  background: "var(--color-card)", border: "1px solid var(--color-line)",
-                  borderRadius: 10, padding: "12px 16px",
-                }}>
-                  <Skeleton w="60%" h={11} />
-                  <div style={{ marginTop: 6 }}><Skeleton w="80%" h={18} /></div>
-                </div>
-              )) : overview ? (
-                <>
-                  <StatCard label="Market Cap"  value={fmtCap(overview.marketCap)} />
-                  <StatCard label="P/E Ratio"   value={overview.peRatio?.toFixed(2) ?? "N/A"} />
-                  <StatCard label="EPS"         value={formatPrice(overview.eps ?? 0)} />
-                  <StatCard label="Div. Yield"  value={overview.dividendYield ? `${(overview.dividendYield * 100).toFixed(2)}%` : "N/A"} />
-                  <StatCard label="52W High"    value={formatPrice(overview.week52High ?? 0)} />
-                  <StatCard label="52W Low"     value={formatPrice(overview.week52Low ?? 0)} />
-                  <StatCard label="Sector"      value={overview.sector ?? "—"} />
-                  <StatCard label="Exchange"    value={overview.exchange ?? "—"} />
-                </>
-              ) : null}
+              {loading
+                ? Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} style={{ background: "var(--color-card)", border: "1px solid var(--color-line)", borderRadius: 10, padding: "12px 16px" }}>
+                      <Skeleton w="60%" h={11} />
+                      <div style={{ marginTop: 6 }}><Skeleton w="80%" h={18} /></div>
+                    </div>
+                  ))
+                : overview ? (
+                  <>
+                    <StatCard label="Market Cap"  value={fmtCap(overview.marketCap)} />
+                    <StatCard label="P/E Ratio"   value={overview.peRatio?.toFixed(2) ?? "N/A"} />
+                    <StatCard label="EPS"         value={formatPrice(overview.eps ?? 0)} />
+                    <StatCard label="Div. Yield"  value={overview.dividendYield ? `${(overview.dividendYield * 100).toFixed(2)}%` : "N/A"} />
+                    <StatCard label="52W High"    value={formatPrice(overview.week52High ?? 0)} />
+                    <StatCard label="52W Low"     value={formatPrice(overview.week52Low ?? 0)} />
+                    <StatCard label="Sector"      value={overview.sector ?? "—"} />
+                    <StatCard label="Exchange"    value={overview.exchange ?? "—"} />
+                  </>
+                ) : null}
             </div>
 
             {/* About */}
@@ -405,7 +472,9 @@ export default function StockPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   {Array.from({ length: 3 }).map((_, i) => (
                     <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <Skeleton w="40%" h={12} /><Skeleton w="100%" /><Skeleton w="80%" />
+                      <Skeleton w="40%" h={12} />
+                      <Skeleton w="100%" />
+                      <Skeleton w="80%" />
                     </div>
                   ))}
                 </div>
@@ -417,7 +486,11 @@ export default function StockPage() {
                     <div key={ins.id} style={{
                       padding: "12px 14px", borderRadius: 8,
                       border: "1px solid var(--color-line)",
-                      borderLeft: `3px solid ${ins.type === "BULLISH" ? "#22c55e" : ins.type === "BEARISH" ? "#ef4444" : "#f59e0b"}`,
+                      borderLeft: `3px solid ${
+                        ins.type === "BULLISH" ? "#22c55e"
+                        : ins.type === "BEARISH" ? "#ef4444"
+                        : "#f59e0b"
+                      }`,
                     }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                         <span style={{
@@ -457,8 +530,9 @@ export default function StockPage() {
                         ? t === "BUY" ? "var(--color-bull)" : "var(--color-bear)"
                         : "transparent",
                       color: orderForm.type === t ? "#fff" : "var(--color-muted)",
-                    }}
-                  >{t}</button>
+                    }}>
+                    {t}
+                  </button>
                 ))}
               </div>
 

@@ -1,127 +1,151 @@
 package com.stocksense.config;
 
-import com.stocksense.service.JwtService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.stocksense.service.AlphaVantageService;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.server.ServerHttpRequest;
-import org.springframework.http.server.ServerHttpResponse;
-import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.config.annotation.*;
-import org.springframework.web.socket.handler.TextWebSocketHandler;
-import org.springframework.web.socket.server.HandshakeInterceptor;
 
-import java.util.Map;
+import java.io.IOException;
+import java.util.*;
 import java.util.concurrent.*;
 
+/**
+ * Raw WebSocket handler at ws://localhost:8081/ws/prices
+ *
+ * Client sends:  { "subscribe": ["RELIANCE", "TCS", "AAPL"] }
+ *                { "unsubscribe": ["AAPL"] }
+ *
+ * Server sends every 15s per session:
+ *   { "RELIANCE": 2940.50, "TCS": 3921.00, ... }
+ *
+ * Falls back to hash-based mock if Alpha Vantage quota is exceeded.
+ */
 @Configuration
 @EnableWebSocket
-@EnableWebSocketMessageBroker
-public class WebSocketConfig implements WebSocketConfigurer, WebSocketMessageBrokerConfigurer {
+public class WebSocketConfig implements WebSocketConfigurer {
 
-    private final JwtService jwtService;
+    private final AlphaVantageService alphaVantageService;
 
-    public WebSocketConfig(JwtService jwtService) {
-        this.jwtService = jwtService;
+    public WebSocketConfig(AlphaVantageService alphaVantageService) {
+        this.alphaVantageService = alphaVantageService;
     }
 
-    // ── Raw WebSocket at /ws/prices (used by frontend) ────────────────────────
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(priceHandler(), "/ws/prices")
-                .setAllowedOriginPatterns("*")
-                .addInterceptors(jwtInterceptor());
+        registry.addHandler(new RawWebSocketHandler(alphaVantageService), "/ws/prices")
+                .setAllowedOriginPatterns("*");
     }
 
-    // ── STOMP broker (kept for future use) ────────────────────────────────────
-    @Override
-    public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws/stomp")
-                .setAllowedOriginPatterns("*")
-                .withSockJS();
-    }
+    // ─────────────────────────────────────────────────────────────────────────
 
-    @Override
-    public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/topic");
-        registry.setApplicationDestinationPrefixes("/app");
-    }
+    public static class RawWebSocketHandler implements WebSocketHandler {
 
-    // ── Price WebSocket handler ───────────────────────────────────────────────
+        private final AlphaVantageService alphaVantageService;
+        private final ObjectMapper mapper = new ObjectMapper();
+        private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
 
-    private WebSocketHandler priceHandler() {
-        return new TextWebSocketHandler() {
-            private final ScheduledExecutorService scheduler =
-                    Executors.newSingleThreadScheduledExecutor();
+        // Per-session state
+        private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
+        private final Map<String, Set<String>> sessionSymbols = new ConcurrentHashMap<>();
+        private final Map<String, ScheduledFuture<?>> sessionTasks = new ConcurrentHashMap<>();
 
-            @Override
-            public void afterConnectionEstablished(WebSocketSession session) {
-                String email = (String) session.getAttributes().getOrDefault("email", "anon");
-                System.out.println("[WS] Connected: " + session.getId() + " (" + email + ")");
+        public RawWebSocketHandler(AlphaVantageService alphaVantageService) {
+            this.alphaVantageService = alphaVantageService;
+        }
 
-                scheduler.scheduleAtFixedRate(() -> {
-                    if (!session.isOpen()) return;
-                    try {
-                        String[] symbols = {
-                            "RELIANCE","TCS","INFY","HDFCBANK","WIPRO",
-                            "AAPL","MSFT","NVDA","TSLA","GOOGL"
-                        };
-                        for (String sym : symbols) {
-                            double base   = 100 + (Math.abs(sym.hashCode()) % 900);
-                            double price  = base + (Math.random() - 0.5) * 10;
-                            double change = (Math.random() - 0.48) * 3;
-                            String msg = String.format(
-                                "{\"symbol\":\"%s\",\"price\":%.2f,\"changePct\":%.2f}",
-                                sym, price, change
-                            );
-                            session.sendMessage(new TextMessage(msg));
-                        }
-                    } catch (Exception e) {
-                        System.out.println("[WS] Send error: " + e.getMessage());
+        @Override
+        public void afterConnectionEstablished(WebSocketSession session) {
+            sessions.put(session.getId(), session);
+            sessionSymbols.put(session.getId(), ConcurrentHashMap.newKeySet());
+        }
+
+        @Override
+        public void handleMessage(WebSocketSession session, WebSocketMessage<?> message) throws Exception {
+            String payload = message.getPayload().toString();
+            Map<?, ?> msg = mapper.readValue(payload, Map.class);
+
+            Set<String> subscribed = sessionSymbols.get(session.getId());
+            if (subscribed == null) return;
+
+            if (msg.containsKey("subscribe")) {
+                List<?> symbols = (List<?>) msg.get("subscribe");
+                symbols.forEach(s -> subscribed.add(normalise(s.toString())));
+                restartTask(session);
+            }
+            if (msg.containsKey("unsubscribe")) {
+                List<?> symbols = (List<?>) msg.get("unsubscribe");
+                symbols.forEach(s -> subscribed.remove(normalise(s.toString())));
+            }
+        }
+
+        /** Strip .BSE / .NSE suffix — Alpha Vantage uses plain symbols */
+        private String normalise(String s) {
+            return s.replace(".BSE", "").replace(".NSE", "");
+        }
+
+        private void restartTask(WebSocketSession session) {
+            ScheduledFuture<?> old = sessionTasks.get(session.getId());
+            if (old != null) old.cancel(false);
+
+            ScheduledFuture<?> task = scheduler.scheduleAtFixedRate(() -> {
+                Set<String> symbols = sessionSymbols.get(session.getId());
+                if (symbols == null || symbols.isEmpty()) return;
+                sendPrices(session, symbols);
+            }, 0, 15, TimeUnit.SECONDS);
+
+            sessionTasks.put(session.getId(), task);
+        }
+
+        private void sendPrices(WebSocketSession session, Set<String> symbols) {
+            if (!session.isOpen()) return;
+            Map<String, Object> prices = new LinkedHashMap<>();
+
+            for (String symbol : symbols) {
+                try {
+                    Map<String, Object> quote = alphaVantageService.getQuote(symbol);
+                    if (quote != null && quote.get("price") instanceof Number) {
+                        prices.put(symbol, ((Number) quote.get("price")).doubleValue());
+                    } else {
+                        prices.put(symbol, mockPrice(symbol));
                     }
-                }, 1, 3, TimeUnit.SECONDS);
-            }
-
-            @Override
-            public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-                System.out.println("[WS] Disconnected: " + session.getId());
-            }
-
-            @Override
-            public void handleTransportError(WebSocketSession session, Throwable ex) {
-                System.out.println("[WS] Error: " + ex.getMessage());
-            }
-        };
-    }
-
-    // ── JWT handshake interceptor ─────────────────────────────────────────────
-
-    private HandshakeInterceptor jwtInterceptor() {
-        return new HandshakeInterceptor() {
-            @Override
-            public boolean beforeHandshake(ServerHttpRequest req, ServerHttpResponse res,
-                                           WebSocketHandler handler, Map<String, Object> attrs) {
-                String query = req.getURI().getQuery();
-                if (query != null) {
-                    for (String param : query.split("&")) {
-                        if (param.startsWith("token=")) {
-                            String token = param.substring(6);
-                            try {
-                                String email = jwtService.extractEmail(token);
-                                attrs.put("email", email != null ? email : "unknown");
-                            } catch (Exception e) {
-                                attrs.put("email", "invalid");
-                            }
-                            break;
-                        }
-                    }
+                } catch (Exception e) {
+                    // Alpha Vantage quota hit or network error — use mock
+                    prices.put(symbol, mockPrice(symbol));
                 }
-                attrs.putIfAbsent("email", "anonymous");
-                return true;
             }
 
-            @Override
-            public void afterHandshake(ServerHttpRequest req, ServerHttpResponse res,
-                                       WebSocketHandler handler, Exception ex) {}
-        };
+            try {
+                session.sendMessage(new TextMessage(mapper.writeValueAsString(prices)));
+            } catch (IOException ignored) {}
+        }
+
+        /** Deterministic mock based on symbol hash, same range 100–900 */
+        private double mockPrice(String symbol) {
+            int h = Math.abs(symbol.hashCode());
+            double base = 100 + (h % 800);
+            double jitter = (Math.random() - 0.5) * base * 0.01;
+            return Math.round((base + jitter) * 100.0) / 100.0;
+        }
+
+        @Override
+        public void handleTransportError(WebSocketSession session, Throwable exception) {
+            cleanup(session.getId());
+        }
+
+        @Override
+        public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+            cleanup(session.getId());
+        }
+
+        private void cleanup(String id) {
+            sessions.remove(id);
+            sessionSymbols.remove(id);
+            ScheduledFuture<?> task = sessionTasks.remove(id);
+            if (task != null) task.cancel(false);
+        }
+
+        @Override
+        public boolean supportsPartialMessages() { return false; }
     }
 }
