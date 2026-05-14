@@ -16,22 +16,22 @@ public class StockController {
     private final MarketSymbolService marketSymbols;
 
     public StockController(AlphaVantageService alphaVantage, MarketSymbolService marketSymbols) {
-        this.alphaVantage = alphaVantage;
+        this.alphaVantage  = alphaVantage;
         this.marketSymbols = marketSymbols;
     }
 
     private String resolveSymbol(String symbol, String market) {
         if (symbol == null) return null;
-        String s = symbol.trim().toUpperCase();
-        // Strip .BSE suffix before passing to Alpha Vantage — it uses plain symbols
-        s = s.replace(".BSE", "").replace(".NSE", "");
+        String s = symbol.trim().toUpperCase()
+                .replace(".BSE", "")
+                .replace(".NSE", "");
         if ("IN".equalsIgnoreCase(market) && !s.contains(".")) {
             return s + ".BSE";
         }
         return s;
     }
 
-    // ── GET /api/stocks/{symbol} — single quote ───────────────────────────────
+    // ── GET /api/stocks/{symbol} ──────────────────────────────────────────────
     @GetMapping("/stocks/{symbol}")
     public ResponseEntity<Map<String, Object>> getQuote(
             @PathVariable String symbol,
@@ -39,11 +39,7 @@ public class StockController {
         return ResponseEntity.ok(alphaVantage.getQuote(resolveSymbol(symbol, market)));
     }
 
-    // ── GET /api/stocks/{symbol}/overview — company overview ─────────────────
-    /**
-     * Called by the stock page to show name, sector, market cap, P/E, EPS etc.
-     * Pulls from Alpha Vantage OVERVIEW function and maps to the StockOverview shape.
-     */
+    // ── GET /api/stocks/{symbol}/overview ─────────────────────────────────────
     @GetMapping("/stocks/{symbol}/overview")
     public ResponseEntity<Map<String, Object>> getOverview(
             @PathVariable String symbol,
@@ -56,14 +52,13 @@ public class StockController {
             return ResponseEntity.notFound().build();
         }
 
-        // Map Alpha Vantage field names → frontend StockOverview shape
         Map<String, Object> overview = new LinkedHashMap<>();
         overview.put("symbol",        resolved);
-        overview.put("name",          raw.getOrDefault("Name", resolved));
-        overview.put("exchange",      raw.getOrDefault("Exchange", "—"));
-        overview.put("sector",        raw.getOrDefault("Sector", "—"));
-        overview.put("industry",      raw.getOrDefault("Industry", "—"));
-        overview.put("description",   raw.getOrDefault("Description", ""));
+        overview.put("name",          raw.getOrDefault("Name",                 resolved));
+        overview.put("exchange",      raw.getOrDefault("Exchange",             "—"));
+        overview.put("sector",        raw.getOrDefault("Sector",               "—"));
+        overview.put("industry",      raw.getOrDefault("Industry",             "—"));
+        overview.put("description",   raw.getOrDefault("Description",          ""));
         overview.put("marketCap",     parseDouble(raw.get("MarketCapitalization")));
         overview.put("peRatio",       parseDouble(raw.get("PERatio")));
         overview.put("eps",           parseDouble(raw.get("EPS")));
@@ -74,28 +69,24 @@ public class StockController {
         return ResponseEntity.ok(overview);
     }
 
-    // ── GET /api/stocks/{symbol}/ratings — analyst ratings ───────────────────
-    /**
-     * Returns mock analyst consensus data.
-     * Replace with a real data source (e.g. Financial Modeling Prep) if needed.
-     */
+    // ── GET /api/stocks/{symbol}/ratings ──────────────────────────────────────
     @GetMapping("/stocks/{symbol}/ratings")
     public ResponseEntity<Map<String, Object>> getRatings(
             @PathVariable String symbol,
             @RequestParam(required = false, defaultValue = "") String market) {
 
-        // Deterministic mock based on symbol hash so it's consistent per symbol
-        int hash = Math.abs(symbol.hashCode());
+        int hash       = Math.abs(symbol.hashCode());
         int strongBuy  = 5  + (hash % 10);
         int buy        = 8  + (hash % 8);
         int hold       = 4  + (hash % 6);
         int sell       = 1  + (hash % 4);
         int strongSell = hash % 3;
 
-        // Get current price from Alpha Vantage for a realistic target
-        Map<String, Object> quote = alphaVantage.getQuote(resolveSymbol(symbol, market));
+        Map<String, Object> quote        = alphaVantage.getQuote(resolveSymbol(symbol, market));
         double currentPrice = parseDouble(quote.get("price"));
-        double targetPrice  = currentPrice > 0 ? currentPrice * (1.05 + (hash % 20) / 100.0) : 150.0;
+        double targetPrice  = currentPrice > 0
+                ? currentPrice * (1.05 + (hash % 20) / 100.0)
+                : 150.0;
 
         Map<String, Object> ratings = new LinkedHashMap<>();
         ratings.put("strongBuy",   strongBuy);
@@ -104,53 +95,67 @@ public class StockController {
         ratings.put("sell",        sell);
         ratings.put("strongSell",  strongSell);
         ratings.put("targetPrice", Math.round(targetPrice * 100.0) / 100.0);
-
         return ResponseEntity.ok(ratings);
     }
 
-    // ── GET /api/stocks/{symbol}/insights — AI insights ──────────────────────
-    /**
-     * Returns mock AI insights. Wire to your ML FastAPI service at port 8082
-     * if you have it running, or return static data for now.
-     */
+    // ── GET /api/stocks/{symbol}/insights ─────────────────────────────────────
     @GetMapping("/stocks/{symbol}/insights")
     public ResponseEntity<List<Map<String, Object>>> getInsights(
             @PathVariable String symbol,
             @RequestParam(required = false, defaultValue = "") String market) {
 
         String clean = symbol.replace(".BSE", "").replace(".NSE", "").toUpperCase();
+        String now   = new java.util.Date().toString();
 
         List<Map<String, Object>> insights = List.of(
-            Map.of(
-                "id",          "1",
-                "type",        "BULLISH",
-                "title",       clean + " shows strong momentum",
-                "body",        "Technical indicators suggest bullish continuation with RSI above 60 and MACD crossover.",
-                "source",      "StockSense AI",
-                "publishedAt", new java.util.Date().toString()
-            ),
-            Map.of(
-                "id",          "2",
-                "type",        "NEUTRAL",
-                "title",       "Earnings report due next quarter",
-                "body",        "Analysts expect moderate growth. Watch for guidance revision at the upcoming earnings call.",
-                "source",      "StockSense AI",
-                "publishedAt", new java.util.Date().toString()
-            )
+            Map.of("id","1","type","BULLISH",
+                "title", clean + " shows strong momentum",
+                "body",  "Technical indicators suggest bullish continuation with RSI above 60 and MACD crossover.",
+                "source","StockSense AI","publishedAt", now),
+            Map.of("id","2","type","NEUTRAL",
+                "title","Earnings report due next quarter",
+                "body",  "Analysts expect moderate growth. Watch for guidance revision at the upcoming earnings call.",
+                "source","StockSense AI","publishedAt", now)
         );
-
         return ResponseEntity.ok(insights);
     }
 
-    // ── GET /api/stocks/{symbol}/history — OHLCV candles ─────────────────────
+    // ── GET /api/stocks/{symbol}/history?range=1D|1W|1M|1Y|ALL ───────────────
+    //
+    // REPLACES the old endpoint that returned Map<String,Object>.
+    // Now returns List<{time,open,high,low,close,volume}> for Lightweight Charts.
+    // ?range param controls how many candles to return.
+    //
     @GetMapping("/stocks/{symbol}/history")
-    public ResponseEntity<Map<String, Object>> getHistory(
+    public ResponseEntity<List<Map<String, Object>>> getHistory(
             @PathVariable String symbol,
-            @RequestParam(required = false, defaultValue = "") String market) {
-        return ResponseEntity.ok(alphaVantage.getDailyHistory(resolveSymbol(symbol, market)));
+            @RequestParam(required = false, defaultValue = "") String market,
+            @RequestParam(defaultValue = "1M") String range) {
+        try {
+            boolean intraday = "1D".equalsIgnoreCase(range);
+            List<Map<String, Object>> candles;
+
+            if (intraday) {
+                // 1D → 5-minute intraday bars
+                candles = alphaVantage.getIntraday(resolveSymbol(symbol, market), "5min");
+            } else {
+                // 1W / 1M / 1Y / ALL → daily OHLCV filtered by date
+                candles = alphaVantage.getDailyOHLCV(resolveSymbol(symbol, market));
+                candles = filterByRange(candles, range);
+            }
+
+            // If Alpha Vantage returned nothing (quota / unknown symbol) use mock
+            if (candles == null || candles.isEmpty()) {
+                candles = generateMockCandles(range);
+            }
+
+            return ResponseEntity.ok(candles);
+        } catch (Exception e) {
+            return ResponseEntity.ok(generateMockCandles(range));
+        }
     }
 
-    // ── GET /api/stocks/search?q=apple ───────────────────────────────────────
+    // ── GET /api/stocks/search?q= ─────────────────────────────────────────────
     @GetMapping("/stocks/search")
     public ResponseEntity<List<Map<String, Object>>> search(@RequestParam String q) {
         return ResponseEntity.ok(alphaVantage.search(q));
@@ -158,7 +163,8 @@ public class StockController {
 
     // ── GET /api/market/{marketId}/symbols ────────────────────────────────────
     @GetMapping("/market/{marketId}/symbols")
-    public ResponseEntity<List<Map<String, String>>> getMarketSymbols(@PathVariable String marketId) {
+    public ResponseEntity<List<Map<String, String>>> getMarketSymbols(
+            @PathVariable String marketId) {
         return ResponseEntity.ok(marketSymbols.getSymbolsForMarket(marketId));
     }
 
@@ -173,17 +179,16 @@ public class StockController {
         int total = allSymbols.size();
         int from  = Math.min(page * size, total);
         int to    = Math.min(from + size, total);
-        List<Map<String, String>> pageSymbols = allSymbols.subList(from, to);
 
-        List<String> symbolStrings = pageSymbols.stream()
-                .map(s -> s.get("symbol")).toList();
+        List<String> symbolStrings = allSymbols.subList(from, to)
+                .stream().map(s -> s.get("symbol")).toList();
 
-        List<Map<String, Object>> quotes = alphaVantage.getBatchQuotes(symbolStrings);
-
+        List<Map<String, Object>> quotes   = alphaVantage.getBatchQuotes(symbolStrings);
         List<Map<String, Object>> enriched = new ArrayList<>();
-        for (int i = 0; i < pageSymbols.size(); i++) {
+
+        for (int i = 0; i < allSymbols.subList(from, to).size(); i++) {
             Map<String, Object> merged = new LinkedHashMap<>();
-            merged.putAll(pageSymbols.get(i));
+            merged.putAll(allSymbols.subList(from, to).get(i));
             if (i < quotes.size()) merged.putAll(quotes.get(i));
             enriched.add(merged);
         }
@@ -200,22 +205,84 @@ public class StockController {
 
     // ── GET /api/market/{marketId}/analytics ──────────────────────────────────
     @GetMapping("/market/{marketId}/analytics")
-    public ResponseEntity<Map<String, Object>> getAnalytics(@PathVariable String marketId) {
+    public ResponseEntity<Map<String, Object>> getAnalytics(
+            @PathVariable String marketId) {
+
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("market",        marketId);
-        data.put("totalValue",    switch (marketId) { case "IN" -> 9331456; case "US" -> 530056; default -> 120000; });
-        data.put("changePercent", switch (marketId) { case "IN" -> 6.42;    case "US" -> 4.75;   default -> 2.1; });
-        data.put("changeAmount",  switch (marketId) { case "IN" -> 562100;  case "US" -> 24000;  default -> 2520; });
-        data.put("riskScore",     switch (marketId) { case "IN" -> 76;      case "US" -> 58;     default -> 82; });
+        data.put("totalValue",    switch (marketId) {
+            case "IN" -> 9331456; case "US" -> 530056; default -> 120000; });
+        data.put("changePercent", switch (marketId) {
+            case "IN" -> 6.42;   case "US" -> 4.75;   default -> 2.1; });
+        data.put("changeAmount",  switch (marketId) {
+            case "IN" -> 562100; case "US" -> 24000;  default -> 2520; });
+        data.put("riskScore",     switch (marketId) {
+            case "IN" -> 76;     case "US" -> 58;     default -> 82; });
         data.put("allocation",    switch (marketId) {
-            case "IN" -> Map.of("stocks", 62, "funds", 28, "other", 10);
-            case "US" -> Map.of("stocks", 48, "crypto", 30, "funds", 22);
-            default   -> Map.of("crypto", 70, "stablecoins", 20, "defi", 10);
+            case "IN" -> List.of(
+                Map.of("label","Stocks","pct",62),
+                Map.of("label","Funds","pct",28),
+                Map.of("label","Other","pct",10));
+            case "US" -> List.of(
+                Map.of("label","Stocks","pct",48),
+                Map.of("label","Crypto","pct",30),
+                Map.of("label","Funds","pct",22));
+            default -> List.of(
+                Map.of("label","Crypto","pct",70),
+                Map.of("label","Stablecoins","pct",20),
+                Map.of("label","DeFi","pct",10));
         });
         return ResponseEntity.ok(data);
     }
 
-    // ── Helper ────────────────────────────────────────────────────────────────
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    private List<Map<String, Object>> filterByRange(
+            List<Map<String, Object>> all, String range) {
+        if (all == null || all.isEmpty()) return Collections.emptyList();
+        long nowSec    = System.currentTimeMillis() / 1000L;
+        long cutoffSec = switch (range.toUpperCase()) {
+            case "1W"  -> nowSec - 7L   * 86400;
+            case "1M"  -> nowSec - 30L  * 86400;
+            case "1Y"  -> nowSec - 365L * 86400;
+            default    -> 0L; // ALL
+        };
+        final long cut = cutoffSec;
+        return all.stream()
+                .filter(c -> ((Number) c.getOrDefault("time", 0L)).longValue() >= cut)
+                .toList();
+    }
+
+    private List<Map<String, Object>> generateMockCandles(String range) {
+        int days = switch (range.toUpperCase()) {
+            case "1D"  -> 78;
+            case "1W"  -> 7;
+            case "1M"  -> 30;
+            case "1Y"  -> 252;
+            default    -> 500;
+        };
+        List<Map<String, Object>> candles = new ArrayList<>();
+        long   now   = System.currentTimeMillis() / 1000L;
+        double price = 3500;
+        for (int i = days; i >= 0; i--) {
+            long   time  = now - (long) i * 86400;
+            double open  = price;
+            double high  = open  * (1 + Math.random() * 0.02);
+            double low   = open  * (1 - Math.random() * 0.02);
+            double close = low   + Math.random() * (high - low);
+            price = close;
+            Map<String, Object> c = new LinkedHashMap<>();
+            c.put("time",   time);
+            c.put("open",   Math.round(open  * 100.0) / 100.0);
+            c.put("high",   Math.round(high  * 100.0) / 100.0);
+            c.put("low",    Math.round(low   * 100.0) / 100.0);
+            c.put("close",  Math.round(close * 100.0) / 100.0);
+            c.put("volume", (long)(Math.random() * 2_000_000 + 500_000));
+            candles.add(c);
+        }
+        return candles;
+    }
+
     private double parseDouble(Object val) {
         if (val == null) return 0.0;
         try { return Double.parseDouble(val.toString()); }
