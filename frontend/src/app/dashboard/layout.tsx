@@ -27,7 +27,6 @@ const NAV_ITEMS = [
   { href: "/dashboard/settings",      label: "Settings",      icon: Settings        },
 ];
 
-// ── iOS-style theme toggle ────────────────────────────────────────────────────
 function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -41,7 +40,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label="Toggle theme"
       style={{
         position: "relative", width: 52, height: 28, borderRadius: 99,
         background: isDark ? "rgba(143,255,214,0.15)" : "#e5e7eb",
@@ -49,8 +48,7 @@ function ThemeToggle() {
         cursor: "pointer", flexShrink: 0,
         transition: "background 0.2s, border-color 0.2s",
         display: "flex", alignItems: "center", padding: "0 3px",
-      }}
-    >
+      }}>
       <Sun  size={11} style={{ position: "absolute", left: 6,  color: isDark ? "transparent" : "#f59e0b", transition: "color 0.2s" }} />
       <Moon size={11} style={{ position: "absolute", right: 6, color: isDark ? "#8FFFD6" : "transparent", transition: "color 0.2s" }} />
       <span style={{
@@ -73,13 +71,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router   = useRouter();
   const { resolvedTheme } = useTheme();
-  const [mounted,      setMounted]      = useState(false);
-  const [authChecked,  setAuthChecked]  = useState(false);
+  const [mounted,     setMounted]     = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // ── Auth guard ────────────────────────────────────────────────────────────
-  // CRITICAL: empty deps [] — run once on mount only.
-  // Adding pathname to deps resets authChecked on every navigation → redirect loop.
+  // Auth guard — run once on mount only (empty deps [])
   useEffect(() => {
     const token = getToken();
     if (!token) {
@@ -92,7 +88,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isDark = !mounted || resolvedTheme === "dark";
 
-  // Theme-aware colours
   const sidebarBg        = isDark ? "#0d0d0d"  : "#ffffff";
   const sidebarBorder    = isDark ? "#1f1f1f"  : "#e5e7eb";
   const headerBg         = isDark ? "#0d0d0d"  : "#ffffff";
@@ -116,28 +111,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const planColor        = isDark ? "#444444"  : "#9ca3af";
 
   // ── User info ─────────────────────────────────────────────────────────────
-  // FIX: fetch both name + email; display name (falls back to email).
-  // Previously only email was fetched → sidebar showed "Loading…" when
-  // name was returned but email display-slot was empty.
-  const [userInfo, setUserInfo] = useState({ name: "", email: "" });
+  // Fetches name + email from /api/users/me
+  // displayLabel = name if available, else email, else "…" (never shows "--")
+  const [userName,  setUserName]  = useState("");
+  const [userEmail, setUserEmail] = useState("");
 
   useEffect(() => {
     if (!authChecked) return;
-    fetchWithAuth("/api/users/me")          // ← fetchWithAuth auto-prefixes localhost:8081
+    fetchWithAuth("/api/users/me")
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data) {
-          setUserInfo({
-            name:  data.name  || "",
-            email: data.email || "",
-          });
+          // name can be empty string if not set — fall back to email
+          setUserName(data.name  || "");
+          setUserEmail(data.email || "");
         }
       })
       .catch(() => {});
   }, [authChecked]);
 
-  const displayLabel  = userInfo.name || userInfo.email || "…";
-  const avatarLetter  = displayLabel[0]?.toUpperCase() ?? "U";
+  // What to show in sidebar — name > email > "…" (never "--")
+  const displayLabel = userName || userEmail || "…";
+  const avatarLetter = displayLabel !== "…" ? displayLabel[0].toUpperCase() : "U";
 
   // ── Notifications ─────────────────────────────────────────────────────────
   const [hoveredLogout, setHoveredLogout] = useState(false);
@@ -175,16 +170,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     await fetchWithAuth("/api/notifications/read-all", { method: "POST" }).catch(() => {});
   }, []);
 
-  const handleLogout = () => logout();
-
-  // ── Breadcrumb ────────────────────────────────────────────────────────────
   const breadcrumb = pathname.split("/").filter(Boolean).map((seg, i, arr) => ({
     label:  seg.charAt(0).toUpperCase() + seg.slice(1),
     href:   "/" + arr.slice(0, i + 1).join("/"),
     isLast: i === arr.length - 1,
   }));
 
-  // Hold render until auth confirmed — prevents dashboard flash before redirect
   if (!authChecked) return null;
 
   return (
@@ -192,7 +183,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <TooltipProvider>
         <div style={{ display: "flex", minHeight: "100vh", background: pageBg, color: primaryColor, fontFamily: "var(--font-geist-sans,'Geist',sans-serif)", transition: "background 0.2s, color 0.2s" }}>
 
-          {/* ── Sidebar ── */}
+          {/* Sidebar */}
           <aside style={{ width: 220, minHeight: "100vh", background: sidebarBg, borderRight: `1px solid ${sidebarBorder}`, display: "flex", flexDirection: "column", padding: "0 0 24px", flexShrink: 0, position: "sticky", top: 0, height: "100vh", transition: "background 0.2s, border-color 0.2s" }}>
 
             {/* Logo */}
@@ -217,7 +208,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   ? pathname === "/dashboard"
                   : pathname.startsWith(href);
                 return (
-                  <Link key={href} href={href} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 9, marginBottom: 2, textDecoration: "none", background: isActive ? activeNavBg : "transparent", borderLeft: isActive ? "2px solid #8FFFD6" : "2px solid transparent", transition: "all 0.15s", color: isActive ? "#8FFFD6" : mutedColor }}
+                  <Link key={href} href={href}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 9, marginBottom: 2, textDecoration: "none", background: isActive ? activeNavBg : "transparent", borderLeft: isActive ? "2px solid #8FFFD6" : "2px solid transparent", transition: "all 0.15s", color: isActive ? "#8FFFD6" : mutedColor }}
                     onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = hoverNavBg; }}
                     onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = "transparent"; }}>
                     <Icon size={15} strokeWidth={isActive ? 2 : 1.5} />
@@ -236,7 +228,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {avatarLetter}
                 </div>
                 <div style={{ overflow: "hidden" }}>
-                  {/* Display name if available, email as fallback — never shows "Loading…" */}
                   <p style={{ color: emailColor, fontSize: 12, fontWeight: 500, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>
                     {displayLabel}
                   </p>
@@ -246,7 +237,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <button
                 onMouseEnter={() => setHoveredLogout(true)}
                 onMouseLeave={() => setHoveredLogout(false)}
-                onClick={handleLogout}
+                onClick={() => logout()}
                 style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 9, background: hoveredLogout ? accountBg : "transparent", border: "none", cursor: "pointer", color: hoveredLogout ? "#ef4444" : mutedColor, transition: "all 0.15s" }}>
                 <LogOut size={14} />
                 <span style={{ fontSize: 13 }}>Sign out</span>
@@ -254,10 +245,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </aside>
 
-          {/* ── Main area ── */}
+          {/* Main */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-
-            {/* Topbar */}
             <header style={{ height: 60, borderBottom: `1px solid ${headerBorder}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", background: headerBg, position: "sticky", top: 0, zIndex: 30, flexShrink: 0, transition: "background 0.2s, border-color 0.2s" }}>
               <nav style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 {breadcrumb.map(({ label, href, isLast }) => (
@@ -269,16 +258,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </span>
                 ))}
               </nav>
-
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <span style={{ color: dateColor, fontSize: 12 }}>
                   {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
                 </span>
                 <ThemeToggle />
                 <div style={{ position: "relative" }}>
-                  <button
-                    onClick={() => setDrawerOpen(v => !v)}
-                    style={{ width: 36, height: 36, borderRadius: "50%", background: drawerOpen ? bellActiveBg : bellBg, border: drawerOpen ? `1px solid ${bellActiveBorder}` : `1px solid ${bellBorder}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: drawerOpen ? "#8FFFD6" : mutedColor, transition: "all 0.15s" }}>
+                  <button onClick={() => setDrawerOpen(v => !v)} style={{ width: 36, height: 36, borderRadius: "50%", background: drawerOpen ? bellActiveBg : bellBg, border: drawerOpen ? `1px solid ${bellActiveBorder}` : `1px solid ${bellBorder}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: drawerOpen ? "#8FFFD6" : mutedColor, transition: "all 0.15s" }}>
                     <Bell size={15} />
                   </button>
                   {unreadCount > 0 && (
@@ -289,7 +275,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               </div>
             </header>
-
             <main style={{ flex: 1, overflow: "auto" }}>{children}</main>
           </div>
         </div>

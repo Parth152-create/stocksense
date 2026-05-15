@@ -6,27 +6,17 @@ import { Download, RefreshCw, Search } from "lucide-react";
 import { fetchWithAuth } from "@/lib/auth";
 import { exportOrdersCsv } from "@/lib/csv-export";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-// NOTE: Backend Order response uses "quantity" — never "qty"
-// Frontend sends { symbol, type, qty, price, market } on POST (OrderController handles both)
-// Frontend READS order.quantity (backend field)
-
 interface OrderRow {
   id: string;
   userId: string;
   symbol: string;
   market: string;
   type: "BUY" | "SELL";
-  quantity: number;      // ← backend field is "quantity"
+  quantity: number;
   price: number;
   total: number;
   createdAt: string;
-  status: "FILLED" | "PENDING" | "CANCELLED" | "REJECTED";
-}
-
-interface BackendOrderRow extends Partial<Omit<OrderRow, "quantity">> {
-  quantity?: number;
-  qty?: number;
+  status: "FILLED" | "EXECUTED" | "PENDING" | "CANCELLED" | "REJECTED";
 }
 
 const C = {
@@ -38,15 +28,17 @@ const C = {
   hover:   "var(--color-surface-hover)",
 };
 
+// ← EXECUTED added alongside FILLED
 const STATUS_COLOR: Record<string, string> = {
   FILLED:    "#22c55e",
+  EXECUTED:  "#22c55e",
   PENDING:   "#f59e0b",
   CANCELLED: "var(--color-muted)",
   REJECTED:  "#ef4444",
 };
-
 const STATUS_BG: Record<string, string> = {
   FILLED:    "rgba(34,197,94,0.1)",
+  EXECUTED:  "rgba(34,197,94,0.1)",
   PENDING:   "rgba(245,158,11,0.1)",
   CANCELLED: "var(--color-surface-hover)",
   REJECTED:  "rgba(239,68,68,0.1)",
@@ -61,17 +53,15 @@ function formatDate(iso: string) {
   } catch { return iso; }
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
 export default function OrdersPage() {
   const { market } = useMarket();
   const currency = market.currency || "$";
 
-  const [orders,   setOrders]   = useState<OrderRow[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [search,   setSearch]   = useState("");
-  const [typeFilter, setTypeFilter] = useState<"ALL" | "BUY" | "SELL">("ALL");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "FILLED" | "PENDING" | "CANCELLED">("ALL");
+  const [orders,       setOrders]       = useState<OrderRow[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [search,       setSearch]       = useState("");
+  const [typeFilter,   setTypeFilter]   = useState<"ALL"|"BUY"|"SELL">("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL"|"FILLED"|"EXECUTED"|"PENDING"|"CANCELLED">("ALL");
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -79,38 +69,31 @@ export default function OrdersPage() {
       const res = await fetchWithAuth("/api/orders");
       if (res.ok) {
         const data = await res.json();
-        // Normalise: backend always returns quantity, but guard just in case
-        const normalised: OrderRow[] = (Array.isArray(data) ? data : []).map((o: BackendOrderRow) => ({
+        const normalised: OrderRow[] = (Array.isArray(data) ? data : []).map((o: any) => ({
           ...o,
-          quantity: o.quantity ?? o.qty ?? 0,   // ← prefer quantity, fallback qty
-        } as OrderRow));
+          quantity: o.quantity ?? o.qty ?? 0,
+        }));
         setOrders(normalised);
       }
     } catch { /* non-fatal */ }
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => {
-    queueMicrotask(() => { void loadOrders(); });
-  }, [loadOrders]);
+  useEffect(() => { loadOrders(); }, [loadOrders]);
 
-  const handleExportCsv = () => {
-    exportOrdersCsv(orders.map((order) => ({
-      ...order,
-      qty: order.quantity,
-    })));
-  };
+  // csv-export expects { qty } but our OrderRow uses { quantity } — map before export
+  const handleExportCsv = () =>
+    exportOrdersCsv(orders.map(o => ({ ...o, qty: o.quantity })) as any);
 
   const filtered = orders.filter(o => {
-    const matchSearch =
-      o.symbol.toLowerCase().includes(search.toLowerCase()) ||
-      o.id.toLowerCase().includes(search.toLowerCase());
-    const matchType   = typeFilter === "ALL"   || o.type === typeFilter;
-    const matchStatus = statusFilter === "ALL" || o.status === statusFilter;
+    const matchSearch  = o.symbol.toLowerCase().includes(search.toLowerCase()) || o.id.toLowerCase().includes(search.toLowerCase());
+    const matchType    = typeFilter === "ALL" || o.type === typeFilter;
+    // treat EXECUTED same as FILLED in filter
+    const effectiveStatus = o.status === "EXECUTED" ? "FILLED" : o.status;
+    const matchStatus  = statusFilter === "ALL" || effectiveStatus === statusFilter || o.status === statusFilter;
     return matchSearch && matchType && matchStatus;
   });
 
-  // Aggregate stats
   const totalBuys  = orders.filter(o => o.type === "BUY").length;
   const totalSells = orders.filter(o => o.type === "SELL").length;
   const totalValue = orders.reduce((s, o) => s + (o.total ?? 0), 0);
@@ -140,10 +123,10 @@ export default function OrdersPage() {
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
         {[
-          { label: "Total Orders",  value: orders.length,                                                       color: "#8FFFD6" },
-          { label: "Buy Orders",    value: totalBuys,                                                           color: "#22c55e" },
-          { label: "Sell Orders",   value: totalSells,                                                          color: "#ef4444" },
-          { label: "Pending",       value: pending,                                                             color: "#f59e0b" },
+          { label: "Total Orders", value: orders.length, color: "#8FFFD6" },
+          { label: "Buy Orders",   value: totalBuys,     color: "#22c55e" },
+          { label: "Sell Orders",  value: totalSells,    color: "#ef4444" },
+          { label: "Pending",      value: pending,       color: "#f59e0b" },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px" }}>
             <p style={{ color: C.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 6px" }}>{label}</p>
@@ -177,8 +160,7 @@ export default function OrdersPage() {
 
       {/* Table */}
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, overflow: "hidden" }}>
-        {/* Column Headers */}
-        <div style={{ display: "grid", gridTemplateColumns: "1.5fr 80px 80px 1fr 1fr 1fr 100px", padding: "11px 20px", borderBottom: `1px solid ${C.line}` }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1.5fr 80px 100px 1fr 1fr 1fr 140px", padding: "11px 20px", borderBottom: `1px solid ${C.line}` }}>
           {["Symbol", "Type", "Status", "Quantity", "Price", "Total", "Date"].map(h => (
             <span key={h} style={{ color: C.muted, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{h}</span>
           ))}
@@ -194,69 +176,48 @@ export default function OrdersPage() {
             <p style={{ color: "#8FFFD6", fontSize: 32, margin: "0 0 12px" }}>📋</p>
             <p style={{ color: C.primary, fontSize: 14, fontWeight: 600, margin: "0 0 6px" }}>No orders found</p>
             <p style={{ color: C.muted, fontSize: 13 }}>
-              {search || typeFilter !== "ALL" || statusFilter !== "ALL"
-                ? "Try adjusting your filters."
-                : "Place your first trade to see orders here."}
+              {search || typeFilter !== "ALL" || statusFilter !== "ALL" ? "Try adjusting your filters." : "Place your first trade to see orders here."}
             </p>
           </div>
         ) : (
           filtered.map((order, i) => (
             <div key={order.id}
-              style={{ display: "grid", gridTemplateColumns: "1.5fr 80px 80px 1fr 1fr 1fr 100px", padding: "13px 20px", borderBottom: i < filtered.length - 1 ? `1px solid ${C.line}` : "none", alignItems: "center", transition: "background 0.15s" }}
+              style={{ display: "grid", gridTemplateColumns: "1.5fr 80px 100px 1fr 1fr 1fr 140px", padding: "13px 20px", borderBottom: i < filtered.length - 1 ? `1px solid ${C.line}` : "none", alignItems: "center", transition: "background 0.15s" }}
               onMouseEnter={e => (e.currentTarget.style.background = C.hover)}
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
 
-              {/* Symbol */}
               <div>
                 <p style={{ color: C.primary, fontWeight: 600, fontSize: 13, margin: 0 }}>
                   {order.symbol.replace(/\.(BSE|NSE)$/i, "")}
                 </p>
-                <p style={{ color: C.muted, fontSize: 10, margin: "2px 0 0" }}>{order.market}</p>
+                <p style={{ color: C.muted, fontSize: 10, margin: "2px 0 0" }}>{order.market || market.id}</p>
               </div>
 
-              {/* Type */}
-              <span style={{
-                display: "inline-block", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700,
-                color: order.type === "BUY" ? "#22c55e" : "#ef4444",
-                background: order.type === "BUY" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
-              }}>
+              <span style={{ display: "inline-block", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, color: order.type === "BUY" ? "#22c55e" : "#ef4444", background: order.type === "BUY" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)" }}>
                 {order.type}
               </span>
 
-              {/* Status */}
-              <span style={{
-                display: "inline-block", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700,
-                color: STATUS_COLOR[order.status] ?? C.muted,
-                background: STATUS_BG[order.status] ?? C.hover,
-              }}>
-                {order.status}
+              <span style={{ display: "inline-block", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, color: STATUS_COLOR[order.status] ?? C.muted, background: STATUS_BG[order.status] ?? C.hover }}>
+                {/* Show FILLED for EXECUTED to keep UI consistent */}
+                {order.status === "EXECUTED" ? "FILLED" : order.status}
               </span>
 
-              {/* Quantity — reads order.quantity (backend field) */}
-              <span style={{ color: C.primary, fontSize: 13 }}>
-                {order.quantity?.toLocaleString() ?? "—"}
-              </span>
+              <span style={{ color: C.primary, fontSize: 13 }}>{order.quantity?.toLocaleString() ?? "—"}</span>
 
-              {/* Price */}
               <span style={{ color: C.muted, fontSize: 13 }}>
                 {currency}{(order.price ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </span>
 
-              {/* Total */}
               <span style={{ color: C.primary, fontWeight: 600, fontSize: 13 }}>
                 {currency}{(order.total ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </span>
 
-              {/* Date */}
-              <span style={{ color: C.muted, fontSize: 11 }}>
-                {formatDate(order.createdAt)}
-              </span>
+              <span style={{ color: C.muted, fontSize: 11 }}>{formatDate(order.createdAt)}</span>
             </div>
           ))
         )}
       </div>
 
-      {/* Total traded value footer */}
       {orders.length > 0 && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, padding: "12px 20px", background: C.card, border: `1px solid ${C.line}`, borderRadius: 12 }}>
           <span style={{ color: C.muted, fontSize: 12 }}>
