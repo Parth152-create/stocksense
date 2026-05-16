@@ -5,7 +5,6 @@ import com.stocksense.service.UserService;
 import com.stocksense.model.User;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,28 +22,22 @@ public class PortfolioController {
         this.userService = userService;
     }
 
-    /**
-     * GET /api/portfolio
-     * Returns holdings calculated from the orders table, enriched with current prices.
-     * Shape: [{ symbol, name, qty, avgPrice, currentPrice, marketValue, pnl, pnlPct }]
-     */
     @GetMapping
-    public ResponseEntity<List<Map<String, Object>>> getPortfolio(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        User user = userService.getUserByEmail(userDetails.getUsername());
+    public ResponseEntity<?> getPortfolio(@AuthenticationPrincipal String email) {
+        if (email == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+        User user = userService.getUserByEmail(email);
         List<Map<String, Object>> holdings = portfolioService.getHoldings(user.getId());
         return ResponseEntity.ok(holdings);
     }
 
-    /**
-     * GET /api/portfolio/summary
-     * Returns aggregate portfolio stats.
-     * Shape: { totalValue, totalCost, totalPnl, totalPnlPct }
-     */
     @GetMapping("/summary")
-    public ResponseEntity<Map<String, Object>> getPortfolioSummary(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        User user = userService.getUserByEmail(userDetails.getUsername());
+    public ResponseEntity<?> getPortfolioSummary(@AuthenticationPrincipal String email) {
+        if (email == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+        User user = userService.getUserByEmail(email);
         Map<String, Object> summary = portfolioService.getSummary(user.getId());
         return ResponseEntity.ok(summary);
     }

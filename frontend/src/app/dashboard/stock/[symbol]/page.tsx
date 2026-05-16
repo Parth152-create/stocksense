@@ -9,6 +9,7 @@ import { useMarket } from "@/lib/MarketContext";
 import {
   TrendingUp, TrendingDown, ArrowLeft, Star, StarOff,
   BarChart2, AlertCircle, CandlestickChart, LineChart as LineIcon,
+  Newspaper, ExternalLink,
 } from "lucide-react";
 
 interface StockOverview {
@@ -24,6 +25,10 @@ interface AnalystRating {
 interface Insight {
   id: string; type: "BULLISH" | "BEARISH" | "NEUTRAL";
   title: string; body: string; source: string; publishedAt: string;
+}
+interface NewsArticle {
+  title: string; description: string; url: string;
+  source: string; publishedAt: string; urlToImage: string;
 }
 interface Candle {
   time: number; open: number; high: number; low: number;
@@ -63,6 +68,78 @@ function AnalystBar({ label, count, total, color }: { label: string; count: numb
   );
 }
 
+// ─── NewsCard ─────────────────────────────────────────────────────────────────
+
+function NewsCard({ article }: { article: NewsArticle }) {
+  const timeAgo = (iso: string) => {
+    try {
+      const diff = Date.now() - new Date(iso).getTime();
+      const h = Math.floor(diff / 3600000);
+      if (h < 1)  return `${Math.floor(diff / 60000)}m ago`;
+      if (h < 24) return `${h}h ago`;
+      return `${Math.floor(h / 24)}d ago`;
+    } catch { return ""; }
+  };
+
+  return (
+    <a
+      href={article.url !== "#" ? article.url : undefined}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        display: "block", textDecoration: "none", color: "inherit",
+        padding: "14px 16px", borderRadius: 10,
+        border: "1px solid var(--color-line)",
+        background: "var(--color-page)",
+        transition: "border-color 0.2s, background 0.2s",
+        cursor: article.url !== "#" ? "pointer" : "default",
+      }}
+      onMouseEnter={e => {
+        if (article.url !== "#") {
+          (e.currentTarget as HTMLElement).style.borderColor = ACCENT + "66";
+          (e.currentTarget as HTMLElement).style.background = "var(--color-surface-hover)";
+        }
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLElement).style.borderColor = "var(--color-line)";
+        (e.currentTarget as HTMLElement).style.background = "var(--color-page)";
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ margin: "0 0 6px", fontSize: 13, fontWeight: 600, lineHeight: 1.4, color: "var(--color-primary)" }}>
+            {article.title}
+          </p>
+          {article.description && (
+            <p style={{ margin: "0 0 8px", fontSize: 12, color: "var(--color-muted)", lineHeight: 1.5,
+              overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}>
+              {article.description}
+            </p>
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 11, color: ACCENT, fontWeight: 600 }}>{article.source}</span>
+            <span style={{ fontSize: 11, color: "var(--color-muted)" }}>·</span>
+            <span style={{ fontSize: 11, color: "var(--color-muted)" }}>{timeAgo(article.publishedAt)}</span>
+          </div>
+        </div>
+        {article.urlToImage && article.urlToImage !== "" && (
+          <img
+            src={article.urlToImage}
+            alt=""
+            style={{ width: 72, height: 54, objectFit: "cover", borderRadius: 7, flexShrink: 0 }}
+            onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+        )}
+      </div>
+      {article.url !== "#" && (
+        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 4, color: "var(--color-muted)", fontSize: 11 }}>
+          <ExternalLink size={10} /> Read full article
+        </div>
+      )}
+    </a>
+  );
+}
+
 // ─── StockChart ───────────────────────────────────────────────────────────────
 
 function StockChart({ symbol, currency, marketId }: {
@@ -82,7 +159,6 @@ function StockChart({ symbol, currency, marketId }: {
     price: string; change: string; time: string; isUp: boolean;
   } | null>(null);
 
-  // Fetch candles from backend
   useEffect(() => {
     setLoading(true);
     fetchWithAuth(`/api/stocks/${symbol}/history?range=${range}`)
@@ -92,7 +168,6 @@ function StockChart({ symbol, currency, marketId }: {
       .finally(() => setLoading(false));
   }, [symbol, range]);
 
-  // Build chart — all colour vars defined INSIDE build() so they're never out of scope
   useEffect(() => {
     if (!containerRef.current || loading) return;
 
@@ -100,15 +175,12 @@ function StockChart({ symbol, currency, marketId }: {
       const LWC = (window as any).LightweightCharts;
       if (!LWC) return;
 
-      // ── All colour variables defined here, inside build() ──────────────
-      const darkMode   = isDark;
-      const bgColor    = darkMode ? "#0d0d0d" : "#ffffff";
-      const gridColor  = darkMode ? "#1a1a1a" : "#f0f0f0";
-      const textColor  = darkMode ? "#555555" : "#9ca3af";
-      const borderCol  = darkMode ? "#1f1f1f" : "#e5e7eb";   // ← was "borderColor" (reserved word risk); renamed borderCol
-      // ──────────────────────────────────────────────────────────────────
+      const darkMode  = isDark;
+      const bgColor   = darkMode ? "#0d0d0d" : "#ffffff";
+      const gridColor = darkMode ? "#1a1a1a" : "#f0f0f0";
+      const textColor = darkMode ? "#555555" : "#9ca3af";
+      const borderCol = darkMode ? "#1f1f1f" : "#e5e7eb";
 
-      // Destroy any previous instance
       if (chartRef.current) {
         try { chartRef.current.remove(); } catch { /* gone */ }
         chartRef.current = null;
@@ -145,7 +217,6 @@ function StockChart({ symbol, currency, marketId }: {
 
       chartRef.current = chart;
 
-      // Price series
       let priceSeries: any;
       if (chartType === "candle" && candles.length > 0) {
         priceSeries = chart.addCandlestickSeries({
@@ -171,7 +242,6 @@ function StockChart({ symbol, currency, marketId }: {
         priceSeries.setData(candles.map(c => ({ time: c.time, value: c.close })));
       }
 
-      // Volume bars
       if (candles.length > 0) {
         const volSeries = chart.addHistogramSeries({
           priceFormat:  { type: "volume" },
@@ -185,7 +255,6 @@ function StockChart({ symbol, currency, marketId }: {
         })));
       }
 
-      // Crosshair hover
       chart.subscribeCrosshairMove((param: any) => {
         if (!param?.time || !param.seriesData) { setHoverInfo(null); return; }
         const d = param.seriesData.get(priceSeries);
@@ -206,7 +275,6 @@ function StockChart({ symbol, currency, marketId }: {
         });
       });
 
-      // Responsive resize
       const ro = new ResizeObserver(() => {
         if (containerRef.current && chartRef.current) {
           chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
@@ -218,7 +286,6 @@ function StockChart({ symbol, currency, marketId }: {
       return () => ro.disconnect();
     };
 
-    // Lazy-load LWC from CDN, then call build()
     if ((window as any).LightweightCharts) {
       build();
     } else {
@@ -230,7 +297,6 @@ function StockChart({ symbol, currency, marketId }: {
         script.onload = () => build();
         document.head.appendChild(script);
       } else {
-        // Script loading — poll until ready
         const poll = setInterval(() => {
           if ((window as any).LightweightCharts) { clearInterval(poll); build(); }
         }, 50);
@@ -253,8 +319,6 @@ function StockChart({ symbol, currency, marketId }: {
 
   return (
     <div style={{ background: "var(--color-card)", border: "1px solid var(--color-line)", borderRadius: 12, overflow: "hidden", marginBottom: 20 }}>
-
-      {/* Toolbar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid var(--color-line)" }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
           {hoverInfo ? (
@@ -274,9 +338,7 @@ function StockChart({ symbol, currency, marketId }: {
             </>
           )}
         </div>
-
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* Chart type toggle */}
           <div style={{ display: "flex", background: "var(--color-page)", border: "1px solid var(--color-line)", borderRadius: 8, padding: 3, gap: 2 }}>
             {([
               { type: "candle" as ChartType, icon: <CandlestickChart size={13} /> },
@@ -288,8 +350,6 @@ function StockChart({ symbol, currency, marketId }: {
               </button>
             ))}
           </div>
-
-          {/* Range selector */}
           <div style={{ display: "flex", background: "var(--color-page)", border: "1px solid var(--color-line)", borderRadius: 8, padding: 3, gap: 2 }}>
             {RANGES.map(r => (
               <button key={r} onClick={() => setRange(r)}
@@ -300,8 +360,6 @@ function StockChart({ symbol, currency, marketId }: {
           </div>
         </div>
       </div>
-
-      {/* Canvas */}
       <div style={{ position: "relative" }}>
         {loading && (
           <div style={{ position: "absolute", inset: 0, zIndex: 10, background: "var(--color-card)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
@@ -311,8 +369,6 @@ function StockChart({ symbol, currency, marketId }: {
         )}
         <div ref={containerRef} style={{ height: 340, width: "100%" }} />
       </div>
-
-      {/* Footer */}
       <div style={{ padding: "8px 18px", borderTop: "1px solid var(--color-line)", display: "flex", justifyContent: "space-between" }}>
         <span style={{ fontSize: 10, color: "var(--color-muted)" }}>
           Lightweight Charts™ · {candles.length} candles
@@ -339,6 +395,8 @@ export default function StockPage() {
   const [overview,       setOverview]       = useState<StockOverview | null>(null);
   const [ratings,        setRatings]        = useState<AnalystRating | null>(null);
   const [insights,       setInsights]       = useState<Insight[]>([]);
+  const [news,           setNews]           = useState<NewsArticle[]>([]);
+  const [newsLoading,    setNewsLoading]    = useState(true);
   const [watchlisted,    setWatchlisted]    = useState(false);
   const [fallbackPrice,  setFallbackPrice]  = useState<number | null>(null);
   const [fallbackChange, setFallbackChange] = useState<number | null>(null);
@@ -383,7 +441,20 @@ export default function StockPage() {
     }
   }, [symbol]);
 
-  useEffect(() => { void load(); }, [load]);
+  // Load news separately so it doesn't block main content
+  const loadNews = useCallback(async () => {
+    setNewsLoading(true);
+    try {
+      const res = await fetchWithAuth(`/api/stocks/${symbol}/news`);
+      if (res.ok) {
+        const data: NewsArticle[] = await res.json();
+        setNews(Array.isArray(data) ? data : []);
+      }
+    } catch { /* fail silently */ }
+    finally { setNewsLoading(false); }
+  }, [symbol]);
+
+  useEffect(() => { void load(); void loadNews(); }, [load, loadNews]);
 
   const toggleWatchlist = async () => {
     const method = watchlisted ? "DELETE" : "POST";
@@ -436,6 +507,7 @@ export default function StockPage() {
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
         @keyframes spin  { to{transform:rotate(360deg)} }
         @keyframes ping  { 0%{transform:scale(1);opacity:.75} 100%{transform:scale(2);opacity:0} }
+        @keyframes fadeInUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         .order-tab { flex:1; padding:8px; border:none; cursor:pointer; font-size:13px; font-weight:600; border-radius:6px; transition:all .15s; }
       `}</style>
 
@@ -563,7 +635,7 @@ export default function StockPage() {
             </div>
 
             {/* AI Insights */}
-            <div style={{ background:"var(--color-card)",border:"1px solid var(--color-line)",borderRadius:12,padding:"18px 20px" }}>
+            <div style={{ background:"var(--color-card)",border:"1px solid var(--color-line)",borderRadius:12,padding:"18px 20px",marginBottom:20 }}>
               <h3 style={{ margin:"0 0 14px",fontSize:14,fontWeight:700 }}>AI Insights</h3>
               {loading ? (
                 <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
@@ -585,6 +657,33 @@ export default function StockPage() {
                       </div>
                       <p style={{ margin:"0 0 4px",fontSize:13,fontWeight:600 }}>{ins.title}</p>
                       <p style={{ margin:0,fontSize:12,color:"var(--color-muted)",lineHeight:1.6 }}>{ins.body}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* News Feed */}
+            <div style={{ background:"var(--color-card)",border:"1px solid var(--color-line)",borderRadius:12,padding:"18px 20px",animation:"fadeInUp 0.4s ease" }}>
+              <h3 style={{ margin:"0 0 14px",fontSize:14,fontWeight:700,display:"flex",alignItems:"center",gap:6 }}>
+                <Newspaper size={15} color={ACCENT}/> Latest News
+              </h3>
+              {newsLoading ? (
+                <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+                  {Array.from({length:3}).map((_,i)=>(
+                    <div key={i} style={{ padding:"14px 16px",borderRadius:10,border:"1px solid var(--color-line)" }}>
+                      <Skeleton w="80%" h={13}/><div style={{marginTop:8}}><Skeleton w="100%" h={11}/></div>
+                      <div style={{marginTop:6}}><Skeleton w="40%" h={11}/></div>
+                    </div>
+                  ))}
+                </div>
+              ) : news.length === 0 ? (
+                <p style={{ margin:0,color:"var(--color-muted)",fontSize:13 }}>No recent news found.</p>
+              ) : (
+                <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+                  {news.map((article, i) => (
+                    <div key={i} style={{ animation:`fadeInUp 0.3s ease ${i * 0.05}s both` }}>
+                      <NewsCard article={article} />
                     </div>
                   ))}
                 </div>

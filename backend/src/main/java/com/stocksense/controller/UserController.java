@@ -5,17 +5,11 @@ import com.stocksense.model.User;
 import com.stocksense.repository.UserRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-/**
- * ADD these two endpoints to your existing UserController.
- * - PUT /api/users/me         → update name/email
- * - PUT /api/users/me/password → change password
- */
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -33,24 +27,32 @@ public class UserController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<Map<String, Object>> getMe(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        User user = userService.getUserByEmail(userDetails.getUsername());
+    public ResponseEntity<?> getMe(@AuthenticationPrincipal String email) {
+        if (email == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+        User user = userService.getUserByEmail(email);
+        String displayName = (user.getName() != null && !user.getName().isBlank())
+                ? user.getName()
+                : email.split("@")[0]; // fallback: part before @ in email
         return ResponseEntity.ok(Map.of(
-                "id", user.getId(),
-                "email", user.getEmail(),
-                "name", user.getName() != null ? user.getName() : "",
-                "provider", user.getProvider() != null ? user.getProvider() : "local",
-                "createdAt", user.getCreatedAt(),
-                "portfolioId", user.getPortfolioId() != null ? user.getPortfolioId() : ""
+                "id",          user.getId(),
+                "email",       user.getEmail(),
+                "name",        displayName,
+                "provider",    user.getProvider()     != null ? user.getProvider()    : "local",
+                "createdAt",   user.getCreatedAt(),
+                "portfolioId", user.getPortfolioId()  != null ? user.getPortfolioId() : ""
         ));
     }
 
     @PutMapping("/me")
-    public ResponseEntity<Map<String, Object>> updateMe(
-            @AuthenticationPrincipal UserDetails userDetails,
+    public ResponseEntity<?> updateMe(
+            @AuthenticationPrincipal String email,
             @RequestBody Map<String, Object> body) {
-        User user = userService.getUserByEmail(userDetails.getUsername());
+        if (email == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+        User user = userService.getUserByEmail(email);
         if (body.containsKey("name")) {
             user.setName((String) body.get("name"));
         }
@@ -62,13 +64,16 @@ public class UserController {
     }
 
     @PutMapping("/me/password")
-    public ResponseEntity<Map<String, Object>> changePassword(
-            @AuthenticationPrincipal UserDetails userDetails,
+    public ResponseEntity<?> changePassword(
+            @AuthenticationPrincipal String email,
             @RequestBody Map<String, Object> body) {
-        User user = userService.getUserByEmail(userDetails.getUsername());
+        if (email == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+        User user = userService.getUserByEmail(email);
 
         String currentPassword = (String) body.get("currentPassword");
-        String newPassword = (String) body.get("newPassword");
+        String newPassword     = (String) body.get("newPassword");
 
         if (currentPassword == null || newPassword == null) {
             return ResponseEntity.badRequest()

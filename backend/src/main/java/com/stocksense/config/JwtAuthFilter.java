@@ -58,8 +58,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             }
 
         } catch (Exception e) {
+            // Log the exact reason so you can diagnose expiry vs bad signature vs malformed
+            System.err.println("[JwtAuthFilter] Token rejected — "
+                + e.getClass().getSimpleName() + ": " + e.getMessage());
+
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("Invalid or expired token");
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\":\"Invalid or expired token\"}");
+            response.getWriter().flush(); // ← was missing; without this Spring Security
+                                          //   overwrites the response with a 403
             return;
         }
 

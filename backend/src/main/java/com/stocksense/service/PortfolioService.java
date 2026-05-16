@@ -19,14 +19,9 @@ public class PortfolioService {
         this.alphaVantageService = alphaVantageService;
     }
 
-    /**
-     * Aggregate orders by symbol to compute qty, avgPrice, currentPrice, pnl.
-     * Only BUY orders increase position; SELL orders decrease it.
-     */
     public List<Map<String, Object>> getHoldings(UUID userId) {
         List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId.toString());
 
-        // Group by symbol
         Map<String, List<Order>> bySymbol = orders.stream()
                 .collect(Collectors.groupingBy(Order::getSymbol));
 
@@ -36,18 +31,16 @@ public class PortfolioService {
             String symbol = entry.getKey();
             List<Order> symbolOrders = entry.getValue();
 
-            // Weighted average price for BUY orders
             double totalCost = 0;
-            double totalQty = 0;
+            double totalQty  = 0;
 
             for (Order o : symbolOrders) {
-                double qty = o.getQuantity();
+                double qty   = o.getQuantity();
                 double price = o.getPrice() != null ? o.getPrice().doubleValue() : 0;
                 if (o.getType() == Order.OrderType.BUY) {
                     totalCost += qty * price;
-                    totalQty += qty;
+                    totalQty  += qty;
                 } else if (o.getType() == Order.OrderType.SELL) {
-                    // Reduce position proportionally
                     if (totalQty > 0) {
                         double avgSoFar = totalCost / totalQty;
                         totalCost -= qty * avgSoFar;
@@ -56,12 +49,11 @@ public class PortfolioService {
                 }
             }
 
-            if (totalQty <= 0) continue; // fully sold out
+            if (totalQty <= 0) continue;
 
-            double avgPrice = totalQty > 0 ? totalCost / totalQty : 0;
+            double avgPrice = totalCost / totalQty;
 
-            // Fetch live price
-            double currentPrice = avgPrice; // fallback
+            double currentPrice = avgPrice;
             try {
                 Map<String, Object> quote = alphaVantageService.getQuote(symbol);
                 if (quote != null && quote.get("price") instanceof Number) {
@@ -70,22 +62,21 @@ public class PortfolioService {
             } catch (Exception ignored) {}
 
             double marketValue = currentPrice * totalQty;
-            double cost = avgPrice * totalQty;
-            double pnl = marketValue - cost;
-            double pnlPct = cost > 0 ? (pnl / cost) * 100 : 0;
+            double cost        = avgPrice * totalQty;
+            double pnl         = marketValue - cost;
+            double pnlPct      = cost > 0 ? (pnl / cost) * 100 : 0;
 
-            // Derive a display name (symbol itself if no lookup available)
             String name = resolveCompanyName(symbol);
 
             Map<String, Object> holding = new LinkedHashMap<>();
-            holding.put("symbol", symbol);
-            holding.put("name", name);
-            holding.put("qty", totalQty);
-            holding.put("avgPrice", round(avgPrice));
+            holding.put("symbol",       symbol);
+            holding.put("name",         name);
+            holding.put("qty",          totalQty);
+            holding.put("avgPrice",     round(avgPrice));
             holding.put("currentPrice", round(currentPrice));
-            holding.put("marketValue", round(marketValue));
-            holding.put("pnl", round(pnl));
-            holding.put("pnlPct", round(pnlPct));
+            holding.put("marketValue",  round(marketValue));
+            holding.put("pnl",          round(pnl));
+            holding.put("pnlPct",       round(pnlPct));
             holdings.add(holding);
         }
 
@@ -103,13 +94,13 @@ public class PortfolioService {
                     double avg = ((Number) h.get("avgPrice")).doubleValue();
                     return qty * avg;
                 }).sum();
-        double totalPnl = totalValue - totalCost;
+        double totalPnl    = totalValue - totalCost;
         double totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
 
         Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("totalValue", round(totalValue));
-        summary.put("totalCost", round(totalCost));
-        summary.put("totalPnl", round(totalPnl));
+        summary.put("totalValue",  round(totalValue));
+        summary.put("totalCost",   round(totalCost));
+        summary.put("totalPnl",    round(totalPnl));
         summary.put("totalPnlPct", round(totalPnlPct));
         return summary;
     }
@@ -119,14 +110,32 @@ public class PortfolioService {
     }
 
     private String resolveCompanyName(String symbol) {
-        // Simple static map; extend as needed or call an external API
-        Map<String, String> names = Map.of(
-                "AAPL", "Apple Inc", "MSFT", "Microsoft Corp",
-                "NVDA", "NVIDIA Corp", "TSLA", "Tesla Inc",
-                "RELIANCE", "Reliance Industries", "TCS", "TCS Ltd",
-                "INFY", "Infosys Ltd", "HDFCBANK", "HDFC Bank",
-                "WIPRO", "Wipro Ltd", "AMD", "AMD Inc"
-        );
-        return names.getOrDefault(symbol, symbol);
+        // Strip exchange suffixes like .BSE, .NSE, .NYSE before lookup
+        String base = symbol.replaceAll("\\.(BSE|NSE|NYSE|NASDAQ|US)$", "").toUpperCase();
+
+        Map<String, String> names = new HashMap<>();
+        names.put("AAPL",     "Apple Inc");
+        names.put("MSFT",     "Microsoft Corp");
+        names.put("NVDA",     "NVIDIA Corp");
+        names.put("TSLA",     "Tesla Inc");
+        names.put("GOOGL",    "Alphabet Inc");
+        names.put("AMZN",     "Amazon.com Inc");
+        names.put("META",     "Meta Platforms");
+        names.put("AMD",      "AMD Inc");
+        names.put("RELIANCE", "Reliance Industries");
+        names.put("TCS",      "TCS Ltd");
+        names.put("INFY",     "Infosys Ltd");
+        names.put("HDFCBANK", "HDFC Bank");
+        names.put("WIPRO",    "Wipro Ltd");
+        names.put("ICICIBANK","ICICI Bank");
+        names.put("SBIN",     "State Bank of India");
+        names.put("BAJFINANCE","Bajaj Finance");
+        names.put("HINDUNILVR","Hindustan Unilever");
+        names.put("ADANIENT", "Adani Enterprises");
+        names.put("TATAMOTORS","Tata Motors");
+        names.put("TATASTEEL", "Tata Steel");
+
+        // Return mapped name, or fall back to the base symbol (cleaner than full raw symbol)
+        return names.getOrDefault(base, base);
     }
 }

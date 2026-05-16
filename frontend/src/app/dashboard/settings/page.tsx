@@ -7,8 +7,6 @@ import {
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/auth";
 
-// ─── Themed vars ──────────────────────────────────────────────────────────────
-
 const C = {
   page:    "var(--color-page)",
   card:    "var(--color-card)",
@@ -17,8 +15,6 @@ const C = {
   primary: "var(--color-primary)",
   muted:   "var(--color-muted)",
 };
-
-// ─── Reusable components ──────────────────────────────────────────────────────
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
   return (
@@ -125,16 +121,22 @@ function Toast({ message, type }: { message: string; type: "success" | "error" }
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+function formatDate(iso: string) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+  } catch {
+    return "—";
+  }
+}
 
 export default function SettingsPage() {
-  // Profile
   const [name,       setName]       = useState("");
   const [email,      setEmail]      = useState("");
   const [provider,   setProvider]   = useState("local");
+  const [createdAt,  setCreatedAt]  = useState("");
   const [loadingMe,  setLoadingMe]  = useState(true);
 
-  // Password change
   const [currentPw,  setCurrentPw]  = useState("");
   const [newPw,      setNewPw]      = useState("");
   const [confirmPw,  setConfirmPw]  = useState("");
@@ -142,16 +144,12 @@ export default function SettingsPage() {
   const [showNewPw,  setShowNewPw]  = useState(false);
   const [pwLoading,  setPwLoading]  = useState(false);
 
-  // Notification prefs
   const [priceAlerts,   setPriceAlerts]   = useState(true);
   const [txEmails,      setTxEmails]      = useState(true);
   const [newsDigest,    setNewsDigest]    = useState(false);
   const [marketSummary, setMarketSummary] = useState(true);
 
-  // Security
   const [twoFA, setTwoFA] = useState(false);
-
-  // UI feedback
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -161,22 +159,19 @@ export default function SettingsPage() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // ── Load profile on mount ──────────────────────────────────────────────────
   useEffect(() => {
     fetchWithAuth("/api/users/me")
-      .then(r => r.ok ? r.json() : null)
+      .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
-        if (data) {
-          setName(data.name || "");
-          setEmail(data.email || "");
-          setProvider(data.provider || "local");
-        }
+        setName(data.name || "");
+        setEmail(data.email || "");
+        setProvider(data.provider || "local");
+        setCreatedAt(data.createdAt || "");
       })
       .catch(() => {})
       .finally(() => setLoadingMe(false));
   }, []);
 
-  // ── Save profile ──────────────────────────────────────────────────────────
   const handleSaveProfile = async () => {
     setSavingProfile(true);
     try {
@@ -198,7 +193,6 @@ export default function SettingsPage() {
     }
   };
 
-  // ── Change password ───────────────────────────────────────────────────────
   const handleChangePassword = async () => {
     if (!currentPw || !newPw || !confirmPw) {
       showToast("Please fill all password fields", "error"); return;
@@ -241,7 +235,6 @@ export default function SettingsPage() {
 
       <div style={{ padding: "28px 32px", maxWidth: 1100, margin: "0 auto", animation: "fadeInUp 0.4s ease", background: C.page, minHeight: "100vh" }}>
 
-        {/* Header */}
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: C.primary, margin: "0 0 6px" }}>Settings</h1>
           <p style={{ color: C.muted, fontSize: 13, margin: 0 }}>Manage your account, security, and notification preferences</p>
@@ -252,10 +245,12 @@ export default function SettingsPage() {
           {loadingMe ? (
             <div style={{ width: 64, height: 64, borderRadius: "50%", background: C.hover, flexShrink: 0 }} />
           ) : (
-            <ProfileAvatar name={name} />
+            <ProfileAvatar name={name || email} />
           )}
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: C.primary }}>{name || "—"}</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: C.primary }}>
+              {loadingMe ? "Loading…" : (name || email.split("@")[0] || "—")}
+            </div>
             <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{email}</div>
           </div>
           <span style={{ fontSize: 11, color: "#8FFFD6", background: "rgba(143,255,214,0.08)", border: "1px solid rgba(143,255,214,0.2)", borderRadius: 6, padding: "4px 10px", fontWeight: 600 }}>
@@ -263,13 +258,10 @@ export default function SettingsPage() {
           </span>
         </div>
 
-        {/* Two-column grid */}
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 16 }}>
 
           {/* LEFT */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-            {/* Personal Information */}
             <SectionCard>
               <SectionTitle icon={<User size={15} />} label="Personal Information" />
               <InputField label="Full Name"     value={name}  onChange={setName}  placeholder="Your full name" />
@@ -287,20 +279,17 @@ export default function SettingsPage() {
               </button>
             </SectionCard>
 
-            {/* Notifications */}
             <SectionCard>
               <SectionTitle icon={<Bell size={15} />} label="Notification Preferences" />
-              <NotifRow icon={<Bell size={15} />}         label="Price Alerts"        checked={priceAlerts}   onChange={() => setPriceAlerts(!priceAlerts)} />
-              <NotifRow icon={<Mail size={15} />}         label="Transaction Emails"  checked={txEmails}      onChange={() => setTxEmails(!txEmails)} />
-              <NotifRow icon={<MessageSquare size={15} />}label="News Digest"         checked={newsDigest}    onChange={() => setNewsDigest(!newsDigest)} />
-              <NotifRow icon={<CreditCard size={15} />}   label="Market Summary"      checked={marketSummary} onChange={() => setMarketSummary(!marketSummary)} last />
+              <NotifRow icon={<Bell size={15} />}          label="Price Alerts"       checked={priceAlerts}   onChange={() => setPriceAlerts(!priceAlerts)} />
+              <NotifRow icon={<Mail size={15} />}          label="Transaction Emails" checked={txEmails}      onChange={() => setTxEmails(!txEmails)} />
+              <NotifRow icon={<MessageSquare size={15} />} label="News Digest"        checked={newsDigest}    onChange={() => setNewsDigest(!newsDigest)} />
+              <NotifRow icon={<CreditCard size={15} />}    label="Market Summary"     checked={marketSummary} onChange={() => setMarketSummary(!marketSummary)} last />
             </SectionCard>
           </div>
 
           {/* RIGHT */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-            {/* Change Password */}
             <SectionCard>
               <SectionTitle icon={<Lock size={15} />} label="Change Password" />
               {isOAuth ? (
@@ -341,7 +330,6 @@ export default function SettingsPage() {
               )}
             </SectionCard>
 
-            {/* Security */}
             <SectionCard>
               <SectionTitle icon={<ShieldCheck size={15} />} label="Security" />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 16, borderBottom: `1px solid ${C.line}`, marginBottom: 16 }}>
@@ -353,9 +341,9 @@ export default function SettingsPage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {[
-                  { label: "Last login",        value: "Today, 10:24 AM" },
-                  { label: "Active sessions",    value: "1 device" },
-                  { label: "Account created",    value: "Jan 2024" },
+                  { label: "Last login",     value: "Today" },
+                  { label: "Active sessions", value: "1 device" },
+                  { label: "Account created", value: formatDate(createdAt) },  // ← real date from API
                 ].map(({ label, value }) => (
                   <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ color: C.muted, fontSize: 12 }}>{label}</span>
@@ -365,7 +353,6 @@ export default function SettingsPage() {
               </div>
             </SectionCard>
 
-            {/* Danger Zone */}
             <SectionCard>
               <SectionTitle icon={<AlertTriangle size={15} />} label="Danger Zone" danger />
               <p style={{ color: C.muted, fontSize: 13, margin: "0 0 16px", lineHeight: 1.6 }}>

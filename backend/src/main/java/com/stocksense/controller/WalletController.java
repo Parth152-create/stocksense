@@ -1,121 +1,153 @@
 package com.stocksense.controller;
 
-import com.stocksense.service.UserService;
 import com.stocksense.model.User;
+import com.stocksense.model.WalletBalance;
+import com.stocksense.model.WalletTransaction;
+import com.stocksense.repository.WalletBalanceRepository;
+import com.stocksense.repository.WalletTransactionRepository;
+import com.stocksense.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-/**
- * WalletController — mock data until a real wallet/ledger table is created.
- *
- * Endpoints:
- *   GET  /api/wallet/balance   → { balance, currency, lastUpdated }
- *   POST /api/wallet/deposit   → { success, newBalance, transactionId }
- *   POST /api/wallet/withdraw  → { success, newBalance, transactionId }
- *   GET  /api/wallet/transactions → [{ id, type, amount, status, createdAt, description }]
- */
 @RestController
 @RequestMapping("/api/wallet")
 public class WalletController {
 
     private final UserService userService;
+    private final WalletBalanceRepository balanceRepo;
+    private final WalletTransactionRepository txRepo;
 
-    // In-memory mock state per user (replace with DB later)
-    private static final Map<UUID, Double> balances = new HashMap<>();
-
-    public WalletController(UserService userService) {
+    public WalletController(UserService userService,
+                            WalletBalanceRepository balanceRepo,
+                            WalletTransactionRepository txRepo) {
         this.userService = userService;
+        this.balanceRepo = balanceRepo;
+        this.txRepo = txRepo;
     }
 
+    // ── Helper: get or create wallet row ─────────────────────────────────────
+    private WalletBalance getOrCreate(UUID userId) {
+        return balanceRepo.findByUserId(userId).orElseGet(() -> {
+            WalletBalance w = new WalletBalance(userId);
+            return balanceRepo.save(w);
+        });
+    }
+
+    // ── GET /api/wallet/balance ───────────────────────────────────────────────
     @GetMapping("/balance")
-    public ResponseEntity<Map<String, Object>> getBalance(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        User user = userService.getUserByEmail(userDetails.getUsername());
-        double balance = balances.getOrDefault(user.getId(), 10000.00);
+    public ResponseEntity<?> getBalance(@AuthenticationPrincipal String email) {
+        if (email == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        User user = userService.getUserByEmail(email);
+        WalletBalance wallet = getOrCreate(user.getId());
 
         Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("balance", balance);
-        resp.put("currency", "USD");
-        resp.put("lastUpdated", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        resp.put("balance", wallet.getBalance());
+        resp.put("currency", wallet.getCurrency());
+        resp.put("lastUpdated", wallet.getUpdatedAt().toString());
         return ResponseEntity.ok(resp);
     }
 
+    // ── POST /api/wallet/deposit ──────────────────────────────────────────────
     @PostMapping("/deposit")
-    public ResponseEntity<Map<String, Object>> deposit(
-            @AuthenticationPrincipal UserDetails userDetails,
+    public ResponseEntity<?> deposit(
+            @AuthenticationPrincipal String email,
             @RequestBody Map<String, Object> body) {
-        User user = userService.getUserByEmail(userDetails.getUsername());
-        double amount = body.containsKey("amount")
-                ? ((Number) body.get("amount")).doubleValue() : 0;
-        if (amount <= 0) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Amount must be positive"));
+        if (email == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+
+        BigDecimal amount;
+        try {
+            amount = new BigDecimal(body.get("amount").toString()).setScale(2, RoundingMode.HALF_UP);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid amount"));
         }
-        double current = balances.getOrDefault(user.getId(), 10000.00);
-        double newBalance = current + amount;
-        balances.put(user.getId(), newBalance);
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Amount must be positive"));
+        }
+
+        User user = userService.getUserByEmail(email);
+        WalletBalance wallet = getOrCreate(user.getId());
+        wallet.setBalance(wallet.getBalance().add(amount));
+        wallet.setUpdatedAt(LocalDateTime.now());
+        balanceRepo.save(wallet);
+
+        String desc = body.containsKey("description")
+                ? body.get("description").toString() : "Deposit";
+        WalletTransaction tx = new WalletTransaction(user.getId(), "deposit", amount, desc);
+        txRepo.save(tx);
 
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("success", true);
-        resp.put("newBalance", newBalance);
-        resp.put("transactionId", UUID.randomUUID().toString());
+        resp.put("newBalance", wallet.getBalance());
+        resp.put("transactionId", tx.getId());
         resp.put("type", "deposit");
         resp.put("amount", amount);
         return ResponseEntity.ok(resp);
     }
 
+    // ── POST /api/wallet/withdraw ─────────────────────────────────────────────
     @PostMapping("/withdraw")
-    public ResponseEntity<Map<String, Object>> withdraw(
-            @AuthenticationPrincipal UserDetails userDetails,
+    public ResponseEntity<?> withdraw(
+            @AuthenticationPrincipal String email,
             @RequestBody Map<String, Object> body) {
-        User user = userService.getUserByEmail(userDetails.getUsername());
-        double amount = body.containsKey("amount")
-                ? ((Number) body.get("amount")).doubleValue() : 0;
-        double current = balances.getOrDefault(user.getId(), 10000.00);
-        if (amount <= 0 || amount > current) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Invalid withdrawal amount"));
+        if (email == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+
+        BigDecimal amount;
+        try {
+            amount = new BigDecimal(body.get("amount").toString()).setScale(2, RoundingMode.HALF_UP);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid amount"));
         }
-        double newBalance = current - amount;
-        balances.put(user.getId(), newBalance);
+
+        User user = userService.getUserByEmail(email);
+        WalletBalance wallet = getOrCreate(user.getId());
+
+        if (amount.compareTo(BigDecimal.ZERO) <= 0 ||
+                amount.compareTo(wallet.getBalance()) > 0) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid withdrawal amount"));
+        }
+
+        wallet.setBalance(wallet.getBalance().subtract(amount));
+        wallet.setUpdatedAt(LocalDateTime.now());
+        balanceRepo.save(wallet);
+
+        String desc = body.containsKey("description")
+                ? body.get("description").toString() : "Withdrawal";
+        WalletTransaction tx = new WalletTransaction(user.getId(), "withdrawal", amount, desc);
+        txRepo.save(tx);
 
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("success", true);
-        resp.put("newBalance", newBalance);
-        resp.put("transactionId", UUID.randomUUID().toString());
+        resp.put("newBalance", wallet.getBalance());
+        resp.put("transactionId", tx.getId());
         resp.put("type", "withdrawal");
         resp.put("amount", amount);
         return ResponseEntity.ok(resp);
     }
 
+    // ── GET /api/wallet/transactions ──────────────────────────────────────────
     @GetMapping("/transactions")
-    public ResponseEntity<List<Map<String, Object>>> getTransactions(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        // Mock transaction history — replace with real DB query
-        List<Map<String, Object>> txs = new ArrayList<>();
-        String[] types = {"deposit", "withdrawal", "deposit", "deposit", "withdrawal"};
-        double[] amounts = {500, 200, 1080, 250, 75};
-        String[] descs = {"Bank transfer", "Portfolio funding", "Linked account", "Initial deposit", "Fee deduction"};
-        String[] statuses = {"completed", "completed", "completed", "completed", "pending"};
+    public ResponseEntity<?> getTransactions(@AuthenticationPrincipal String email) {
+        if (email == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        User user = userService.getUserByEmail(email);
+        List<WalletTransaction> txs = txRepo.findByUserIdOrderByCreatedAtDesc(user.getId());
 
-        for (int i = 0; i < types.length; i++) {
-            Map<String, Object> tx = new LinkedHashMap<>();
-            tx.put("id", "tx-mock-" + (i + 1));
-            tx.put("type", types[i]);
-            tx.put("amount", amounts[i]);
-            tx.put("description", descs[i]);
-            tx.put("status", statuses[i]);
-            tx.put("createdAt", LocalDateTime.now()
-                    .minusDays(i)
-                    .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-            txs.add(tx);
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (WalletTransaction tx : txs) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", tx.getId());
+            m.put("type", tx.getType());
+            m.put("amount", tx.getAmount());
+            m.put("description", tx.getDescription());
+            m.put("status", tx.getStatus());
+            m.put("createdAt", tx.getCreatedAt().toString());
+            result.add(m);
         }
-        return ResponseEntity.ok(txs);
+        return ResponseEntity.ok(result);
     }
 }
