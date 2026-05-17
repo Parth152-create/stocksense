@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 import { fetchWithAuth } from "@/lib/auth";
 import { useLivePrices } from "@/lib/websocket";
 import { useMarket } from "@/lib/MarketContext";
+import { MLInsightsPanel } from "@/components/MLInsightsPanel";
 import {
   TrendingUp, TrendingDown, ArrowLeft, Star, StarOff,
   BarChart2, AlertCircle, CandlestickChart, LineChart as LineIcon,
@@ -691,8 +692,8 @@ export default function StockPage() {
             </div>
           </div>
 
-          {/* RIGHT — Order Panel */}
-          <div style={{ position:"sticky",top:80 }}>
+          {/* RIGHT — Order Panel + ML Insights */}
+          <div style={{ position:"sticky",top:80,display:"flex",flexDirection:"column",gap:12 }}>
             <div style={{ background:"var(--color-card)",border:"1px solid var(--color-line)",borderRadius:12,padding:"20px" }}>
               <h3 style={{ margin:"0 0 16px",fontSize:14,fontWeight:700 }}>Place Order</h3>
               <div style={{ display:"flex",gap:4,background:"var(--color-line)",borderRadius:8,padding:3,marginBottom:16 }}>
@@ -727,6 +728,10 @@ export default function StockPage() {
                 Orders execute at market price. Not financial advice.
               </p>
             </div>
+
+            {/* ML Insights Panel */}
+            <MLInsightsPanel symbol={symbol} />
+
           </div>
         </div>
       )}
