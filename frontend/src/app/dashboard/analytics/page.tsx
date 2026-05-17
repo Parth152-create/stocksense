@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Cell,
+  ResponsiveContainer, BarChart, Bar, Cell, Legend,
 } from "recharts";
 import {
   TrendingUp, TrendingDown, BarChart2, Shield,
@@ -32,18 +32,18 @@ const C = {
 
 const SECTOR_COLORS = ["#8FFFD6", "#6366f1", "#f59e0b", "#ef4444", "#a855f7", "#ec4899"];
 
-// ─── Mock chart data generator ────────────────────────────────────────────────
+// ─── Mock chart data generators ───────────────────────────────────────────────
 
-function generateHistory(range: TimeRange): PortfolioPoint[] {
+function generateHistory(range: TimeRange, seed = 0): PortfolioPoint[] {
   const points = range === "1M" ? 30 : range === "1Y" ? 52 : 120;
   const data: PortfolioPoint[] = [];
-  let v = 72000;
+  let v = 72000 + seed * 8000;
   for (let i = points; i >= 0; i--) {
     const d = new Date();
     if (range === "1M")      d.setDate(d.getDate() - i);
     else if (range === "1Y") d.setDate(d.getDate() - i * 7);
     else                     d.setDate(d.getDate() - i * 3);
-    v += (Math.random() - 0.46) * 2200;
+    v += (Math.random() - 0.46 + seed * 0.02) * 2200;
     const label =
       range === "1M"
         ? d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })
@@ -53,6 +53,19 @@ function generateHistory(range: TimeRange): PortfolioPoint[] {
     data.push({ date: label, value: Math.max(40000, Math.round(v)) });
   }
   return data;
+}
+
+// Generate multi-portfolio data by merging multiple seeds
+function generateMultiPortfolio(range: TimeRange) {
+  const base   = generateHistory(range, 0);
+  const growth = generateHistory(range, 1);
+  const crypto = generateHistory(range, 2);
+  return base.map((p, i) => ({
+    date:    p.date,
+    overall: p.value,
+    growth:  growth[i]?.value ?? p.value,
+    crypto:  crypto[i]?.value ?? p.value,
+  }));
 }
 
 // ─── Risk Gauge ───────────────────────────────────────────────────────────────
@@ -123,7 +136,7 @@ function AllocationDonut({ segments }: { segments: { label: string; pct: number;
   );
 }
 
-// ─── Tooltip ──────────────────────────────────────────────────────────────────
+// ─── Tooltips ─────────────────────────────────────────────────────────────────
 
 const PerfTooltip = ({ active, payload, label, sym }: any) => {
   if (!active || !payload?.length) return null;
@@ -133,6 +146,25 @@ const PerfTooltip = ({ active, payload, label, sym }: any) => {
       <p style={{ color: "#8FFFD6", fontWeight: 600, margin: 0 }}>
         {sym}{Number(payload[0].value).toLocaleString("en-IN")}
       </p>
+    </div>
+  );
+};
+
+const MultiTooltip = ({ active, payload, label, sym }: any) => {
+  if (!active || !payload?.length) return null;
+  const colors: Record<string, string> = { overall: "#8FFFD6", growth: "#6366f1", crypto: "#f59e0b" };
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 16px", fontSize: 12 }}>
+      <p style={{ color: C.muted, marginBottom: 8 }}>{label}</p>
+      {payload.map((p: any) => (
+        <div key={p.dataKey} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: colors[p.dataKey] ?? p.stroke }} />
+          <span style={{ color: C.muted, textTransform: "capitalize" }}>{p.dataKey}:</span>
+          <span style={{ color: colors[p.dataKey] ?? p.stroke, fontWeight: 600 }}>
+            {sym}{Number(p.value).toLocaleString("en-IN")}
+          </span>
+        </div>
+      ))}
     </div>
   );
 };
@@ -158,7 +190,13 @@ function StatCard({ label, value, change, positive, currencySymbol }: {
   );
 }
 
-// ─── Monthly Returns ──────────────────────────────────────────────────────────
+// ─── Portfolio summary cards matching Figma ───────────────────────────────────
+
+const PORTFOLIO_CARDS = [
+  { label: "Overall Portfolio", value: "$5,300", change: "+$117.68", changePct: "+4.75%", positive: true,  color: "#8FFFD6" },
+  { label: "Growth Portfolio",  value: "$5,300", change: "+$117.68", changePct: "+4.75%", positive: true,  color: "#6366f1" },
+  { label: "Causal Portfolio",  value: "$5,300", change: "-$132.45", changePct: "-1.32%", positive: false, color: "#f59e0b" },
+];
 
 const MONTHLY = [
   { month: "Jan", ret: 4.2 }, { month: "Feb", ret: -1.8 }, { month: "Mar", ret: 6.7 },
@@ -173,15 +211,16 @@ export default function AnalyticsPage() {
   const { market } = useMarket();
   const sym = market?.currency ?? "₹";
 
-  const [range,    setRange]    = useState<TimeRange>("1Y");
-  const [history,  setHistory]  = useState<PortfolioPoint[]>([]);
+  const [range,     setRange]     = useState<TimeRange>("1Y");
+  const [multiRange, setMultiRange] = useState<TimeRange>("1Y");
+  const [history,   setHistory]   = useState<PortfolioPoint[]>([]);
+  const [multiData, setMultiData] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-  const [loading,  setLoading]  = useState(true);
+  const [loading,   setLoading]   = useState(true);
 
-  // Regenerate chart data when range changes
   useEffect(() => { setHistory(generateHistory(range)); }, [range]);
+  useEffect(() => { setMultiData(generateMultiPortfolio(multiRange)); }, [multiRange]);
 
-  // Fetch real analytics from backend
   useEffect(() => {
     setLoading(true);
     fetchWithAuth(`/api/market/${market.id}/analytics`)
@@ -191,7 +230,6 @@ export default function AnalyticsPage() {
       .finally(() => setLoading(false));
   }, [market.id]);
 
-  // Build allocation segments — prefer backend data, else mock
   const allocSegs = analytics?.allocation?.length
     ? analytics.allocation.map((a, i) => ({ label: a.label, pct: a.pct, color: SECTOR_COLORS[i % SECTOR_COLORS.length] }))
     : [
@@ -200,14 +238,14 @@ export default function AnalyticsPage() {
         { label: "Bonds",   pct: 22, color: "#f59e0b" },
       ];
 
-  const totalValue   = analytics?.totalValue ?? 93314;
-  const changePct    = analytics?.changePercent ?? 6.42;
-  const isUp         = changePct >= 0;
+  const totalValue = analytics?.totalValue ?? 93314;
+  const changePct  = analytics?.changePercent ?? 6.42;
+  const isUp       = changePct >= 0;
 
   return (
     <>
       <style>{`.range-pill:hover { opacity: 0.8; }`}</style>
-      <div style={{ padding: "28px 32px", maxWidth: 1200, margin: "0 auto", background: C.page, minHeight: "100vh" }}>
+      <div style={{ padding: "28px 32px", maxWidth: 1200, margin: "0 auto", background: C.page, minHeight: "100vh", animation: "fadeInUp 0.35s ease both" }}>
 
         {/* Header */}
         <div style={{ marginBottom: 28 }}>
@@ -220,12 +258,58 @@ export default function AnalyticsPage() {
 
         {/* Stat cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
-          <StatCard label="Portfolio Value"   value={totalValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })} change={`${isUp ? "+" : ""}${changePct.toFixed(2)}%`}  positive={isUp}  currencySymbol={sym} />
-          <StatCard label="Total Invested"    value="82,416.00" change="+4.75%"  positive={true}  currencySymbol={sym} />
-          <StatCard label="Unrealised P&L"    value="10,898.00" change="-2.13%"  positive={false} currencySymbol={sym} />
+          <StatCard label="Portfolio Value"  value={totalValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })} change={`${isUp?"+":""}${changePct.toFixed(2)}%`} positive={isUp}  currencySymbol={sym} />
+          <StatCard label="Total Invested"   value="82,416.00" change="+4.75%"  positive={true}  currencySymbol={sym} />
+          <StatCard label="Unrealised P&L"   value="10,898.00" change="-2.13%"  positive={false} currencySymbol={sym} />
         </div>
 
-        {/* Portfolio performance chart */}
+        {/* ── Multi-portfolio comparison — matches Figma Page 3 ── */}
+        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "22px 24px", marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Activity size={15} color="#8FFFD6" />
+              <span style={{ color: C.primary, fontWeight: 600, fontSize: 14 }}>Portfolio Comparison</span>
+            </div>
+            <div style={{ display: "flex", background: C.page, border: `1px solid ${C.line}`, borderRadius: 8, padding: 3, gap: 2 }}>
+              {(["1M", "1Y", "All"] as TimeRange[]).map(r => (
+                <button key={r} className="range-pill" onClick={() => setMultiRange(r)}
+                  style={{ padding: "5px 12px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: multiRange === r ? C.card : "transparent", color: multiRange === r ? "#8FFFD6" : C.muted }}>
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Portfolio summary cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
+            {PORTFOLIO_CARDS.map(p => (
+              <div key={p.label} style={{ background: C.page, border: `1px solid ${C.line}`, borderRadius: 10, padding: "14px 16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: p.color }} />
+                  <span style={{ color: C.muted, fontSize: 11 }}>{p.label}</span>
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: C.primary, letterSpacing: -0.3 }}>{p.value}</div>
+                <div style={{ fontSize: 11, color: p.positive ? "#8FFFD6" : "#ef4444", marginTop: 4, fontWeight: 600 }}>
+                  {p.change} ({p.changePct})
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={multiData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="date" tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false} interval={Math.floor(multiData.length / 8)} />
+              <YAxis tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${sym}${(v/1000).toFixed(0)}k`} width={56} domain={["auto","auto"]} />
+              <Tooltip content={(p: any) => <MultiTooltip {...p} sym={sym} />} />
+              <Line type="monotone" dataKey="overall" stroke="#8FFFD6" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#8FFFD6", strokeWidth: 0 }} name="Overall" />
+              <Line type="monotone" dataKey="growth"  stroke="#6366f1" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#6366f1", strokeWidth: 0 }} name="Growth"  />
+              <Line type="monotone" dataKey="crypto"  stroke="#f59e0b" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#f59e0b", strokeWidth: 0 }} name="Crypto"  />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Single portfolio performance */}
         <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "22px 24px", marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -241,7 +325,6 @@ export default function AnalyticsPage() {
               ))}
             </div>
           </div>
-          {/* CRITICAL: height={300} not height="100%" */}
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={history} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
@@ -266,10 +349,10 @@ export default function AnalyticsPage() {
             <RiskGauge score={62} />
             <div style={{ marginTop: 24 }}>
               {[
-                { label: "Market Volatility",    val: 68, color: "#f59e0b" },
-                { label: "Concentration Risk",    val: 42, color: "#8FFFD6" },
-                { label: "Liquidity Risk",        val: 28, color: "#8FFFD6" },
-                { label: "Currency Exposure",     val: 55, color: "#f59e0b" },
+                { label: "Market Volatility",  val: 68, color: "#f59e0b" },
+                { label: "Concentration Risk", val: 42, color: "#8FFFD6" },
+                { label: "Liquidity Risk",     val: 28, color: "#8FFFD6" },
+                { label: "Currency Exposure",  val: 55, color: "#f59e0b" },
               ].map(({ label, val, color }) => (
                 <div key={label} style={{ marginBottom: 12 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
@@ -277,7 +360,7 @@ export default function AnalyticsPage() {
                     <span style={{ fontSize: 12, color, fontWeight: 600 }}>{val}</span>
                   </div>
                   <div style={{ height: 4, background: C.line, borderRadius: 2, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${val}%`, background: color, borderRadius: 2 }} />
+                    <div style={{ height: "100%", width: `${val}%`, background: color, borderRadius: 2, transition: "width 0.6s ease" }} />
                   </div>
                 </div>
               ))}
@@ -310,13 +393,12 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* P&L Bar Chart by month */}
+        {/* Monthly Returns Bar Chart */}
         <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "22px 24px", marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
             <TrendingUp size={15} color="#8FFFD6" />
             <span style={{ color: C.primary, fontWeight: 600, fontSize: 14 }}>Monthly Returns</span>
           </div>
-          {/* CRITICAL: height={200} not height="100%" */}
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={MONTHLY} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barSize={18}>
               <XAxis dataKey="month" tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -334,7 +416,7 @@ export default function AnalyticsPage() {
           </ResponsiveContainer>
         </div>
 
-        {/* Monthly return heatmap tiles */}
+        {/* Return Heatmap */}
         <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "22px 24px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
             <TrendingDown size={15} color="#8FFFD6" />
@@ -349,6 +431,7 @@ export default function AnalyticsPage() {
                   background: pos ? `rgba(143,255,214,${0.06 + intensity * 0.25})` : `rgba(239,68,68,${0.06 + intensity * 0.25})`,
                   border: `1px solid ${pos ? "rgba(143,255,214,0.15)" : "rgba(239,68,68,0.15)"}`,
                   borderRadius: 8, padding: "10px 4px", textAlign: "center",
+                  transition: "transform 0.15s",
                 }}>
                   <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>{month}</div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: pos ? "#8FFFD6" : "#ef4444" }}>

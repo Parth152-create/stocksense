@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { useMarket } from "@/lib/MarketContext";
 import StockSearch from "@/components/StockSearch";
 import { useLivePrices } from "@/lib/websocket";
+import { Search, SlidersHorizontal } from "lucide-react";
 
 const MARKET_DATA: Record<string, {
   holdings: { symbol: string; shares: number; color: string; bg: string; letter: string }[];
@@ -140,24 +142,24 @@ const BAR_HEIGHTS: Record<string, number[]> = {
 
 const EVENT_PINS: Record<string, { label: string; letter: string; color: string; left: string; top: string }[]> = {
   IN: [
-    { label: "Reliance Q3 Strong",  letter: "R", color: "#8FFFD6", left: "8%",  top: "60%" },
-    { label: "TCS Record Revenue",  letter: "T", color: "#fff",    left: "52%", top: "10%" },
-    { label: "HDFC Merger Done",    letter: "H", color: "#ef4444", left: "68%", top: "28%" },
+    { label: "Reliance Q3 Strong",  letter: "R", color: "#8FFFD6", left: "8%",  top: "55%" },
+    { label: "TCS Record Revenue",  letter: "T", color: "#fff",    left: "50%", top: "15%" },
+    { label: "HDFC Merger Done",    letter: "H", color: "#ef4444", left: "72%", top: "30%" },
   ],
   US: [
-    { label: "NVIDIA Q3 Earnings",  letter: "N", color: "#8FFFD6", left: "8%",  top: "60%" },
-    { label: "Apple Record Revenue",letter: "A", color: "#fff",    left: "52%", top: "10%" },
-    { label: "Tesla FSD 2.0",       letter: "T", color: "#ef4444", left: "68%", top: "28%" },
+    { label: "NVIDIA Q3 Earnings",   letter: "N", color: "#8FFFD6", left: "8%",  top: "55%" },
+    { label: "Apple Record Revenue", letter: "A", color: "#fff",    left: "50%", top: "15%" },
+    { label: "Tesla FSD 2.0",        letter: "T", color: "#ef4444", left: "72%", top: "30%" },
   ],
   CRYPTO: [
-    { label: "BTC ETF Approval",    letter: "₿", color: "#8FFFD6", left: "8%",  top: "60%" },
-    { label: "ETH Dencun Upgrade",  letter: "Ξ", color: "#fff",    left: "52%", top: "10%" },
-    { label: "SOL Congestion",      letter: "S", color: "#ef4444", left: "68%", top: "28%" },
+    { label: "BTC ETF Approval",   letter: "₿", color: "#8FFFD6", left: "8%",  top: "55%" },
+    { label: "ETH Dencun Upgrade", letter: "Ξ", color: "#fff",    left: "50%", top: "15%" },
+    { label: "SOL Congestion",     letter: "S", color: "#ef4444", left: "72%", top: "30%" },
   ],
   FX: [
-    { label: "Fed Rate Decision",   letter: "F", color: "#8FFFD6", left: "8%",  top: "60%" },
-    { label: "ECB Rate Cut",        letter: "E", color: "#fff",    left: "52%", top: "10%" },
-    { label: "USD/JPY 5-Year High", letter: "¥", color: "#ef4444", left: "68%", top: "28%" },
+    { label: "Fed Rate Decision",   letter: "F", color: "#8FFFD6", left: "8%",  top: "55%" },
+    { label: "ECB Rate Cut",        letter: "E", color: "#fff",    left: "50%", top: "15%" },
+    { label: "USD/JPY 5-Year High", letter: "¥", color: "#ef4444", left: "72%", top: "30%" },
   ],
 };
 
@@ -207,24 +209,63 @@ function StockAvatar({ symbol, color, bg, letter, px = 32 }: {
   );
 }
 
+// ── Theme-aware 3D coin ───────────────────────────────────────────────────────
 function CoinSVG() {
+  const { resolvedTheme } = useTheme();
+  const dark = resolvedTheme !== "light";
+
+  const outerFill  = dark ? "#2a2a2a" : "#e2e8f0";
+  const innerFill  = dark ? "#181818" : "#cbd5e1";
+  const outerFill2 = dark ? "#222222" : "#dde4ee";
+  const innerFill2 = dark ? "#131313" : "#c8d3e0";
+  const edgeStroke = dark ? "#ffffff" : "#94a3b8";
+
   return (
-    <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "45%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-      <svg width="160" height="160" viewBox="0 0 180 180" style={{ opacity: 0.9 }}>
+    <div style={{
+      position: "absolute", right: -8, top: 0, bottom: 0,
+      width: "48%", overflow: "hidden",
+      display: "flex", alignItems: "center", justifyContent: "flex-end",
+      pointerEvents: "none",
+    }}>
+      <svg width="160" height="180" viewBox="0 0 200 200" style={{ opacity: dark ? 0.95 : 0.85 }}>
         <defs>
-          <radialGradient id="cg1" cx="40%" cy="35%" r="60%">
-            <stop offset="0%" stopColor="#2d2d2d"/><stop offset="100%" stopColor="#111"/>
+          <radialGradient id="coin1" cx="38%" cy="32%" r="65%">
+            <stop offset="0%"   stopColor={outerFill}/>
+            <stop offset="100%" stopColor={dark ? "#080808" : "#b8c4d4"}/>
           </radialGradient>
-          <radialGradient id="cg2" cx="40%" cy="35%" r="60%">
-            <stop offset="0%" stopColor="#353535"/><stop offset="100%" stopColor="#181818"/>
+          <radialGradient id="coin2" cx="38%" cy="32%" r="65%">
+            <stop offset="0%"   stopColor={innerFill}/>
+            <stop offset="100%" stopColor={dark ? "#0a0a0a" : "#a8b8cc"}/>
           </radialGradient>
+          <radialGradient id="coin3" cx="38%" cy="32%" r="65%">
+            <stop offset="0%"   stopColor={outerFill2}/>
+            <stop offset="100%" stopColor={dark ? "#090909" : "#b0bece"}/>
+          </radialGradient>
+          <radialGradient id="coin4" cx="38%" cy="32%" r="65%">
+            <stop offset="0%"   stopColor={innerFill2}/>
+            <stop offset="100%" stopColor={dark ? "#0b0b0b" : "#a0b0c4"}/>
+          </radialGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="2.5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
         </defs>
-        <ellipse cx="100" cy="115" rx="55" ry="55" fill="url(#cg1)"/>
-        <ellipse cx="100" cy="112" rx="48" ry="48" fill="url(#cg2)"/>
-        <ellipse cx="80" cy="90" rx="58" ry="58" fill="url(#cg1)"/>
-        <ellipse cx="80" cy="87" rx="50" ry="50" fill="url(#cg2)"/>
-        <polygon points="85,62 72,88 82,88 75,115 93,82 82,82" fill="#8FFFD6" opacity="0.95"/>
-        <polygon points="105,68 90,92 100,92 92,118 112,85 100,85" fill="#8FFFD6" opacity="0.6"/>
+
+        {/* Back coin */}
+        <ellipse cx="118" cy="125" rx="56" ry="56" fill="url(#coin1)"/>
+        <ellipse cx="118" cy="122" rx="48" ry="48" fill="url(#coin2)"/>
+        <ellipse cx="118" cy="125" rx="56" ry="56" fill="none"
+          stroke={edgeStroke} strokeWidth="0.4" strokeOpacity="0.15"/>
+        <polygon points="122,98 109,124 119,124 112,150 132,117 120,117"
+          fill="#8FFFD6" opacity={dark ? 0.45 : 0.6} filter="url(#glow)"/>
+
+        {/* Front coin */}
+        <ellipse cx="88" cy="98"  rx="60" ry="60" fill="url(#coin3)"/>
+        <ellipse cx="88" cy="95"  rx="51" ry="51" fill="url(#coin4)"/>
+        <ellipse cx="88" cy="98"  rx="60" ry="60" fill="none"
+          stroke={edgeStroke} strokeWidth="0.5" strokeOpacity="0.2"/>
+        <polygon points="93,68 78,98 90,98 82,128 104,93 91,93"
+          fill="#8FFFD6" opacity={dark ? 1 : 0.9} filter="url(#glow)"/>
       </svg>
     </div>
   );
@@ -239,7 +280,6 @@ function LiveDot() {
   );
 }
 
-// Card wrapper
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{
@@ -281,14 +321,18 @@ export default function DashboardPage() {
       width: "100%",
       overflowX: "hidden",
     }}>
+      <style>{`
+        @keyframes ping { 0%{transform:scale(1);opacity:.75} 100%{transform:scale(2.2);opacity:0} }
+        @keyframes fadeInUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
 
       {/* Search */}
-      <div style={{ maxWidth: 440 }}>
+      <div style={{ maxWidth: 440, animation: "fadeInUp 0.3s ease" }}>
         <StockSearch />
       </div>
 
       {/* ── ROW 1: Chart + Trading Score ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 240px", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 240px", gap: 12, animation: "fadeInUp 0.35s ease" }}>
 
         {/* Buy & Sell Activity */}
         <Card style={{ position: "relative", overflow: "hidden", minHeight: 240, padding: 16 }}>
@@ -301,7 +345,7 @@ export default function DashboardPage() {
                   background: activeRange === r ? "var(--color-primary)" : "transparent",
                   color: activeRange === r ? "var(--color-page)" : "var(--color-muted)",
                   border: activeRange === r ? "none" : "1px solid var(--color-line)",
-                  cursor: "pointer",
+                  cursor: "pointer", transition: "all 0.15s",
                 }}>
                   {r}
                 </button>
@@ -309,31 +353,50 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div style={{ position: "relative", height: 150 }}>
-            {/* Event pins */}
+          <div style={{ position: "relative", height: 160 }}>
+            {/* Event pins — rendered ABOVE chart, labels above pin dot */}
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 10 }}>
-              {pins.map((pin, i) => (
-                <div key={i} style={{ position: "absolute", left: pin.left, top: pin.top, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                  <div style={{
-                    borderRadius: 99, padding: "2px 6px", fontSize: 8, fontWeight: 600, whiteSpace: "nowrap", marginBottom: 2,
-                    background: pin.color === "#8FFFD6" ? "#8FFFD611" : pin.color === "#fff" ? "#88888811" : "#ef444411",
-                    color: pin.color === "#8FFFD6" ? "#8FFFD6" : pin.color === "#fff" ? "var(--color-primary)" : "#ef9999",
-                    border: `1px solid ${pin.color === "#8FFFD6" ? "#8FFFD633" : pin.color === "#fff" ? "var(--color-line)" : "#ef444433"}`,
-                  }}>{pin.label}</div>
-                  <div style={{ width: 1, height: 14, background: pin.color + "55" }} />
-                  <div style={{
-                    width: 12, height: 12, borderRadius: "50%", fontSize: 7, fontWeight: 700, color: "#fff",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    background: pin.color === "#8FFFD6" ? "#76b900" : pin.color === "#fff" ? "var(--color-muted)" : "#ef4444",
-                  }}>{pin.letter}</div>
-                </div>
-              ))}
+              {pins.map((pin, i) => {
+                const accentColor = pin.color === "#8FFFD6" ? "#8FFFD6"
+                  : pin.color === "#fff" ? "var(--color-primary)" : "#ef4444";
+                const dotBg = pin.color === "#8FFFD6" ? "#22c55e"
+                  : pin.color === "#fff" ? "#555" : "#ef4444";
+                return (
+                  <div key={i} style={{
+                    position: "absolute", left: pin.left, top: pin.top,
+                    display: "flex", flexDirection: "column", alignItems: "center",
+                    transform: "translateX(-50%)",
+                  }}>
+                    {/* Label pill */}
+                    <div style={{
+                      borderRadius: 6, padding: "2px 7px", fontSize: 9, fontWeight: 600,
+                      whiteSpace: "nowrap", marginBottom: 3,
+                      background: "var(--color-card)",
+                      color: accentColor,
+                      border: `1px solid ${accentColor}44`,
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                    }}>{pin.label}</div>
+                    {/* Stem */}
+                    <div style={{ width: 1, height: 12, background: `${accentColor}88` }} />
+                    {/* Dot */}
+                    <div style={{
+                      width: 14, height: 14, borderRadius: "50%",
+                      background: dotBg,
+                      border: `2px solid ${accentColor}`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 7, fontWeight: 800, color: "#fff",
+                      boxShadow: `0 0 6px ${accentColor}66`,
+                    }}>{pin.letter}</div>
+                  </div>
+                );
+              })}
             </div>
-            <ResponsiveContainer width="100%" height={150}>
-              <AreaChart data={filterDashboardData(activeRange)} margin={{ top: 10, right: 8, bottom: 0, left: -20 }}>
+
+            <ResponsiveContainer width="100%" height={160}>
+              <AreaChart data={filterDashboardData(activeRange)} margin={{ top: 28, right: 8, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#8FFFD6" stopOpacity={0.15}/>
+                    <stop offset="5%"  stopColor="#8FFFD6" stopOpacity={0.18}/>
                     <stop offset="95%" stopColor="#8FFFD6" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
@@ -344,37 +407,48 @@ export default function DashboardPage() {
                   itemStyle={{ color: "var(--color-primary)" }}
                   labelStyle={{ color: "var(--color-muted)" }}
                 />
-                <Area type="monotone" dataKey="value" stroke="var(--color-primary)" strokeWidth={1.5}
-                  fill="url(#actGrad)" dot={false} isAnimationActive={false}/>
+                <Area type="monotone" dataKey="value" stroke="#8FFFD6" strokeWidth={1.5}
+                  fill="url(#actGrad)" dot={false} isAnimationActive={true}
+                  animationDuration={600} animationEasing="ease-out"/>
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
-        {/* Trading Score */}
+        {/* Trading Score — improved coin */}
         <Card style={{ position: "relative", overflow: "hidden", minHeight: 240 }}>
           <CoinSVG />
           <div style={{ position: "relative", zIndex: 10 }}>
-            <p style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 12, marginBottom: 20 }}>Trading Score</p>
-            <p style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 24, lineHeight: 1, letterSpacing: "-0.03em", margin: "0 0 4px" }}>
+            <p style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 12, marginBottom: 24 }}>Trading Score</p>
+            <p style={{
+              color: "var(--color-primary)", fontWeight: 800, fontSize: 22,
+              lineHeight: 1, letterSpacing: "-0.03em", margin: "0 0 4px",
+            }}>
               {md.tradingScore}
             </p>
-            <p style={{ color: "var(--color-muted)", fontSize: 11, margin: "0 0 16px" }}>Total buy volume</p>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 20 }}>
+            <p style={{ color: "var(--color-muted)", fontSize: 11, margin: "0 0 20px" }}>Total buy volume</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: "var(--color-primary)", fontWeight: 800, fontSize: 22, letterSpacing: "-0.02em" }}>
                 {md.tradingPoints.toLocaleString()}
               </span>
-              <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#8FFFD622", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="#8FFFD6"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+              <div style={{
+                width: 22, height: 22, borderRadius: "50%",
+                background: "linear-gradient(135deg,#8FFFD6,#00c896)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: "0 0 8px #8FFFD644",
+              }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="#0a0a0a">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                </svg>
               </div>
             </div>
-            <p style={{ color: "var(--color-muted)", fontSize: 11, marginTop: 2 }}>Trading points</p>
+            <p style={{ color: "var(--color-muted)", fontSize: 11, marginTop: 4 }}>Trading points</p>
           </div>
         </Card>
       </div>
 
       {/* ── ROW 2: Holdings | Portfolio | Transactions ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr)", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr)", gap: 12, animation: "fadeInUp 0.4s ease" }}>
 
         {/* LEFT col */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
@@ -431,6 +505,7 @@ export default function DashboardPage() {
                       width: 10, borderRadius: 3,
                       height: `${(d.trades / 12) * 34}px`,
                       background: i === 2 ? "#8FFFD6" : "var(--color-line)",
+                      transition: "height 0.4s ease",
                     }}/>
                     <span style={{ color: "var(--color-muted)", fontSize: 7 }}>{d.day}</span>
                   </div>
@@ -466,16 +541,22 @@ export default function DashboardPage() {
         <Card style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>My Portfolio</span>
-            <button style={{
-              display: "flex", alignItems: "center", gap: 4,
-              padding: "5px 12px", borderRadius: 10, fontSize: 11, fontWeight: 600,
-              background: "var(--color-primary)", color: "var(--color-page)",
-              border: "none", cursor: "pointer",
-            }}>
+            <button
+              onClick={() => router.push("/dashboard/wallet")}
+              style={{
+                display: "flex", alignItems: "center", gap: 4,
+                padding: "5px 12px", borderRadius: 10, fontSize: 11, fontWeight: 600,
+                background: "linear-gradient(135deg,#8FFFD6,#00c896)",
+                color: "#0a0a0a", border: "none", cursor: "pointer",
+                transition: "opacity 0.15s",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
+              onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+            >
               + Deposit
             </button>
           </div>
-          <p style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 26, lineHeight: 1.1, letterSpacing: "-0.03em", margin: "0 0 4px" }}>
+          <p style={{ color: "var(--color-primary)", fontWeight: 800, fontSize: 26, lineHeight: 1.1, letterSpacing: "-0.03em", margin: "0 0 4px" }}>
             {md.portfolioValue}
           </p>
           <p style={{ color: "#22c55e", fontSize: 12, fontWeight: 600, margin: "0 0 12px" }}>{md.portfolioGain}</p>
@@ -505,6 +586,15 @@ export default function DashboardPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>Transactions</span>
               {Object.values(livePrices).some(p => p.live) && <LiveDot />}
+            </div>
+            {/* Search + filter icons matching Figma */}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", display: "flex", alignItems: "center", padding: 2 }}>
+                <Search size={13}/>
+              </button>
+              <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", display: "flex", alignItems: "center", padding: 2 }}>
+                <SlidersHorizontal size={13}/>
+              </button>
             </div>
           </div>
 

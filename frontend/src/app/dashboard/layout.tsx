@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -67,6 +67,39 @@ function ThemeToggle() {
   );
 }
 
+// ── Page transition wrapper ───────────────────────────────────────────────────
+function PageTransition({ children, pathname }: { children: React.ReactNode; pathname: string }) {
+  const [displayChildren, setDisplayChildren] = useState(children);
+  const [transitionKey, setTransitionKey] = useState(pathname);
+  const [animating, setAnimating] = useState(false);
+
+  useEffect(() => {
+    if (pathname !== transitionKey) {
+      setAnimating(true);
+      const t = setTimeout(() => {
+        setDisplayChildren(children);
+        setTransitionKey(pathname);
+        setAnimating(false);
+      }, 120);
+      return () => clearTimeout(t);
+    } else {
+      setDisplayChildren(children);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, children]);
+
+  return (
+    <div style={{
+      flex: 1,
+      opacity: animating ? 0 : 1,
+      transform: animating ? "translateY(6px)" : "translateY(0)",
+      transition: "opacity 0.15s ease, transform 0.15s ease",
+    }}>
+      {displayChildren}
+    </div>
+  );
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router   = useRouter();
@@ -75,7 +108,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [authChecked, setAuthChecked] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // Auth guard — run once on mount only (empty deps [])
   useEffect(() => {
     const token = getToken();
     if (!token) {
@@ -110,9 +142,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const emailColor       = isDark ? "#cccccc"  : "#374151";
   const planColor        = isDark ? "#444444"  : "#9ca3af";
 
-  // ── User info ─────────────────────────────────────────────────────────────
-  // Fetches name + email from /api/users/me
-  // displayLabel = name if available, else email, else "…" (never shows "--")
   const [userName,  setUserName]  = useState("");
   const [userEmail, setUserEmail] = useState("");
 
@@ -122,7 +151,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data) {
-          // name can be empty string if not set — fall back to email
           setUserName(data.name  || "");
           setUserEmail(data.email || "");
         }
@@ -130,15 +158,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .catch(() => {});
   }, [authChecked]);
 
-  // What to show in sidebar — name > email > "…" (never "--")
   const displayLabel = userName || userEmail || "…";
   const avatarLetter = displayLabel !== "…" ? displayLabel[0].toUpperCase() : "U";
 
-  // ── Notifications ─────────────────────────────────────────────────────────
   const [hoveredLogout, setHoveredLogout] = useState(false);
   const [drawerOpen,    setDrawerOpen]    = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount,   setUnreadCount]   = useState(0);
+  const [hoveredNav,    setHoveredNav]    = useState<string | null>(null);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -181,10 +208,41 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <MarketProvider>
       <TooltipProvider>
+        <style>{`
+          @keyframes slideInLeft {
+            from { opacity: 0; transform: translateX(-10px); }
+            to   { opacity: 1; transform: translateX(0); }
+          }
+          @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes ping {
+            0%   { transform: scale(1);   opacity: 0.75; }
+            100% { transform: scale(2.2); opacity: 0; }
+          }
+          .nav-link {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 10px; border-radius: 9px; margin-bottom: 2px;
+            text-decoration: none;
+            border-left: 2px solid transparent;
+            transition: background 0.15s, color 0.15s, border-color 0.15s, padding-left 0.18s;
+          }
+          .nav-link:hover { padding-left: 14px !important; }
+          .nav-link.active { padding-left: 10px; }
+        `}</style>
+
         <div style={{ display: "flex", minHeight: "100vh", background: pageBg, color: primaryColor, fontFamily: "var(--font-geist-sans,'Geist',sans-serif)", transition: "background 0.2s, color 0.2s" }}>
 
-          {/* Sidebar */}
-          <aside style={{ width: 220, minHeight: "100vh", background: sidebarBg, borderRight: `1px solid ${sidebarBorder}`, display: "flex", flexDirection: "column", padding: "0 0 24px", flexShrink: 0, position: "sticky", top: 0, height: "100vh", transition: "background 0.2s, border-color 0.2s" }}>
+          {/* ── Sidebar ── */}
+          <aside style={{
+            width: 220, minHeight: "100vh", background: sidebarBg,
+            borderRight: `1px solid ${sidebarBorder}`,
+            display: "flex", flexDirection: "column", padding: "0 0 24px",
+            flexShrink: 0, position: "sticky", top: 0, height: "100vh",
+            transition: "background 0.2s, border-color 0.2s",
+            animation: "slideInLeft 0.3s ease both",
+          }}>
 
             {/* Logo */}
             <div style={{ padding: "22px 20px 18px", borderBottom: `1px solid ${sidebarBorder}`, display: "flex", alignItems: "center", gap: 10 }}>
@@ -203,25 +261,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Nav */}
             <nav style={{ padding: "10px 12px", flex: 1 }}>
               <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 6 }}>Main Menu</p>
-              {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+              {NAV_ITEMS.map(({ href, label, icon: Icon }, idx) => {
                 const isActive = href === "/dashboard"
                   ? pathname === "/dashboard"
                   : pathname.startsWith(href);
                 return (
                   <Link key={href} href={href}
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 9, marginBottom: 2, textDecoration: "none", background: isActive ? activeNavBg : "transparent", borderLeft: isActive ? "2px solid #8FFFD6" : "2px solid transparent", transition: "all 0.15s", color: isActive ? "#8FFFD6" : mutedColor }}
-                    onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = hoverNavBg; }}
-                    onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = "transparent"; }}>
-                    <Icon size={15} strokeWidth={isActive ? 2 : 1.5} />
+                    className={`nav-link${isActive ? " active" : ""}`}
+                    style={{
+                      background: isActive ? activeNavBg : "transparent",
+                      borderLeftColor: isActive ? "#8FFFD6" : "transparent",
+                      color: isActive ? "#8FFFD6" : mutedColor,
+                      animation: `slideInLeft 0.3s ease ${0.05 + idx * 0.04}s both`,
+                    }}
+                    onMouseEnter={e => {
+                      setHoveredNav(href);
+                      if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = hoverNavBg;
+                    }}
+                    onMouseLeave={e => {
+                      setHoveredNav(null);
+                      if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
+                    }}>
+                    <Icon size={15} strokeWidth={isActive ? 2 : 1.5} style={{ transition: "transform 0.15s", transform: hoveredNav === href && !isActive ? "scale(1.1)" : "scale(1)" }} />
                     <span style={{ fontSize: 13, fontWeight: isActive ? 600 : 400 }}>{label}</span>
-                    {isActive && <ChevronRight size={12} style={{ marginLeft: "auto" }} strokeWidth={2} />}
+                    {isActive && <ChevronRight size={12} style={{ marginLeft: "auto", animation: "fadeInUp 0.2s ease" }} strokeWidth={2} />}
                   </Link>
                 );
               })}
             </nav>
 
             {/* Account */}
-            <div style={{ padding: "0 12px", borderTop: `1px solid ${sidebarBorder}`, paddingTop: 16 }}>
+            <div style={{ padding: "0 12px", borderTop: `1px solid ${sidebarBorder}`, paddingTop: 16, animation: "fadeInUp 0.4s ease 0.5s both" }}>
               <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 6 }}>Account</p>
               <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 9, marginBottom: 4 }}>
                 <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg,#8FFFD6,#00c896)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#0a0a0a", flexShrink: 0 }}>
@@ -239,15 +309,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 onMouseLeave={() => setHoveredLogout(false)}
                 onClick={() => logout()}
                 style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 9, background: hoveredLogout ? accountBg : "transparent", border: "none", cursor: "pointer", color: hoveredLogout ? "#ef4444" : mutedColor, transition: "all 0.15s" }}>
-                <LogOut size={14} />
+                <LogOut size={14} style={{ transition: "transform 0.15s", transform: hoveredLogout ? "translateX(2px)" : "translateX(0)" }} />
                 <span style={{ fontSize: 13 }}>Sign out</span>
               </button>
             </div>
           </aside>
 
-          {/* Main */}
+          {/* ── Main ── */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-            <header style={{ height: 60, borderBottom: `1px solid ${headerBorder}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", background: headerBg, position: "sticky", top: 0, zIndex: 30, flexShrink: 0, transition: "background 0.2s, border-color 0.2s" }}>
+            <header style={{
+              height: 60, borderBottom: `1px solid ${headerBorder}`,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "0 32px", background: headerBg,
+              position: "sticky", top: 0, zIndex: 30, flexShrink: 0,
+              transition: "background 0.2s, border-color 0.2s",
+              animation: "fadeInUp 0.25s ease both",
+            }}>
               <nav style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 {breadcrumb.map(({ label, href, isLast }) => (
                   <span key={href} style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -275,7 +352,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               </div>
             </header>
-            <main style={{ flex: 1, overflow: "auto" }}>{children}</main>
+
+            {/* Page content with transition */}
+            <PageTransition pathname={pathname}>
+              <main style={{ flex: 1, overflow: "auto" }}>{children}</main>
+            </PageTransition>
           </div>
         </div>
 
