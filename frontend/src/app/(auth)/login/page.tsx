@@ -133,80 +133,105 @@ function LoginForm() {
   }
 
   return (
-    <div style={{ minHeight:"100vh", background:T.pageBg, display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px", fontFamily:"var(--font-geist-sans,'Geist',sans-serif)", transition:"background 0.2s" }}>
-      <FloatingThemeToggle/>
-      <div style={{ width:"100%", maxWidth:400 }}>
-        <div style={{ background:T.cardBg, borderRadius:20, padding:"36px 32px", boxShadow:T.cardShadow, border:`1px solid ${T.cardBorder}`, transition:"background 0.2s" }}>
+    <>
+      <style>{`
+        @keyframes scaleIn {
+          from {
+            opacity: 0;
+            transform: scale(0.97);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+      `}</style>
 
-          {/* Logo */}
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:24 }}>
-            <div style={{ width:32, height:32, background:"#18181A", borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" fill="#8FFFD6"/></svg>
-            </div>
-            <span style={{ color:T.primary, fontWeight:700, fontSize:16, letterSpacing:-0.3 }}>StockSense</span>
-          </div>
+      <div style={{ minHeight:"100vh", background:T.pageBg, display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px", fontFamily:"var(--font-geist-sans,'Geist',sans-serif)", transition:"background 0.2s" }}>
+        <FloatingThemeToggle/>
+        <div style={{ width:"100%", maxWidth:400 }}>
+          <div
+            style={{
+              background:T.cardBg,
+              borderRadius:20,
+              padding:"36px 32px",
+              boxShadow:T.cardShadow,
+              border:`1px solid ${T.cardBorder}`,
+              transition:"background 0.2s",
+              animation:"scaleIn 0.3s ease both",
+            }}
+          >
 
-          <h1 style={{ color:T.primary, fontSize:22, fontWeight:700, textAlign:"center", margin:"0 0 6px" }}>Welcome Back</h1>
-          <p style={{ color:T.muted, fontSize:13, textAlign:"center", margin:"0 0 24px" }}>Sign in to your StockSense account</p>
-
-          {expired && <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:10, background:isDark?"#78350f22":"#fff8e1", border:"1px solid #f59e0b44", color:"#b45309", fontSize:13 }}>Your session expired. Please sign in again.</div>}
-          {error   && <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:10, background:isDark?"#7f1d1d22":"#fef2f2", border:"1px solid #ef444444", color:"#dc2626", fontSize:13 }}>{error}</div>}
-
-          <form onSubmit={handleSubmit} style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            <div>
-              <label style={{ display:"block", color:T.primary, fontSize:12, fontWeight:500, marginBottom:6 }}>Email Address</label>
-              <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address.com"
-                style={{ width:"100%", boxSizing:"border-box", background:T.inputBg, border:`1px solid ${T.inputBorder}`, borderRadius:10, padding:"10px 14px", fontSize:13, color:T.primary, outline:"none", transition:"border-color 0.15s" }}
-                onFocus={e=>(e.target.style.borderColor=T.inputFocus)} onBlur={e=>(e.target.style.borderColor=T.inputBorder)}/>
-            </div>
-
-            <div>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                <label style={{ color:T.primary, fontSize:12, fontWeight:500 }}>Password</label>
-                <button type="button" onClick={()=>setShowPw(v=>!v)} style={{ background:"none", border:"none", cursor:"pointer", color:T.muted, fontSize:12 }}>
-                  {showPw?"Hide Password":"Show Password"}
-                </button>
+            {/* Logo */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:24 }}>
+              <div style={{ width:32, height:32, background:"#18181A", borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" fill="#8FFFD6"/></svg>
               </div>
-              <div style={{ position:"relative" }}>
-                <input type={showPw?"text":"password"} required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password"
-                  style={{ width:"100%", boxSizing:"border-box", background:T.inputBg, border:`1px solid ${T.inputBorder}`, borderRadius:10, padding:"10px 40px 10px 14px", fontSize:13, color:T.primary, outline:"none", transition:"border-color 0.15s" }}
+              <span style={{ color:T.primary, fontWeight:700, fontSize:16, letterSpacing:-0.3 }}>StockSense</span>
+            </div>
+
+            <h1 style={{ color:T.primary, fontSize:22, fontWeight:700, textAlign:"center", margin:"0 0 6px" }}>Welcome Back</h1>
+            <p style={{ color:T.muted, fontSize:13, textAlign:"center", margin:"0 0 24px" }}>Sign in to your StockSense account</p>
+
+            {expired && <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:10, background:isDark?"#78350f22":"#fff8e1", border:"1px solid #f59e0b44", color:"#b45309", fontSize:13 }}>Your session expired. Please sign in again.</div>}
+            {error   && <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:10, background:isDark?"#7f1d1d22":"#fef2f2", border:"1px solid #ef444444", color:"#dc2626", fontSize:13 }}>{error}</div>}
+
+            <form onSubmit={handleSubmit} style={{ display:"flex", flexDirection:"column", gap:14 }}>
+              <div>
+                <label style={{ display:"block", color:T.primary, fontSize:12, fontWeight:500, marginBottom:6 }}>Email Address</label>
+                <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address.com"
+                  style={{ width:"100%", boxSizing:"border-box", background:T.inputBg, border:`1px solid ${T.inputBorder}`, borderRadius:10, padding:"10px 14px", fontSize:13, color:T.primary, outline:"none", transition:"border-color 0.15s" }}
                   onFocus={e=>(e.target.style.borderColor=T.inputFocus)} onBlur={e=>(e.target.style.borderColor=T.inputBorder)}/>
-                <button type="button" onClick={()=>setShowPw(v=>!v)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:T.muted, padding:0 }}>
-                  {showPw
-                    ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                    : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  }
-                </button>
               </div>
+
+              <div>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                  <label style={{ color:T.primary, fontSize:12, fontWeight:500 }}>Password</label>
+                  <button type="button" onClick={()=>setShowPw(v=>!v)} style={{ background:"none", border:"none", cursor:"pointer", color:T.muted, fontSize:12 }}>
+                    {showPw?"Hide Password":"Show Password"}
+                  </button>
+                </div>
+                <div style={{ position:"relative" }}>
+                  <input type={showPw?"text":"password"} required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password"
+                    style={{ width:"100%", boxSizing:"border-box", background:T.inputBg, border:`1px solid ${T.inputBorder}`, borderRadius:10, padding:"10px 40px 10px 14px", fontSize:13, color:T.primary, outline:"none", transition:"border-color 0.15s" }}
+                    onFocus={e=>(e.target.style.borderColor=T.inputFocus)} onBlur={e=>(e.target.style.borderColor=T.inputBorder)}/>
+                  <button type="button" onClick={()=>setShowPw(v=>!v)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:T.muted, padding:0 }}>
+                    {showPw
+                      ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    }
+                  </button>
+                </div>
+              </div>
+
+              <button type="submit" disabled={loading}
+                style={{ width:"100%", padding:"11px 0", background:T.btnBg, color:T.btnColor, border:"none", borderRadius:10, fontSize:14, fontWeight:600, cursor:loading?"not-allowed":"pointer", transition:"background 0.15s", marginTop:4 }}>
+                {loading?"Signing in…":"Sign in"}
+              </button>
+            </form>
+
+            <div style={{ display:"flex", alignItems:"center", gap:12, margin:"20px 0" }}>
+              <div style={{ flex:1, height:1, background:T.divider }}/><span style={{ color:T.muted, fontSize:12 }}>or</span><div style={{ flex:1, height:1, background:T.divider }}/>
             </div>
 
-            <button type="submit" disabled={loading}
-              style={{ width:"100%", padding:"11px 0", background:T.btnBg, color:T.btnColor, border:"none", borderRadius:10, fontSize:14, fontWeight:600, cursor:loading?"not-allowed":"pointer", transition:"background 0.15s", marginTop:4 }}>
-              {loading?"Signing in…":"Sign in"}
-            </button>
-          </form>
+            {GOOGLE_CLIENT_ID ? (
+              <div id="google-btn" style={{ width:"100%", display:"flex", justifyContent:"center", minHeight:44, visibility:googleReady?"visible":"hidden" }}/>
+            ) : (
+              <button type="button" onClick={()=>window.location.href="http://localhost:8081/oauth2/authorization/google"}
+                style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, padding:"10px 0", borderRadius:10, background:T.googleBg, border:`1px solid ${T.googleBorder}`, fontSize:13, fontWeight:500, color:T.googleColor, cursor:"pointer", transition:"background 0.15s" }}
+                onMouseEnter={e=>(e.currentTarget.style.background=T.googleHover)} onMouseLeave={e=>(e.currentTarget.style.background=T.googleBg)}>
+                <GoogleIcon/> Continue with Google
+              </button>
+            )}
 
-          <div style={{ display:"flex", alignItems:"center", gap:12, margin:"20px 0" }}>
-            <div style={{ flex:1, height:1, background:T.divider }}/><span style={{ color:T.muted, fontSize:12 }}>or</span><div style={{ flex:1, height:1, background:T.divider }}/>
+            <p style={{ textAlign:"center", color:T.muted, fontSize:13, marginTop:20 }}>
+              Don&apos;t have an account?{" "}
+              <Link href="/register" style={{ color:T.linkColor, fontWeight:600, textDecoration:"none" }}>Sign Up</Link>
+            </p>
           </div>
-
-          {GOOGLE_CLIENT_ID ? (
-            <div id="google-btn" style={{ width:"100%", display:"flex", justifyContent:"center", minHeight:44, visibility:googleReady?"visible":"hidden" }}/>
-          ) : (
-            <button type="button" onClick={()=>window.location.href="http://localhost:8081/oauth2/authorization/google"}
-              style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, padding:"10px 0", borderRadius:10, background:T.googleBg, border:`1px solid ${T.googleBorder}`, fontSize:13, fontWeight:500, color:T.googleColor, cursor:"pointer", transition:"background 0.15s" }}
-              onMouseEnter={e=>(e.currentTarget.style.background=T.googleHover)} onMouseLeave={e=>(e.currentTarget.style.background=T.googleBg)}>
-              <GoogleIcon/> Continue with Google
-            </button>
-          )}
-
-          <p style={{ textAlign:"center", color:T.muted, fontSize:13, marginTop:20 }}>
-            Don&apos;t have an account?{" "}
-            <Link href="/register" style={{ color:T.linkColor, fontWeight:600, textDecoration:"none" }}>Sign Up</Link>
-          </p>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
