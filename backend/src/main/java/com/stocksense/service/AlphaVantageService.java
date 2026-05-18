@@ -1,5 +1,7 @@
 package com.stocksense.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -9,9 +11,12 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AlphaVantageService {
+
+    private static final Logger log = LoggerFactory.getLogger(AlphaVantageService.class);
 
     @Value("${alphavantage.api.key}")
     private String apiKey;
@@ -20,22 +25,82 @@ public class AlphaVantageService {
 
     private static final String BASE = "https://www.alphavantage.co/query";
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // The root cause of ALL 15 errors:
-    //   Map<?, ?> means key=capture<?>, value=capture<?>.
-    //   getOrDefault(Object key, V defaultValue) requires V = capture<?>,
-    //   but we were passing String as the default → type mismatch.
-    //
-    // Fix: replace every m.getOrDefault(key, "default") on a Map<?,?>
-    //      with the helper str(m, key, default) which does an explicit cast.
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Rate limiter — max 4 calls/min (free tier is 5, keep 1 buffer) ────────
+    private static final int    MAX_CALLS_PER_MINUTE = 4;
+    private static final long   MINUTE_MS            = 60_000L;
+    private final List<Long>    callTimestamps        = Collections.synchronizedList(new ArrayList<>());
+
+    // ── TTL cache — symbol → { data, expiresAt } ─────────────────────────────
+    private static final long QUOTE_TTL_MS    = 60_000L;   // 60s for quotes
+    private static final long OVERVIEW_TTL_MS = 3_600_000L; // 1h for overviews
+    private static final long HISTORY_TTL_MS  = 300_000L;  // 5min for history
+
+    private record CacheEntry(Object data, long expiresAt) {
+        boolean isAlive() { return System.currentTimeMillis() < expiresAt; }
+    }
+
+    private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
+
+    // ── Rate-limited API caller ───────────────────────────────────────────────
+
+    /**
+     * Blocks until a call slot is available (max 4/min), then makes the call.
+     * Falls back to mock if rate limit would be exceeded after 2s wait.
+     */
+    private synchronized Map<?, ?> rateLimitedGet(String url) {
+        long now = System.currentTimeMillis();
+
+        // Remove timestamps older than 1 minute
+        callTimestamps.removeIf(t -> now - t > MINUTE_MS);
+
+        if (callTimestamps.size() >= MAX_CALLS_PER_MINUTE) {
+            // Calculate how long until oldest call expires
+            long oldest  = callTimestamps.get(0);
+            long waitMs  = MINUTE_MS - (now - oldest) + 100;
+
+            if (waitMs > 2000) {
+                // Too long to wait — return null so caller uses mock
+                log.warn("[AlphaVantage] Rate limit reached, skipping API call for: {}", url);
+                return null;
+            }
+
+            log.debug("[AlphaVantage] Rate limiting — waiting {}ms", waitMs);
+            try { Thread.sleep(waitMs); } catch (InterruptedException ignored) {}
+        }
+
+        callTimestamps.add(System.currentTimeMillis());
+        try {
+            return restTemplate.getForObject(url, Map.class);
+        } catch (Exception e) {
+            log.warn("[AlphaVantage] API call failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T getCached(String key) {
+        CacheEntry entry = cache.get(key);
+        if (entry != null && entry.isAlive()) {
+            log.debug("[AlphaVantage] Cache hit: {}", key);
+            return (T) entry.data();
+        }
+        return null;
+    }
+
+    private void putCache(String key, Object data, long ttlMs) {
+        cache.put(key, new CacheEntry(data, System.currentTimeMillis() + ttlMs));
+    }
 
     // ── Single real-time quote ────────────────────────────────────────────────
 
     public Map<String, Object> getQuote(String symbol) {
+        String cacheKey = "quote:" + symbol;
+        Map<String, Object> cached = getCached(cacheKey);
+        if (cached != null) return cached;
+
         try {
             String url = BASE + "?function=GLOBAL_QUOTE&symbol=" + symbol + "&apikey=" + apiKey;
-            Map<?, ?> resp = restTemplate.getForObject(url, Map.class);
+            Map<?, ?> resp = rateLimitedGet(url);
             if (resp == null) return mockQuote(symbol);
 
             Map<?, ?> quote = (Map<?, ?>) resp.get("Global Quote");
@@ -51,6 +116,8 @@ public class AlphaVantageService {
             result.put("changePercent", parseChangePct(quote));
             result.put("volume",        parseLong(quote,   "06. volume"));
             result.put("latestDay",     str(quote, "07. latest trading day", ""));
+
+            putCache(cacheKey, result, QUOTE_TTL_MS);
             return result;
         } catch (Exception e) {
             return mockQuote(symbol);
@@ -60,14 +127,20 @@ public class AlphaVantageService {
     // ── Company overview / fundamentals ───────────────────────────────────────
 
     public Map<String, Object> getOverview(String symbol) {
+        String cacheKey = "overview:" + symbol;
+        Map<String, Object> cached = getCached(cacheKey);
+        if (cached != null) return cached;
+
         try {
             String url = BASE + "?function=OVERVIEW&symbol=" + symbol + "&apikey=" + apiKey;
-            Map<?, ?> resp = restTemplate.getForObject(url, Map.class);
+            Map<?, ?> resp = rateLimitedGet(url);
             if (resp == null || resp.isEmpty() || !resp.containsKey("Symbol")) {
                 return mockOverview(symbol);
             }
             Map<String, Object> result = new LinkedHashMap<>();
             resp.forEach((k, v) -> result.put(String.valueOf(k), v));
+
+            putCache(cacheKey, result, OVERVIEW_TTL_MS);
             return result;
         } catch (Exception e) {
             return mockOverview(symbol);
@@ -77,9 +150,13 @@ public class AlphaVantageService {
     // ── Symbol search ─────────────────────────────────────────────────────────
 
     public List<Map<String, Object>> search(String query) {
+        String cacheKey = "search:" + query.toLowerCase();
+        List<Map<String, Object>> cached = getCached(cacheKey);
+        if (cached != null) return cached;
+
         try {
             String url = BASE + "?function=SYMBOL_SEARCH&keywords=" + query + "&apikey=" + apiKey;
-            Map<?, ?> resp = restTemplate.getForObject(url, Map.class);
+            Map<?, ?> resp = rateLimitedGet(url);
             if (resp == null) return Collections.emptyList();
 
             List<?> matches = (List<?>) resp.get("bestMatches");
@@ -95,19 +172,21 @@ public class AlphaVantageService {
                 item.put("region", str(match, "4. region", ""));
                 results.add(item);
             }
+
+            putCache(cacheKey, results, QUOTE_TTL_MS);
             return results;
         } catch (Exception e) {
             return Collections.emptyList();
         }
     }
 
-    // ── Batch quotes ──────────────────────────────────────────────────────────
+    // ── Batch quotes — use cache to avoid burning rate limit ─────────────────
 
     public List<Map<String, Object>> getBatchQuotes(List<String> symbols) {
         List<Map<String, Object>> results = new ArrayList<>();
         for (String symbol : symbols) {
             try {
-                results.add(getQuote(symbol));
+                results.add(getQuote(symbol)); // getQuote handles caching + rate limit
             } catch (Exception e) {
                 results.add(mockQuote(symbol));
             }
@@ -115,9 +194,13 @@ public class AlphaVantageService {
         return results;
     }
 
-    // ── Intraday OHLCV — 5-min bars for 1D chart ─────────────────────────────
+    // ── Intraday OHLCV ────────────────────────────────────────────────────────
 
     public List<Map<String, Object>> getIntraday(String symbol, String interval) {
+        String cacheKey = "intraday:" + symbol + ":" + interval;
+        List<Map<String, Object>> cached = getCached(cacheKey);
+        if (cached != null) return cached;
+
         try {
             String url = BASE
                     + "?function=TIME_SERIES_INTRADAY"
@@ -126,7 +209,7 @@ public class AlphaVantageService {
                     + "&outputsize=compact"
                     + "&apikey="    + apiKey;
 
-            Map<?, ?> resp = restTemplate.getForObject(url, Map.class);
+            Map<?, ?> resp = rateLimitedGet(url);
             if (resp == null) return Collections.emptyList();
 
             String seriesKey = "Time Series (" + interval + ")";
@@ -149,15 +232,21 @@ public class AlphaVantageService {
                 candle.put("volume", parseBarLong(bar,   "5. volume"));
                 candles.add(candle);
             });
+
+            putCache(cacheKey, candles, QUOTE_TTL_MS);
             return candles;
         } catch (Exception e) {
             return Collections.emptyList();
         }
     }
 
-    // ── Daily OHLCV — for 1W / 1M / 1Y / ALL chart ───────────────────────────
+    // ── Daily OHLCV ───────────────────────────────────────────────────────────
 
     public List<Map<String, Object>> getDailyOHLCV(String symbol) {
+        String cacheKey = "daily:" + symbol;
+        List<Map<String, Object>> cached = getCached(cacheKey);
+        if (cached != null) return cached;
+
         try {
             String url = BASE
                     + "?function=TIME_SERIES_DAILY"
@@ -165,7 +254,7 @@ public class AlphaVantageService {
                     + "&outputsize=full"
                     + "&apikey="    + apiKey;
 
-            Map<?, ?> resp = restTemplate.getForObject(url, Map.class);
+            Map<?, ?> resp = rateLimitedGet(url);
             if (resp == null) return Collections.emptyList();
 
             Map<?, ?> series = (Map<?, ?>) resp.get("Time Series (Daily)");
@@ -188,6 +277,8 @@ public class AlphaVantageService {
                 candle.put("volume", parseBarLong(bar,   "5. volume"));
                 candles.add(candle);
             });
+
+            putCache(cacheKey, candles, HISTORY_TTL_MS);
             return candles;
         } catch (Exception e) {
             return Collections.emptyList();
@@ -203,7 +294,7 @@ public class AlphaVantageService {
                     + "&symbol="    + symbol
                     + "&outputsize=compact"
                     + "&apikey="    + apiKey;
-            Map<?, ?> resp = restTemplate.getForObject(url, Map.class);
+            Map<?, ?> resp = rateLimitedGet(url);
             if (resp == null) return Collections.emptyMap();
             Map<String, Object> result = new LinkedHashMap<>();
             resp.forEach((k, v) -> result.put(String.valueOf(k), v));
@@ -251,27 +342,17 @@ public class AlphaVantageService {
 
     // ── Type-safe helpers ─────────────────────────────────────────────────────
 
-    /**
-     * Safe string extraction from Map<?,?> — avoids getOrDefault type errors.
-     * Uses explicit null check + String.valueOf instead of getOrDefault.
-     */
     private String str(Map<?, ?> m, String key, String defaultVal) {
         Object v = m.get(key);
         return v != null ? String.valueOf(v) : defaultVal;
     }
 
-    /**
-     * Parse a double from Map<?,?> by key. Returns 0.0 on any failure.
-     */
     private double parseDouble(Map<?, ?> m, String key) {
         try {
             return Double.parseDouble(str(m, key, "0").replace("%", "").trim());
         } catch (Exception e) { return 0.0; }
     }
 
-    /**
-     * Parse a long from Map<?,?> by key. Returns 0 on any failure.
-     */
     private long parseLong(Map<?, ?> m, String key) {
         try {
             return Long.parseLong(str(m, key, "0").trim());
