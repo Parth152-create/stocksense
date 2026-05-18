@@ -1,18 +1,78 @@
 version: '3.8'
 
 services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16
     container_name: stocksense-postgres
     restart: always
     environment:
-      POSTGRES_DB: stocksense
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB:       stocksense
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d stocksense"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Spring Boot Backend ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: stocksense-backend
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/stocksense
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      JWT_SECRET:                 ${JWT_SECRET:-your_super_secret_key_change_in_production}
+      JWT_EXPIRATION:             604800000
+      ALPHAVANTAGE_API_KEY:       ${ALPHAVANTAGE_API_KEY:-demo}
+      NEWS_API_KEY:               ${NEWS_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── FastAPI ML Service ──────────────────────────────────────────────────────
+  ml-service:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    container_name: stocksense-ml
+    restart: always
+    ports:
+      - "8082:8082"
+    environment:
+      NEWS_API_KEY:       ${NEWS_API_KEY}
+      ALPHA_VANTAGE_KEY:  ${ALPHAVANTAGE_API_KEY:-demo}
+      PORT:               8082
+    depends_on:
+      - backend
+
+  # ── Next.js Frontend ────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: stocksense-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL:              http://backend:8081
+      NEXT_PUBLIC_ML_URL:               http://ml-service:8082
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID:     ${GOOGLE_CLIENT_ID:-}
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:
