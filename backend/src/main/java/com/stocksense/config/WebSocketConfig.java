@@ -2,6 +2,7 @@ package com.stocksense.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stocksense.service.AlphaVantageService;
+import com.stocksense.service.NseService;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.config.annotation.*;
@@ -16,25 +17,33 @@ import java.util.concurrent.*;
  * Client sends:  { "subscribe": ["RELIANCE", "TCS", "AAPL"] }
  *                { "unsubscribe": ["AAPL"] }
  *
- * Server sends every 15s per session:
- *   { "RELIANCE": 2940.50, "TCS": 3921.00, ... }
+ * Server sends every 15s per session — one message per symbol:
+ *   { "symbol": "RELIANCE", "price": 2940.50, "changePct": 0.42, "live": true }
  *
- * Falls back to hash-based mock if Alpha Vantage quota is exceeded.
+ * Price source priority:
+ *   Indian symbols (.BSE/.NSE or known NSE tickers) → NseService (real NSE prices)
+ *   US/Crypto/FX symbols                            → AlphaVantageService (cached)
+ *   Any failure                                     → mock hash-based price
  */
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
 
     private final AlphaVantageService alphaVantageService;
+    private final NseService          nseService;
 
-    public WebSocketConfig(AlphaVantageService alphaVantageService) {
+    public WebSocketConfig(AlphaVantageService alphaVantageService,
+                           NseService nseService) {
         this.alphaVantageService = alphaVantageService;
+        this.nseService          = nseService;
     }
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(new RawWebSocketHandler(alphaVantageService), "/ws/prices")
-                .setAllowedOriginPatterns("*");
+        registry.addHandler(
+            new RawWebSocketHandler(alphaVantageService, nseService),
+            "/ws/prices"
+        ).setAllowedOriginPatterns("*");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -42,16 +51,29 @@ public class WebSocketConfig implements WebSocketConfigurer {
     public static class RawWebSocketHandler implements WebSocketHandler {
 
         private final AlphaVantageService alphaVantageService;
-        private final ObjectMapper mapper = new ObjectMapper();
-        private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
+        private final NseService          nseService;
+        private final ObjectMapper        mapper    = new ObjectMapper();
+        private final ScheduledExecutorService scheduler =
+            Executors.newScheduledThreadPool(4);
+
+        // Known Indian market symbols — these go to NseService
+        private static final Set<String> INDIAN_SYMBOLS = Set.of(
+            "RELIANCE","TCS","INFY","HDFCBANK","WIPRO","ICICIBANK","SBIN",
+            "BAJFINANCE","HINDUNILVR","ADANIENT","TATAMOTORS","TATASTEEL",
+            "AXISBANK","KOTAKBANK","LT","SUNPHARMA","ULTRACEMCO","ASIANPAINT",
+            "MARUTI","NTPC","POWERGRID","ONGC","COALINDIA","TECHM","HCLTECH",
+            "BAJAJFINSV","TITAN","NESTLEIND","BRITANNIA","DIVISLAB"
+        );
 
         // Per-session state
-        private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
-        private final Map<String, Set<String>> sessionSymbols = new ConcurrentHashMap<>();
+        private final Map<String, WebSocketSession> sessions       = new ConcurrentHashMap<>();
+        private final Map<String, Set<String>>      sessionSymbols = new ConcurrentHashMap<>();
         private final Map<String, ScheduledFuture<?>> sessionTasks = new ConcurrentHashMap<>();
 
-        public RawWebSocketHandler(AlphaVantageService alphaVantageService) {
+        public RawWebSocketHandler(AlphaVantageService alphaVantageService,
+                                   NseService nseService) {
             this.alphaVantageService = alphaVantageService;
+            this.nseService          = nseService;
         }
 
         @Override
@@ -61,9 +83,10 @@ public class WebSocketConfig implements WebSocketConfigurer {
         }
 
         @Override
-        public void handleMessage(WebSocketSession session, WebSocketMessage<?> message) throws Exception {
+        public void handleMessage(WebSocketSession session,
+                                  WebSocketMessage<?> message) throws Exception {
             String payload = message.getPayload().toString();
-            Map<?, ?> msg = mapper.readValue(payload, Map.class);
+            Map<?, ?> msg  = mapper.readValue(payload, Map.class);
 
             Set<String> subscribed = sessionSymbols.get(session.getId());
             if (subscribed == null) return;
@@ -79,9 +102,13 @@ public class WebSocketConfig implements WebSocketConfigurer {
             }
         }
 
-        /** Strip .BSE / .NSE suffix — Alpha Vantage uses plain symbols */
+        /** Strip .BSE / .NSE suffix for lookup */
         private String normalise(String s) {
-            return s.replace(".BSE", "").replace(".NSE", "");
+            return s.replace(".BSE", "").replace(".NSE", "").toUpperCase().trim();
+        }
+
+        private boolean isIndianSymbol(String symbol) {
+            return INDIAN_SYMBOLS.contains(symbol);
         }
 
         private void restartTask(WebSocketSession session) {
@@ -99,42 +126,77 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
         private void sendPrices(WebSocketSession session, Set<String> symbols) {
             if (!session.isOpen()) return;
-            Map<String, Object> prices = new LinkedHashMap<>();
+
+            // Send one JSON message per symbol in the format the frontend expects:
+            // { "symbol": "RELIANCE", "price": 2940.50, "changePct": 0.42, "live": true }
+            List<Map<String, Object>> updates = new ArrayList<>();
 
             for (String symbol : symbols) {
-                try {
-                    Map<String, Object> quote = alphaVantageService.getQuote(symbol);
-                    if (quote != null && quote.get("price") instanceof Number) {
-                        prices.put(symbol, ((Number) quote.get("price")).doubleValue());
-                    } else {
-                        prices.put(symbol, mockPrice(symbol));
-                    }
-                } catch (Exception e) {
-                    // Alpha Vantage quota hit or network error — use mock
-                    prices.put(symbol, mockPrice(symbol));
-                }
+                double[] priceData = fetchPrice(symbol);
+                Map<String, Object> update = new LinkedHashMap<>();
+                update.put("symbol",    symbol);
+                update.put("price",     priceData[0]);
+                update.put("changePct", priceData[1]);
+                update.put("live",      priceData[2] == 1.0); // true = real price
+                updates.add(update);
             }
 
             try {
-                session.sendMessage(new TextMessage(mapper.writeValueAsString(prices)));
+                // Send as array so frontend can handle multiple symbols in one message
+                session.sendMessage(new TextMessage(mapper.writeValueAsString(updates)));
             } catch (IOException ignored) {}
         }
 
-        /** Deterministic mock based on symbol hash, same range 100–900 */
+        /**
+         * Returns [price, changePct, isLive(1/0)]
+         * isLive = 1 means real price from NSE/AlphaVantage
+         * isLive = 0 means mock fallback
+         */
+        private double[] fetchPrice(String symbol) {
+            try {
+                if (isIndianSymbol(symbol)) {
+                    // Try NSE first for Indian stocks
+                    double[] nsePrice = nseService.getPrice(symbol);
+                    if (nsePrice != null) {
+                        return new double[]{ nsePrice[0], nsePrice[1], 1.0 };
+                    }
+                }
+
+                // US/Crypto/FX — use Alpha Vantage (cached)
+                Map<String, Object> quote = alphaVantageService.getQuote(symbol);
+                if (quote != null && quote.get("price") instanceof Number price) {
+                    double changePct = quote.get("changePercent") instanceof Number cp
+                        ? cp.doubleValue() : 0.0;
+                    return new double[]{ price.doubleValue(), changePct, 1.0 };
+                }
+            } catch (Exception e) {
+                // Fall through to mock
+            }
+
+            // Mock fallback
+            return new double[]{ mockPrice(symbol), mockChangePct(symbol), 0.0 };
+        }
+
         private double mockPrice(String symbol) {
             int h = Math.abs(symbol.hashCode());
-            double base = 100 + (h % 800);
+            double base   = 100 + (h % 800);
             double jitter = (Math.random() - 0.5) * base * 0.01;
             return Math.round((base + jitter) * 100.0) / 100.0;
         }
 
+        private double mockChangePct(String symbol) {
+            return Math.round(((Math.random() - 0.5) * 4) * 100.0) / 100.0;
+        }
+
         @Override
-        public void handleTransportError(WebSocketSession session, Throwable exception) {
+        public void handleTransportError(WebSocketSession session,
+                                         Throwable exception) {
             cleanup(session.getId());
         }
 
         @Override
-        public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        public void afterConnectionClosed(WebSocketSession session,
+                                          CloseStatus status) {
             cleanup(session.getId());
         }
 

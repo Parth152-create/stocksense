@@ -150,7 +150,7 @@ Everything runs locally — no cloud required.
 ### 1. Clone
 
 ```bash
-git clone <your-repo-url>
+git clone <https://github.com/Parth152-create/stocksensel>
 cd StockSense
 ```
 
