@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useMarket } from "@/hooks/useMarket";
 import {
@@ -10,6 +10,30 @@ import {
 import { TrendingUp, TrendingDown, Plus, RefreshCw, ArrowUpRight, Download } from "lucide-react";
 import { fetchWithAuth } from "@/lib/auth";
 import { exportPortfolioCsv } from "@/lib/csv-export";
+
+// ─── useCountUp Hook ────────────────────────────────────────────────────────
+
+const useCountUp = (target: number, duration: number = 1500) => {
+  const [count, setCount] = useState(0);
+  const animationRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    let startTime: number;
+    const animate = () => {
+      if (!startTime) startTime = Date.now();
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      setCount(Math.floor(progress * target));
+      if (progress < 1) {
+        animationRef.current = setTimeout(animate, 16);
+      }
+    };
+    animate();
+    return () => clearTimeout(animationRef.current!);
+  }, [target, duration]);
+
+  return count;
+};
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -153,6 +177,11 @@ export default function PortfolioPage() {
   const totalPnlPct = summary?.totalPnlPct ?? (totalCost > 0 ? (totalPnl / totalCost) * 100 : 0);
   const isUp = totalPnl >= 0;
 
+  // CountUp animations
+  const countedValue = useCountUp(Math.floor(totalValue));
+  const countedCost = useCountUp(Math.floor(totalCost));
+  const countedPnl = useCountUp(Math.floor(totalPnl));
+
   // Sector allocation (derive from symbol since backend doesn't return sector)
   const SECTOR_MAP: Record<string, string> = {
     NVDA: "Technology", AAPL: "Technology", MSFT: "Technology", ADBE: "Technology",
@@ -216,12 +245,20 @@ export default function PortfolioPage() {
       </div>
 
       {/* Stats row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 14, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 14, marginBottom: 24 }} className="stats-grid">
+        <style>{`
+          @media (max-width: 1024px) {
+            .stats-grid { grid-template-columns: 1fr 1fr !important; }
+          }
+          @media (max-width: 640px) {
+            .stats-grid { grid-template-columns: 1fr !important; }
+          }
+        `}</style>
         <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px", position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 120, background: `radial-gradient(ellipse at right, ${isUp ? "#8FFFD6" : "#ef4444"}08 0%, transparent 70%)`, pointerEvents: "none" }} />
           <p style={{ color: C.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 8px" }}>Total Value</p>
           <p style={{ color: C.primary, fontWeight: 800, fontSize: 28, margin: 0, letterSpacing: -0.5 }}>
-            {currency}{totalValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {currency}{countedValue.toLocaleString("en-US")}
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
             {isUp ? <TrendingUp size={13} color="#22c55e" /> : <TrendingDown size={13} color="#ef4444" />}
@@ -231,19 +268,26 @@ export default function PortfolioPage() {
           </div>
         </div>
         {[
-          { label: "Total Cost",     value: fmt(totalCost),                       color: C.muted },
-          { label: "Unrealized P&L", value: `${isUp ? "+" : ""}${fmt(totalPnl)}`, color: isUp ? "#22c55e" : "#ef4444" },
-          { label: "Positions",      value: holdings.length.toString(),            color: "#8FFFD6" },
-        ].map(({ label, value, color }) => (
+          { label: "Total Cost",     value: countedCost, isFormatted: true, color: C.muted },
+          { label: "Unrealized P&L", value: countedPnl, isFormatted: true, color: isUp ? "#22c55e" : "#ef4444" },
+          { label: "Positions",      value: holdings.length, isFormatted: false, color: "#8FFFD6" },
+        ].map(({ label, value, isFormatted, color }) => (
           <div key={label} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px" }}>
             <p style={{ color: C.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 8px" }}>{label}</p>
-            <p style={{ color, fontWeight: 700, fontSize: 22, margin: 0, letterSpacing: -0.3 }}>{value}</p>
+            <p style={{ color, fontWeight: 700, fontSize: 22, margin: 0, letterSpacing: -0.3 }}>
+              {label === "Positions" ? value : `${isUp && label === "Unrealized P&L" ? "+" : ""}${currency}${value.toLocaleString("en-US")}`}
+            </p>
           </div>
         ))}
       </div>
 
       {/* Chart + Donut */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 280px", gap: 16, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 280px", gap: 16, marginBottom: 24 }} className="chart-donut-grid">
+        <style>{`
+          @media (max-width: 768px) {
+            .chart-donut-grid { grid-template-columns: 1fr !important; }
+          }
+        `}</style>
         <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px" }}>
           <p style={{ color: C.primary, fontWeight: 600, fontSize: 13, margin: "0 0 16px" }}>Portfolio Performance</p>
           <ResponsiveContainer width="100%" height={160}>
@@ -310,7 +354,22 @@ export default function PortfolioPage() {
         </div>
 
         {/* Column headers */}
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 80px", padding: "10px 20px", borderBottom: `1px solid ${C.line}` }}>
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 80px", padding: "10px 20px", borderBottom: `1px solid ${C.line}` }} className="table-header">
+          <style>{`
+            @media (max-width: 1024px) {
+              .table-header { grid-template-columns: 2fr 1fr 1fr 80px !important; }
+              .table-header span:nth-child(3),
+              .table-header span:nth-child(4),
+              .table-header span:nth-child(5) { display: none; }
+            }
+            @media (max-width: 640px) {
+              .table-header { grid-template-columns: 1fr 1fr 80px !important; }
+              .table-header span:nth-child(2),
+              .table-header span:nth-child(3),
+              .table-header span:nth-child(4),
+              .table-header span:nth-child(5) { display: none; }
+            }
+          `}</style>
           {["Asset", "Qty", "Avg Price", "Current", "Market Value", "P&L", ""].map(h => (
             <span key={h} style={{ color: C.muted, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{h}</span>
           ))}
@@ -340,8 +399,26 @@ export default function PortfolioPage() {
               <div key={h.symbol}
                 onClick={() => router.push(`/dashboard/stock/${navSymbol}?market=${market.id}`)}
                 style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 80px", padding: "14px 20px", borderBottom: i < sorted.length - 1 ? `1px solid ${C.line}` : "none", cursor: "pointer", transition: "background 0.15s", alignItems: "center" }}
+                className="table-row"
                 onMouseEnter={e => (e.currentTarget.style.background = C.hover)}
                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <style>{`
+                  @media (max-width: 1024px) {
+                    .table-row { grid-template-columns: 2fr 1fr 1fr 80px !important; }
+                    .table-row span:nth-child(3),
+                    .table-row span:nth-child(4),
+                    .table-row span:nth-child(5),
+                    .table-row div:nth-child(6) { display: none; }
+                  }
+                  @media (max-width: 640px) {
+                    .table-row { grid-template-columns: 1fr 1fr 80px !important; }
+                    .table-row span:nth-child(2),
+                    .table-row span:nth-child(3),
+                    .table-row span:nth-child(4),
+                    .table-row span:nth-child(5),
+                    .table-row div:nth-child(6) { display: none; }
+                  }
+                `}</style>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <StockAvatar symbol={h.symbol} color={color} bg={bg} size={34} />
                   <div>

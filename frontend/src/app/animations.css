@@ -107,3 +107,24 @@
 .nav-item.active {
   padding-left: 10px;
 }
+
+/* ─── Responsive breakpoints ─────────────────────────────────────────────────── */
+
+/* Tablet — ≤ 900px */
+@media (max-width: 900px) {
+  .grid-2col   { grid-template-columns: 1fr !important; }
+  .grid-3col   { grid-template-columns: 1fr 1fr !important; }
+  .grid-4col   { grid-template-columns: 1fr 1fr !important; }
+  .hide-mobile { display: none !important; }
+  .stack       { flex-direction: column !important; }
+}
+
+/* Mobile — ≤ 600px */
+@media (max-width: 600px) {
+  .grid-2col   { grid-template-columns: 1fr !important; }
+  .grid-3col   { grid-template-columns: 1fr !important; }
+  .grid-4col   { grid-template-columns: 1fr !important; }
+  .grid-12col  { grid-template-columns: repeat(6,1fr) !important; }
+  .page-pad    { padding: 16px !important; }
+  .hide-mobile { display: none !important; }
+}

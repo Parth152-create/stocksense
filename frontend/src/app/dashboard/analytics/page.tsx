@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Cell, Legend,
+  ResponsiveContainer, BarChart, Bar, Cell,
 } from "recharts";
 import {
   TrendingUp, TrendingDown, BarChart2, Shield,
@@ -15,10 +15,27 @@ import { fetchWithAuth } from "@/lib/auth";
 type TimeRange = "1M" | "1Y" | "All";
 
 interface PortfolioPoint { date: string; value: number; }
+interface MultiPortfolioPoint {
+  date: string;
+  overall: number;
+  growth: number;
+  crypto: number;
+}
 interface AnalyticsData {
   totalValue: number;
   changePercent: number;
   allocation: { label: string; pct: number }[];
+}
+interface TooltipPayloadItem {
+  dataKey?: unknown;
+  value?: unknown;
+  stroke?: string;
+}
+interface AnalyticsTooltipProps {
+  active?: boolean;
+  payload?: readonly TooltipPayloadItem[];
+  label?: unknown;
+  sym: string;
 }
 
 const C = {
@@ -32,7 +49,42 @@ const C = {
 
 const SECTOR_COLORS = ["#8FFFD6", "#6366f1", "#f59e0b", "#ef4444", "#a855f7", "#ec4899"];
 
+// ─── useCountUp Hook ────────────────────────────────────────────────────────
+
+const useCountUp = (target: number, duration: number = 1500) => {
+  const [count, setCount] = useState(0);
+  const animationRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const start = performance.now();
+
+    const animate = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      setCount(Math.floor(progress * target));
+
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current !== null) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [target, duration]);
+
+  return count;
+};
+
 // ─── Mock chart data generators ───────────────────────────────────────────────
+
+function seededNoise(index: number, seed: number, range: TimeRange) {
+  const rangeOffset = range === "1M" ? 11 : range === "1Y" ? 29 : 47;
+  return Math.sin((index + 1) * 12.9898 + seed * 78.233 + rangeOffset) * 43758.5453 % 1;
+}
 
 function generateHistory(range: TimeRange, seed = 0): PortfolioPoint[] {
   const points = range === "1M" ? 30 : range === "1Y" ? 52 : 120;
@@ -43,7 +95,7 @@ function generateHistory(range: TimeRange, seed = 0): PortfolioPoint[] {
     if (range === "1M")      d.setDate(d.getDate() - i);
     else if (range === "1Y") d.setDate(d.getDate() - i * 7);
     else                     d.setDate(d.getDate() - i * 3);
-    v += (Math.random() - 0.46 + seed * 0.02) * 2200;
+    v += (seededNoise(i, seed, range) - 0.46 + seed * 0.02) * 2200;
     const label =
       range === "1M"
         ? d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })
@@ -56,7 +108,7 @@ function generateHistory(range: TimeRange, seed = 0): PortfolioPoint[] {
 }
 
 // Generate multi-portfolio data by merging multiple seeds
-function generateMultiPortfolio(range: TimeRange) {
+function generateMultiPortfolio(range: TimeRange): MultiPortfolioPoint[] {
   const base   = generateHistory(range, 0);
   const growth = generateHistory(range, 1);
   const crypto = generateHistory(range, 2);
@@ -105,11 +157,10 @@ function RiskGauge({ score }: { score: number }) {
 
 function AllocationDonut({ segments }: { segments: { label: string; pct: number; color: string }[] }) {
   const r = 44, cx = 60, cy = 60, circ = 2 * Math.PI * r;
-  let cum = 0;
-  const slices = segments.map(s => {
+  const slices = segments.map((s, index) => {
+    const previousPct = segments.slice(0, index).reduce((sum, segment) => sum + segment.pct, 0);
     const da = `${(s.pct / 100) * circ} ${circ}`;
-    const doff = -((cum / 100) * circ);
-    cum += s.pct;
+    const doff = -((previousPct / 100) * circ);
     return { ...s, dashArray: da, dashOffset: doff };
   });
   return (
@@ -138,11 +189,11 @@ function AllocationDonut({ segments }: { segments: { label: string; pct: number;
 
 // ─── Tooltips ─────────────────────────────────────────────────────────────────
 
-const PerfTooltip = ({ active, payload, label, sym }: any) => {
+const PerfTooltip = ({ active, payload, label, sym }: AnalyticsTooltipProps) => {
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 16px", fontSize: 12 }}>
-      <p style={{ color: C.muted, marginBottom: 6 }}>{label}</p>
+      <p style={{ color: C.muted, marginBottom: 6 }}>{String(label ?? "")}</p>
       <p style={{ color: "#8FFFD6", fontWeight: 600, margin: 0 }}>
         {sym}{Number(payload[0].value).toLocaleString("en-IN")}
       </p>
@@ -150,21 +201,25 @@ const PerfTooltip = ({ active, payload, label, sym }: any) => {
   );
 };
 
-const MultiTooltip = ({ active, payload, label, sym }: any) => {
+const MultiTooltip = ({ active, payload, label, sym }: AnalyticsTooltipProps) => {
   if (!active || !payload?.length) return null;
   const colors: Record<string, string> = { overall: "#8FFFD6", growth: "#6366f1", crypto: "#f59e0b" };
   return (
     <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 16px", fontSize: 12 }}>
-      <p style={{ color: C.muted, marginBottom: 8 }}>{label}</p>
-      {payload.map((p: any) => (
-        <div key={p.dataKey} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: colors[p.dataKey] ?? p.stroke }} />
-          <span style={{ color: C.muted, textTransform: "capitalize" }}>{p.dataKey}:</span>
-          <span style={{ color: colors[p.dataKey] ?? p.stroke, fontWeight: 600 }}>
-            {sym}{Number(p.value).toLocaleString("en-IN")}
-          </span>
-        </div>
-      ))}
+      <p style={{ color: C.muted, marginBottom: 8 }}>{String(label ?? "")}</p>
+      {payload.map((p) => {
+        const key = String(p.dataKey ?? "");
+        const color = colors[key] ?? p.stroke;
+        return (
+          <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
+            <span style={{ color: C.muted, textTransform: "capitalize" }}>{key}:</span>
+            <span style={{ color, fontWeight: 600 }}>
+              {sym}{Number(p.value).toLocaleString("en-IN")}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 };
@@ -213,21 +268,15 @@ export default function AnalyticsPage() {
 
   const [range,     setRange]     = useState<TimeRange>("1Y");
   const [multiRange, setMultiRange] = useState<TimeRange>("1Y");
-  const [history,   setHistory]   = useState<PortfolioPoint[]>([]);
-  const [multiData, setMultiData] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-  const [loading,   setLoading]   = useState(true);
-
-  useEffect(() => { setHistory(generateHistory(range)); }, [range]);
-  useEffect(() => { setMultiData(generateMultiPortfolio(multiRange)); }, [multiRange]);
+  const history = useMemo(() => generateHistory(range), [range]);
+  const multiData = useMemo(() => generateMultiPortfolio(multiRange), [multiRange]);
 
   useEffect(() => {
-    setLoading(true);
     fetchWithAuth(`/api/market/${market.id}/analytics`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setAnalytics(data); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => {});
   }, [market.id]);
 
   const allocSegs = analytics?.allocation?.length
@@ -241,10 +290,34 @@ export default function AnalyticsPage() {
   const totalValue = analytics?.totalValue ?? 93314;
   const changePct  = analytics?.changePercent ?? 6.42;
   const isUp       = changePct >= 0;
+  const totalInvested = 82416;
+  const unrealisedPnl = totalValue - totalInvested;
+  const unrealisedPnlPct = (unrealisedPnl / totalInvested) * 100;
+  const countedTotalValue = useCountUp(Math.floor(totalValue));
+  const countedTotalInvested = useCountUp(totalInvested);
+  const countedUnrealisedPnl = useCountUp(Math.abs(Math.floor(unrealisedPnl)));
 
   return (
     <>
-      <style>{`.range-pill:hover { opacity: 0.8; }`}</style>
+      <style>{`
+        .range-pill:hover { opacity: 0.8; }
+        .analytics-stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .analytics-portfolio-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .analytics-risk-allocation-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .analytics-heatmap-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+
+        @media (max-width: 768px) {
+          .analytics-stat-grid,
+          .analytics-portfolio-grid,
+          .analytics-risk-allocation-grid {
+            grid-template-columns: minmax(0, 1fr);
+          }
+
+          .analytics-heatmap-grid {
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+          }
+        }
+      `}</style>
       <div style={{ padding: "28px 32px", maxWidth: 1200, margin: "0 auto", background: C.page, minHeight: "100vh", animation: "fadeInUp 0.35s ease both" }}>
 
         {/* Header */}
@@ -257,10 +330,10 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Stat cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
-          <StatCard label="Portfolio Value"  value={totalValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })} change={`${isUp?"+":""}${changePct.toFixed(2)}%`} positive={isUp}  currencySymbol={sym} />
-          <StatCard label="Total Invested"   value="82,416.00" change="+4.75%"  positive={true}  currencySymbol={sym} />
-          <StatCard label="Unrealised P&L"   value="10,898.00" change="-2.13%"  positive={false} currencySymbol={sym} />
+        <div className="analytics-stat-grid" style={{ display: "grid", gap: 14, marginBottom: 20 }}>
+          <StatCard label="Portfolio Value"  value={countedTotalValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })} change={`${isUp?"+":""}${changePct.toFixed(2)}%`} positive={isUp}  currencySymbol={sym} />
+          <StatCard label="Total Invested"   value={countedTotalInvested.toLocaleString("en-IN", { minimumFractionDigits: 2 })} change="+4.75%"  positive={true}  currencySymbol={sym} />
+          <StatCard label="Unrealised P&L"   value={countedUnrealisedPnl.toLocaleString("en-IN", { minimumFractionDigits: 2 })} change={`${unrealisedPnlPct >= 0 ? "+" : ""}${unrealisedPnlPct.toFixed(2)}%`}  positive={unrealisedPnl >= 0} currencySymbol={unrealisedPnl < 0 ? `-${sym}` : sym} />
         </div>
 
         {/* ── Multi-portfolio comparison — matches Figma Page 3 ── */}
@@ -281,7 +354,7 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Portfolio summary cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
+          <div className="analytics-portfolio-grid" style={{ display: "grid", gap: 12, marginBottom: 20 }}>
             {PORTFOLIO_CARDS.map(p => (
               <div key={p.label} style={{ background: C.page, border: `1px solid ${C.line}`, borderRadius: 10, padding: "14px 16px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
@@ -301,7 +374,7 @@ export default function AnalyticsPage() {
               <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="date" tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false} interval={Math.floor(multiData.length / 8)} />
               <YAxis tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${sym}${(v/1000).toFixed(0)}k`} width={56} domain={["auto","auto"]} />
-              <Tooltip content={(p: any) => <MultiTooltip {...p} sym={sym} />} />
+              <Tooltip content={(p) => <MultiTooltip {...p} sym={sym} />} />
               <Line type="monotone" dataKey="overall" stroke="#8FFFD6" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#8FFFD6", strokeWidth: 0 }} name="Overall" />
               <Line type="monotone" dataKey="growth"  stroke="#6366f1" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#6366f1", strokeWidth: 0 }} name="Growth"  />
               <Line type="monotone" dataKey="crypto"  stroke="#f59e0b" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#f59e0b", strokeWidth: 0 }} name="Crypto"  />
@@ -330,14 +403,14 @@ export default function AnalyticsPage() {
               <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="date" tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false} interval={Math.floor(history.length / 8)} />
               <YAxis tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${sym}${(v / 1000).toFixed(0)}k`} width={56} domain={["auto", "auto"]} />
-              <Tooltip content={(p: any) => <PerfTooltip {...p} sym={sym} />} />
+              <Tooltip content={(p) => <PerfTooltip {...p} sym={sym} />} />
               <Line type="monotone" dataKey="value" stroke="#8FFFD6" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#8FFFD6", strokeWidth: 0 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
         {/* Risk + Allocation */}
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 14, marginBottom: 20 }}>
+        <div className="analytics-risk-allocation-grid" style={{ display: "grid", gap: 14, marginBottom: 20 }}>
 
           {/* Risk */}
           <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "22px 24px" }}>
@@ -405,7 +478,10 @@ export default function AnalyticsPage() {
               <YAxis tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
               <Tooltip
                 contentStyle={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 11 }}
-                formatter={(v: any) => [`${v > 0 ? "+" : ""}${v}%`, "Return"]}
+                formatter={(v) => {
+                  const value = Number(v);
+                  return [`${value > 0 ? "+" : ""}${value}%`, "Return"];
+                }}
                 labelStyle={{ color: C.muted }} />
               <Bar dataKey="ret" radius={[4, 4, 0, 0]}>
                 {MONTHLY.map((m, i) => (
@@ -422,7 +498,7 @@ export default function AnalyticsPage() {
             <TrendingDown size={15} color="#8FFFD6" />
             <span style={{ color: C.primary, fontWeight: 600, fontSize: 14 }}>Return Heatmap</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(12,1fr)", gap: 6 }}>
+          <div className="analytics-heatmap-grid" style={{ display: "grid", gap: 6 }}>
             {MONTHLY.map(({ month, ret }) => {
               const pos = ret >= 0;
               const intensity = Math.min(Math.abs(ret) / 10, 1);

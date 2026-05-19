@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
@@ -10,6 +10,28 @@ import { useMarket } from "@/lib/MarketContext";
 import StockSearch from "@/components/StockSearch";
 import { useLivePrices } from "@/lib/websocket";
 import { Search, SlidersHorizontal } from "lucide-react";
+
+const useCountUp = (target: number, duration: number = 1500) => {
+  const [count, setCount] = useState(0);
+  const animationRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    let startTime: number;
+    const animate = () => {
+      if (!startTime) startTime = Date.now();
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      setCount(Math.floor(progress * target));
+      if (progress < 1) {
+        animationRef.current = setTimeout(animate, 16);
+      }
+    };
+    animate();
+    return () => clearTimeout(animationRef.current!);
+  }, [target, duration]);
+
+  return count;
+};
 
 const MARKET_DATA: Record<string, {
   holdings: { symbol: string; shares: number; color: string; bg: string; letter: string }[];
@@ -308,6 +330,14 @@ export default function DashboardPage() {
   const txSymbols  = md.transactions.map(t => resolveSymbol(t.symbol, key));
   const livePrices = useLivePrices(txSymbols);
 
+  // Extract numeric values for animations
+  const tradingPointsTarget = md.tradingPoints;
+  const tradingScoreNumeric = parseInt(md.tradingScore.replace(/[^\d]/g, ""), 10);
+  
+  // CountUp animations
+  const countedTradingPoints = useCountUp(tradingPointsTarget);
+  const countedTradingScore = useCountUp(tradingScoreNumeric);
+
   return (
     <div style={{
       minHeight: "100vh",
@@ -332,7 +362,18 @@ export default function DashboardPage() {
       </div>
 
       {/* ── ROW 1: Chart + Trading Score ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 240px", gap: 12, animation: "fadeInUp 0.35s ease" }}>
+      <div style={{ 
+        display: "grid", 
+        gridTemplateColumns: "minmax(0,1fr) 240px", 
+        gap: 12, 
+        animation: "fadeInUp 0.35s ease"
+      }} 
+      className="responsive-grid-1">
+        <style>{`
+          @media (max-width: 768px) {
+            .responsive-grid-1 { grid-template-columns: 1fr !important; }
+          }
+        `}</style>
 
         {/* Buy & Sell Activity */}
         <Card style={{ position: "relative", overflow: "hidden", minHeight: 240, padding: 16 }}>
@@ -424,12 +465,12 @@ export default function DashboardPage() {
               color: "var(--color-primary)", fontWeight: 800, fontSize: 22,
               lineHeight: 1, letterSpacing: "-0.03em", margin: "0 0 4px",
             }}>
-              {md.tradingScore}
+              {currency}{countedTradingScore.toLocaleString()}
             </p>
             <p style={{ color: "var(--color-muted)", fontSize: 11, margin: "0 0 20px" }}>Total buy volume</p>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ color: "var(--color-primary)", fontWeight: 800, fontSize: 22, letterSpacing: "-0.02em" }}>
-                {md.tradingPoints.toLocaleString()}
+                {countedTradingPoints.toLocaleString()}
               </span>
               <div style={{
                 width: 22, height: 22, borderRadius: "50%",
@@ -448,7 +489,18 @@ export default function DashboardPage() {
       </div>
 
       {/* ── ROW 2: Holdings | Portfolio | Transactions ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr)", gap: 12, animation: "fadeInUp 0.4s ease" }}>
+      <div style={{ 
+        display: "grid", 
+        gridTemplateColumns: "minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr)", 
+        gap: 12, 
+        animation: "fadeInUp 0.4s ease"
+      }} 
+      className="responsive-grid-2">
+        <style>{`
+          @media (max-width: 768px) {
+            .responsive-grid-2 { grid-template-columns: 1fr !important; }
+          }
+        `}</style>
 
         {/* LEFT col */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
