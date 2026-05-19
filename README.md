@@ -3,14 +3,7 @@
 > A full-stack stock trading simulator with real-time prices, ML-powered insights, portfolio management, and multi-market support.
 
 ---
-1. **Dashboard**
-![StockSense Dashboard](./docs/images/dashboard.png)
-2. **Stock Detail** 
-![Stock Page](./docs/images/stock.png)
-3. **Wallet Page**
-![Wallet Page](./docs/images/wallet.png)
-4. **Price Alert Notification**
-![Price Alert](./docs/images/price-alert.png)
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -135,6 +128,18 @@ Everything runs locally — no cloud required.
 ```
 
 ---
+## Screenshots
+1. **Dashboard**
+![StockSense Dashboard](./docs/images/dashboard.png)
+2. **Stock Detail** 
+![Stock Page](./docs/images/stock.png)
+3. **Wallet Page**
+![Wallet Page](./docs/images/wallet.png)
+4. **Price Alert Notification**
+![Price Alert](./docs/images/price-alert.png)
+5. **ML Insights Panel**
+![ML Insights](./docs/images/ml-insights.png)
+
 
 ## Quick Start (Docker)
 
