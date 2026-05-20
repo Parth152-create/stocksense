@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
+import { motion } from "framer-motion";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -11,25 +12,37 @@ import StockSearch from "@/components/StockSearch";
 import { useLivePrices } from "@/lib/websocket";
 import { Search, SlidersHorizontal } from "lucide-react";
 
+// ── Animation variants ────────────────────────────────────────────────────────
+const fadeUp = {
+  hidden:  { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0  },
+};
+
+const stagger = {
+  visible: { transition: { staggerChildren: 0.07 } },
+};
+
+const cardVariant = {
+  hidden:  { opacity: 0, y: 20, scale: 0.98 },
+  visible: { opacity: 1, y: 0,  scale: 1    },
+};
+
+// ── useCountUp ────────────────────────────────────────────────────────────────
 const useCountUp = (target: number, duration: number = 1500) => {
   const [count, setCount] = useState(0);
   const animationRef = useRef<NodeJS.Timeout | null>(null);
-
   useEffect(() => {
     let startTime: number;
     const animate = () => {
       if (!startTime) startTime = Date.now();
-      const elapsed = Date.now() - startTime;
+      const elapsed  = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
       setCount(Math.floor(progress * target));
-      if (progress < 1) {
-        animationRef.current = setTimeout(animate, 16);
-      }
+      if (progress < 1) animationRef.current = setTimeout(animate, 16);
     };
     animate();
     return () => clearTimeout(animationRef.current!);
   }, [target, duration]);
-
   return count;
 };
 
@@ -57,9 +70,9 @@ const MARKET_DATA: Record<string, {
       { symbol: "WIPRO",    name: "Wipro",     change: null, amount: -800,  color: "#ef4444", bg: "#ef444422", letter: "W" },
     ],
     portfolioValue: "₹7,84,320",
-    portfolioGain: "+₹62,410 this month",
-    tradingScore: "₹9,42,500",
-    tradingPoints: 4820,
+    portfolioGain:  "+₹62,410 this month",
+    tradingScore:   "₹9,42,500",
+    tradingPoints:  4820,
   },
   US: {
     holdings: [
@@ -77,9 +90,9 @@ const MARKET_DATA: Record<string, {
       { symbol: "MCD",   name: "McDonald's", change: null, amount: -340,  color: "#ffbc0d", bg: "#ffbc0d22", letter: "M" },
     ],
     portfolioValue: "$93,314",
-    portfolioGain: "+$8,461 this month",
-    tradingScore: "$1,184,600",
-    tradingPoints: 6280,
+    portfolioGain:  "+$8,461 this month",
+    tradingScore:   "$1,184,600",
+    tradingPoints:  6280,
   },
   CRYPTO: {
     holdings: [
@@ -97,9 +110,9 @@ const MARKET_DATA: Record<string, {
       { symbol: "AVAX", name: "Avalanche", change: null, amount: -90,   color: "#e84142", bg: "#e8414222", letter: "A" },
     ],
     portfolioValue: "$28,540",
-    portfolioGain: "+$3,120 this month",
-    tradingScore: "$842,000",
-    tradingPoints: 3140,
+    portfolioGain:  "+$3,120 this month",
+    tradingScore:   "$842,000",
+    tradingPoints:  3140,
   },
   FX: {
     holdings: [
@@ -117,9 +130,9 @@ const MARKET_DATA: Record<string, {
       { symbol: "USD/CAD", name: "USD/CAD", change: null, amount: -180,  color: "#ef4444", bg: "#ef444422", letter: "C" },
     ],
     portfolioValue: "$48,720",
-    portfolioGain: "+$3,210 this month",
-    tradingScore: "$2,340,000",
-    tradingPoints: 8940,
+    portfolioGain:  "+$3,210 this month",
+    tradingScore:   "$2,340,000",
+    tradingPoints:  8940,
   },
 };
 
@@ -138,7 +151,7 @@ const ALL_BUY_SELL_DATA = [
 
 function filterDashboardData(range: string) {
   const cutoffs: Record<string, number> = { "1D": 1, "7D": 7, "1M": 30, "1Y": 365, "All": 9999 };
-  const maxDays = cutoffs[range] ?? 9999;
+  const maxDays  = cutoffs[range] ?? 9999;
   const filtered = ALL_BUY_SELL_DATA.filter(d => d.daysAgo <= maxDays);
   return filtered.length >= 2 ? filtered : ALL_BUY_SELL_DATA.slice(-2);
 }
@@ -231,17 +244,14 @@ function StockAvatar({ symbol, color, bg, letter, px = 32 }: {
   );
 }
 
-// ── Theme-aware 3D coin ───────────────────────────────────────────────────────
 function CoinSVG() {
   const { resolvedTheme } = useTheme();
   const dark = resolvedTheme !== "light";
-
   const outerFill  = dark ? "#2a2a2a" : "#e2e8f0";
   const innerFill  = dark ? "#181818" : "#cbd5e1";
   const outerFill2 = dark ? "#222222" : "#dde4ee";
   const innerFill2 = dark ? "#131313" : "#c8d3e0";
   const edgeStroke = dark ? "#ffffff" : "#94a3b8";
-
   return (
     <div style={{
       position: "absolute", right: -8, top: 0, bottom: 0,
@@ -272,22 +282,14 @@ function CoinSVG() {
             <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
         </defs>
-
-        {/* Back coin */}
         <ellipse cx="118" cy="125" rx="56" ry="56" fill="url(#coin1)"/>
         <ellipse cx="118" cy="122" rx="48" ry="48" fill="url(#coin2)"/>
-        <ellipse cx="118" cy="125" rx="56" ry="56" fill="none"
-          stroke={edgeStroke} strokeWidth="0.4" strokeOpacity="0.15"/>
-        <polygon points="122,98 109,124 119,124 112,150 132,117 120,117"
-          fill="#8FFFD6" opacity={dark ? 0.45 : 0.6} filter="url(#glow)"/>
-
-        {/* Front coin */}
+        <ellipse cx="118" cy="125" rx="56" ry="56" fill="none" stroke={edgeStroke} strokeWidth="0.4" strokeOpacity="0.15"/>
+        <polygon points="122,98 109,124 119,124 112,150 132,117 120,117" fill="#8FFFD6" opacity={dark ? 0.45 : 0.6} filter="url(#glow)"/>
         <ellipse cx="88" cy="98"  rx="60" ry="60" fill="url(#coin3)"/>
         <ellipse cx="88" cy="95"  rx="51" ry="51" fill="url(#coin4)"/>
-        <ellipse cx="88" cy="98"  rx="60" ry="60" fill="none"
-          stroke={edgeStroke} strokeWidth="0.5" strokeOpacity="0.2"/>
-        <polygon points="93,68 78,98 90,98 82,128 104,93 91,93"
-          fill="#8FFFD6" opacity={dark ? 1 : 0.9} filter="url(#glow)"/>
+        <ellipse cx="88" cy="98"  rx="60" ry="60" fill="none" stroke={edgeStroke} strokeWidth="0.5" strokeOpacity="0.2"/>
+        <polygon points="93,68 78,98 90,98 82,128 104,93 91,93" fill="#8FFFD6" opacity={dark ? 1 : 0.9} filter="url(#glow)"/>
       </svg>
     </div>
   );
@@ -304,15 +306,22 @@ function LiveDot() {
 
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{
-      background: "var(--color-card)",
-      border: "1px solid var(--color-line)",
-      borderRadius: 16,
-      padding: 16,
-      ...style,
-    }}>
+    <motion.div
+      variants={cardVariant}
+      transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+      whileHover={{ y: -2, boxShadow: "0 12px 40px rgba(0,0,0,0.15)" }}
+      style={{
+        background:    "var(--color-card)",
+        border:        "1px solid var(--color-line)",
+        borderRadius:  16,
+        padding:       16,
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+        ...style,
+      }}
+    >
       {children}
-    </div>
+    </motion.div>
   );
 }
 
@@ -330,49 +339,43 @@ export default function DashboardPage() {
   const txSymbols  = md.transactions.map(t => resolveSymbol(t.symbol, key));
   const livePrices = useLivePrices(txSymbols);
 
-  // Extract numeric values for animations
   const tradingPointsTarget = md.tradingPoints;
   const tradingScoreNumeric = parseInt(md.tradingScore.replace(/[^\d]/g, ""), 10);
-  
-  // CountUp animations
   const countedTradingPoints = useCountUp(tradingPointsTarget);
-  const countedTradingScore = useCountUp(tradingScoreNumeric);
+  const countedTradingScore  = useCountUp(tradingScoreNumeric);
 
   return (
     <div style={{
-      minHeight: "100vh",
-      padding: 16,
-      display: "flex",
-      flexDirection: "column",
-      gap: 12,
+      minHeight: "100vh", padding: 16,
+      display: "flex", flexDirection: "column", gap: 12,
       background: "var(--color-page)",
-      fontFamily: "'Geist', 'Inter', sans-serif",
-      boxSizing: "border-box",
-      width: "100%",
-      overflowX: "hidden",
+      fontFamily: "var(--font-gantari,'Gantari',system-ui,sans-serif)",
+      boxSizing: "border-box", width: "100%", overflowX: "hidden",
     }}>
       <style>{`
         @keyframes ping { 0%{transform:scale(1);opacity:.75} 100%{transform:scale(2.2);opacity:0} }
-        @keyframes fadeInUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
 
       {/* Search */}
-      <div style={{ maxWidth: 440, animation: "fadeInUp 0.3s ease" }}>
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0  }}
+        transition={{ duration: 0.3 }}
+        style={{ maxWidth: 440 }}
+      >
         <StockSearch />
-      </div>
+      </motion.div>
 
-      {/* ── ROW 1: Chart + Trading Score ── */}
-      <div style={{ 
-        display: "grid", 
-        gridTemplateColumns: "minmax(0,1fr) 240px", 
-        gap: 12, 
-        animation: "fadeInUp 0.35s ease"
-      }} 
-      className="responsive-grid-1">
+      {/* ── ROW 1 ── */}
+      <motion.div
+        variants={stagger}
+        initial="hidden"
+        animate="visible"
+        style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 240px", gap: 12 }}
+        className="responsive-grid-1"
+      >
         <style>{`
-          @media (max-width: 768px) {
-            .responsive-grid-1 { grid-template-columns: 1fr !important; }
-          }
+          @media (max-width: 768px) { .responsive-grid-1 { grid-template-columns: 1fr !important; } }
         `}</style>
 
         {/* Buy & Sell Activity */}
@@ -395,7 +398,6 @@ export default function DashboardPage() {
           </div>
 
           <div style={{ position: "relative", height: 160 }}>
-            {/* Event pins — rendered ABOVE chart, labels above pin dot */}
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 10 }}>
               {pins.map((pin, i) => {
                 const accentColor = pin.color === "#8FFFD6" ? "#8FFFD6"
@@ -403,36 +405,35 @@ export default function DashboardPage() {
                 const dotBg = pin.color === "#8FFFD6" ? "#22c55e"
                   : pin.color === "#fff" ? "#555" : "#ef4444";
                 return (
-                  <div key={i} style={{
-                    position: "absolute", left: pin.left, top: pin.top,
-                    display: "flex", flexDirection: "column", alignItems: "center",
-                    transform: "translateX(-50%)",
-                  }}>
-                    {/* Label pill */}
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 1, scale: 1   }}
+                    transition={{ delay: 0.4 + i * 0.1, duration: 0.3, type: "spring" }}
+                    style={{
+                      position: "absolute", left: pin.left, top: pin.top,
+                      display: "flex", flexDirection: "column", alignItems: "center",
+                      transform: "translateX(-50%)",
+                    }}>
                     <div style={{
                       borderRadius: 6, padding: "2px 7px", fontSize: 9, fontWeight: 600,
                       whiteSpace: "nowrap", marginBottom: 3,
-                      background: "var(--color-card)",
-                      color: accentColor,
+                      background: "var(--color-card)", color: accentColor,
                       border: `1px solid ${accentColor}44`,
                       boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
                     }}>{pin.label}</div>
-                    {/* Stem */}
                     <div style={{ width: 1, height: 12, background: `${accentColor}88` }} />
-                    {/* Dot */}
                     <div style={{
-                      width: 14, height: 14, borderRadius: "50%",
-                      background: dotBg,
+                      width: 14, height: 14, borderRadius: "50%", background: dotBg,
                       border: `2px solid ${accentColor}`,
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 7, fontWeight: 800, color: "#fff",
                       boxShadow: `0 0 6px ${accentColor}66`,
                     }}>{pin.letter}</div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
-
             <ResponsiveContainer width="100%" height={160}>
               <AreaChart data={filterDashboardData(activeRange)} margin={{ top: 28, right: 8, bottom: 0, left: -20 }}>
                 <defs>
@@ -456,15 +457,12 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        {/* Trading Score — improved coin */}
+        {/* Trading Score */}
         <Card style={{ position: "relative", overflow: "hidden", minHeight: 240 }}>
           <CoinSVG />
           <div style={{ position: "relative", zIndex: 10 }}>
             <p style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 12, marginBottom: 24 }}>Trading Score</p>
-            <p style={{
-              color: "var(--color-primary)", fontWeight: 800, fontSize: 22,
-              lineHeight: 1, letterSpacing: "-0.03em", margin: "0 0 4px",
-            }}>
+            <p style={{ color: "var(--color-primary)", fontWeight: 800, fontSize: 22, lineHeight: 1, letterSpacing: "-0.03em", margin: "0 0 4px" }}>
               {currency}{countedTradingScore.toLocaleString()}
             </p>
             <p style={{ color: "var(--color-muted)", fontSize: 11, margin: "0 0 20px" }}>Total buy volume</p>
@@ -486,24 +484,23 @@ export default function DashboardPage() {
             <p style={{ color: "var(--color-muted)", fontSize: 11, marginTop: 4 }}>Trading points</p>
           </div>
         </Card>
-      </div>
+      </motion.div>
 
-      {/* ── ROW 2: Holdings | Portfolio | Transactions ── */}
-      <div style={{ 
-        display: "grid", 
-        gridTemplateColumns: "minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr)", 
-        gap: 12, 
-        animation: "fadeInUp 0.4s ease"
-      }} 
-      className="responsive-grid-2">
+      {/* ── ROW 2 ── */}
+      <motion.div
+        variants={stagger}
+        initial="hidden"
+        animate="visible"
+        transition={{ delayChildren: 0.15 }}
+        style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr)", gap: 12 }}
+        className="responsive-grid-2"
+      >
         <style>{`
-          @media (max-width: 768px) {
-            .responsive-grid-2 { grid-template-columns: 1fr !important; }
-          }
+          @media (max-width: 768px) { .responsive-grid-2 { grid-template-columns: 1fr !important; } }
         `}</style>
 
         {/* LEFT col */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+        <motion.div variants={fadeUp} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
 
           {/* Total Holdings */}
           <Card>
@@ -511,20 +508,22 @@ export default function DashboardPage() {
               <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>Total holdings</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-              {md.holdings.map(h => {
+              {md.holdings.map((h, i) => {
                 const navSymbol = resolveSymbol(h.symbol, key);
                 return (
-                  <button key={h.symbol}
+                  <motion.button key={h.symbol}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1   }}
+                    transition={{ delay: 0.3 + i * 0.06, duration: 0.3 }}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => router.push(`/dashboard/stock/${navSymbol}?market=${key}`)}
                     style={{
                       display: "flex", alignItems: "center", gap: 8,
-                      padding: "6px 8px", borderRadius: 10, background: "transparent",
-                      border: "none", cursor: "pointer", textAlign: "left",
-                      transition: "background 0.15s",
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = "var(--color-surface-hover)")}
-                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                  >
+                      padding: "6px 8px", borderRadius: 10,
+                      background: "transparent", border: "none",
+                      cursor: "pointer", textAlign: "left",
+                    }}>
                     <StockAvatar symbol={h.symbol} color={h.color} bg={h.bg} letter={h.letter} px={28} />
                     <div style={{ minWidth: 0 }}>
                       <p style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 600, margin: 0 }}>
@@ -534,7 +533,7 @@ export default function DashboardPage() {
                         {h.symbol.replace(".BSE","")}
                       </p>
                     </div>
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
@@ -553,12 +552,17 @@ export default function DashboardPage() {
               <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 40 }}>
                 {WEEKLY_ACTIVITY.map((d, i) => (
                   <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                    <div style={{
-                      width: 10, borderRadius: 3,
-                      height: `${(d.trades / 12) * 34}px`,
-                      background: i === 2 ? "#8FFFD6" : "var(--color-line)",
-                      transition: "height 0.4s ease",
-                    }}/>
+                    <motion.div
+                      initial={{ scaleY: 0 }}
+                      animate={{ scaleY: 1 }}
+                      transition={{ delay: 0.5 + i * 0.05, duration: 0.4, ease: "easeOut" }}
+                      style={{
+                        width: 10, borderRadius: 3,
+                        height: `${(d.trades / 12) * 34}px`,
+                        background: i === 2 ? "#8FFFD6" : "var(--color-line)",
+                        transformOrigin: "bottom",
+                      }}
+                    />
                     <span style={{ color: "var(--color-muted)", fontSize: 7 }}>{d.day}</span>
                   </div>
                 ))}
@@ -587,133 +591,134 @@ export default function DashboardPage() {
               </div>
             </div>
           </Card>
-        </div>
+        </motion.div>
 
         {/* CENTER: Portfolio */}
-        <Card style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>My Portfolio</span>
-            <button
-              onClick={() => router.push("/dashboard/wallet")}
-              style={{
-                display: "flex", alignItems: "center", gap: 4,
-                padding: "5px 12px", borderRadius: 10, fontSize: 11, fontWeight: 600,
-                background: "linear-gradient(135deg,#8FFFD6,#00c896)",
-                color: "#0a0a0a", border: "none", cursor: "pointer",
-                transition: "opacity 0.15s",
-              }}
-              onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
-              onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
-            >
-              + Deposit
-            </button>
-          </div>
-          <p style={{ color: "var(--color-primary)", fontWeight: 800, fontSize: 26, lineHeight: 1.1, letterSpacing: "-0.03em", margin: "0 0 4px" }}>
-            {md.portfolioValue}
-          </p>
-          <p style={{ color: "#22c55e", fontSize: 12, fontWeight: 600, margin: "0 0 12px" }}>{md.portfolioGain}</p>
-
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
-            {PORTFOLIO_CATEGORIES.map(cat => (
-              <div key={cat.label}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ color: "var(--color-muted)", fontSize: 11 }}>{cat.label}</span>
-                  <span style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 700 }}>{cat.pct}%</span>
-                </div>
-                <div style={{ height: 44, borderRadius: 10, overflow: "hidden", background: "var(--color-surface-hover)", position: "relative" }}>
-                  <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, display: "flex", alignItems: "flex-end", gap: 1, padding: "0 4px", height: "100%" }}>
-                    {BAR_HEIGHTS[cat.label].map((h, i) => (
-                      <div key={i} style={{ flex: 1, borderRadius: "2px 2px 0 0", height: `${h}%`, background: cat.color, opacity: 0.65 + i / 60 }}/>
-                    ))}
+        <motion.div variants={fadeUp}>
+          <Card style={{ display: "flex", flexDirection: "column", minWidth: 0, height: "100%" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>My Portfolio</span>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => router.push("/dashboard/wallet")}
+                style={{
+                  display: "flex", alignItems: "center", gap: 4,
+                  padding: "5px 12px", borderRadius: 10, fontSize: 11, fontWeight: 600,
+                  background: "linear-gradient(135deg,#8FFFD6,#00c896)",
+                  color: "#0a0a0a", border: "none", cursor: "pointer",
+                }}>
+                + Deposit
+              </motion.button>
+            </div>
+            <p style={{ color: "var(--color-primary)", fontWeight: 800, fontSize: 26, lineHeight: 1.1, letterSpacing: "-0.03em", margin: "0 0 4px" }}>
+              {md.portfolioValue}
+            </p>
+            <p style={{ color: "#22c55e", fontSize: 12, fontWeight: 600, margin: "0 0 12px" }}>{md.portfolioGain}</p>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
+              {PORTFOLIO_CATEGORIES.map((cat, i) => (
+                <div key={cat.label}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ color: "var(--color-muted)", fontSize: 11 }}>{cat.label}</span>
+                    <span style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 700 }}>{cat.pct}%</span>
+                  </div>
+                  <div style={{ height: 44, borderRadius: 10, overflow: "hidden", background: "var(--color-surface-hover)", position: "relative" }}>
+                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, display: "flex", alignItems: "flex-end", gap: 1, padding: "0 4px", height: "100%" }}>
+                      {BAR_HEIGHTS[cat.label].map((h, j) => (
+                        <motion.div key={j}
+                          initial={{ scaleY: 0 }}
+                          animate={{ scaleY: 1 }}
+                          transition={{ delay: 0.4 + i * 0.1 + j * 0.01, duration: 0.4, ease: "easeOut" }}
+                          style={{ flex: 1, borderRadius: "2px 2px 0 0", height: `${h}%`, background: cat.color, opacity: 0.65 + j / 60, transformOrigin: "bottom" }}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+              ))}
+            </div>
+          </Card>
+        </motion.div>
 
         {/* RIGHT: Transactions */}
-        <Card style={{ minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>Transactions</span>
-              {Object.values(livePrices).some(p => p.live) && <LiveDot />}
-            </div>
-            {/* Search + filter icons matching Figma */}
-            <div style={{ display: "flex", gap: 8 }}>
-              <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", display: "flex", alignItems: "center", padding: 2 }}>
-                <Search size={13}/>
-              </button>
-              <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", display: "flex", alignItems: "center", padding: 2 }}>
-                <SlidersHorizontal size={13}/>
-              </button>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-            <span style={{ color: "var(--color-muted)", fontSize: 11 }}>Today</span>
-            <span style={{ color: "var(--color-muted)", fontSize: 11 }}>5 Transactions</span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {md.transactions.map(tx => {
-              const resolvedSym   = resolveSymbol(tx.symbol, key);
-              const live          = livePrices[resolvedSym];
-              const liveChange    = live?.changePct ?? null;
-              const displayChange = live?.live ? liveChange : tx.change;
-              const isPos         = displayChange !== null && displayChange > 0;
-              const isNeg         = displayChange !== null && displayChange < 0;
-
-              return (
-                <button key={tx.symbol}
-                  onClick={() => router.push(`/dashboard/stock/${resolvedSym}?market=${key}`)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 8,
-                    padding: "6px 6px", borderRadius: 10, width: "100%",
-                    background: "transparent", border: "none", cursor: "pointer",
-                    transition: "background 0.15s",
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "var(--color-surface-hover)")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                >
-                  <StockAvatar symbol={tx.symbol} color={tx.color} bg={tx.bg} letter={tx.letter} px={30} />
-
-                  <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
-                    <p style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {tx.symbol.replace(".BSE","")}
-                    </p>
-                    {live?.live ? (
-                      <p style={{ fontSize: 10, fontWeight: 600, margin: 0, color: isPos ? "#22c55e" : isNeg ? "#ef4444" : "var(--color-muted)" }}>
-                        {currency}{live.price?.toFixed(2)}
-                      </p>
-                    ) : (
-                      <p style={{ color: "var(--color-muted)", fontSize: 10, margin: 0 }}>{tx.name}</p>
-                    )}
-                  </div>
-
-                  {displayChange !== null && (
-                    <span style={{
-                      fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 99, flexShrink: 0,
-                      background: isPos ? "#22c55e22" : "#ef444422",
-                      color: isPos ? "#22c55e" : "#ef4444",
-                    }}>
-                      {isPos ? "+" : ""}{live?.live ? `${liveChange?.toFixed(1)}%` : displayChange}
-                    </span>
-                  )}
-
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 8, flexShrink: 0,
-                    background: tx.amount < 0 ? "#ef444422" : "#22c55e22",
-                    color: tx.amount < 0 ? "#ef4444" : "#22c55e",
-                  }}>
-                    {tx.amount < 0 ? "-" : "+"}{currency}{Math.abs(tx.amount)}
-                  </span>
+        <motion.div variants={fadeUp}>
+          <Card style={{ minWidth: 0, height: "100%" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>Transactions</span>
+                {Object.values(livePrices).some(p => p.live) && <LiveDot />}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", display: "flex", alignItems: "center", padding: 2 }}>
+                  <Search size={13}/>
                 </button>
-              );
-            })}
-          </div>
-        </Card>
-      </div>
+                <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", display: "flex", alignItems: "center", padding: 2 }}>
+                  <SlidersHorizontal size={13}/>
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+              <span style={{ color: "var(--color-muted)", fontSize: 11 }}>Today</span>
+              <span style={{ color: "var(--color-muted)", fontSize: 11 }}>5 Transactions</span>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {md.transactions.map((tx, i) => {
+                const resolvedSym   = resolveSymbol(tx.symbol, key);
+                const live          = livePrices[resolvedSym];
+                const liveChange    = live?.changePct ?? null;
+                const displayChange = live?.live ? liveChange : tx.change;
+                const isPos = displayChange !== null && displayChange > 0;
+                const isNeg = displayChange !== null && displayChange < 0;
+                return (
+                  <motion.button key={tx.symbol}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0  }}
+                    transition={{ delay: 0.3 + i * 0.07, duration: 0.35 }}
+                    whileHover={{ x: 3 }}
+                    onClick={() => router.push(`/dashboard/stock/${resolvedSym}?market=${key}`)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "6px 6px", borderRadius: 10, width: "100%",
+                      background: "transparent", border: "none", cursor: "pointer",
+                    }}>
+                    <StockAvatar symbol={tx.symbol} color={tx.color} bg={tx.bg} letter={tx.letter} px={30} />
+                    <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+                      <p style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {tx.symbol.replace(".BSE","")}
+                      </p>
+                      {live?.live ? (
+                        <p style={{ fontSize: 10, fontWeight: 600, margin: 0, color: isPos ? "#22c55e" : isNeg ? "#ef4444" : "var(--color-muted)" }}>
+                          {currency}{live.price?.toFixed(2)}
+                        </p>
+                      ) : (
+                        <p style={{ color: "var(--color-muted)", fontSize: 10, margin: 0 }}>{tx.name}</p>
+                      )}
+                    </div>
+                    {displayChange !== null && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 99, flexShrink: 0,
+                        background: isPos ? "#22c55e22" : "#ef444422",
+                        color: isPos ? "#22c55e" : "#ef4444",
+                      }}>
+                        {isPos ? "+" : ""}{live?.live ? `${liveChange?.toFixed(1)}%` : displayChange}
+                      </span>
+                    )}
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 8, flexShrink: 0,
+                      background: tx.amount < 0 ? "#ef444422" : "#22c55e22",
+                      color: tx.amount < 0 ? "#ef4444" : "#22c55e",
+                    }}>
+                      {tx.amount < 0 ? "-" : "+"}{currency}{Math.abs(tx.amount)}
+                    </span>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </Card>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }

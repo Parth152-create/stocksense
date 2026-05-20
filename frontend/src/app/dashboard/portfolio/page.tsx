@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { useMarket } from "@/hooks/useMarket";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -77,6 +78,10 @@ const C = {
   muted:   "var(--color-muted)",
   hover:   "var(--color-surface-hover)",
 };
+
+const fadeUp = { hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } };
+const stagger = { visible: { transition: { staggerChildren: 0.08 } } };
+const cardV = { hidden: { opacity: 0, y: 20, scale: 0.98 }, visible: { opacity: 1, y: 0, scale: 1 } };
 
 // ─── StockAvatar ─────────────────────────────────────────────────────────────
 
@@ -193,7 +198,8 @@ export default function PortfolioPage() {
     }}>
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
           <h1 style={{ color: C.primary, fontWeight: 700, fontSize: 20, margin: 0, letterSpacing: -0.3 }}>
             My Portfolio
@@ -219,10 +225,12 @@ export default function PortfolioPage() {
             <Plus size={14} /> Add Position
           </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Stats row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 14, marginBottom: 24 }} className="stats-grid">
+      <motion.div initial="hidden" animate="visible" variants={stagger}
+        style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 14, marginBottom: 24 }}
+        className="stats-grid">
         <style>{`
           @media (max-width: 1024px) {
             .stats-grid { grid-template-columns: 1fr 1fr !important; }
@@ -231,7 +239,9 @@ export default function PortfolioPage() {
             .stats-grid { grid-template-columns: 1fr !important; }
           }
         `}</style>
-        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px", position: "relative", overflow: "hidden" }}>
+        <motion.div variants={cardV} transition={{ duration: 0.4 }}
+          whileHover={{ y: -2, boxShadow: "0 8px 32px rgba(0,0,0,0.15)" }}
+          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 120, background: `radial-gradient(ellipse at right, ${isUp ? "#8FFFD6" : "#ef4444"}08 0%, transparent 70%)`, pointerEvents: "none" }} />
           <p style={{ color: C.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 8px" }}>Total Value</p>
           <p style={{ color: C.primary, fontWeight: 800, fontSize: 28, margin: 0, letterSpacing: -0.5 }}>
@@ -243,23 +253,28 @@ export default function PortfolioPage() {
               {isUp ? "+" : ""}{fmt(totalPnl)} ({isUp ? "+" : ""}{totalPnlPct.toFixed(2)}%)
             </span>
           </div>
-        </div>
+        </motion.div>
         {[
           { label: "Total Cost",     value: countedCost, isFormatted: true, color: C.muted },
           { label: "Unrealized P&L", value: countedPnl, isFormatted: true, color: isUp ? "#22c55e" : "#ef4444" },
           { label: "Positions",      value: holdings.length, isFormatted: false, color: "#8FFFD6" },
         ].map(({ label, value, isFormatted, color }) => (
-          <div key={label} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px" }}>
+          <motion.div key={label} variants={cardV} transition={{ duration: 0.4 }}
+            whileHover={{ y: -2, boxShadow: "0 8px 32px rgba(0,0,0,0.15)" }}
+            style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
             <p style={{ color: C.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 8px" }}>{label}</p>
             <p style={{ color, fontWeight: 700, fontSize: 22, margin: 0, letterSpacing: -0.3 }}>
               {label === "Positions" ? value : `${isUp && label === "Unrealized P&L" ? "+" : ""}${currency}${value.toLocaleString("en-US")}`}
             </p>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       {/* Chart + Donut */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 280px", gap: 16, marginBottom: 24 }} className="chart-donut-grid">
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.4 }}
+        style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 280px", gap: 16, marginBottom: 24 }}
+        className="chart-donut-grid">
         <style>{`
           @media (max-width: 768px) {
             .chart-donut-grid { grid-template-columns: 1fr !important; }
@@ -310,10 +325,12 @@ export default function PortfolioPage() {
             ))}
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Holdings Table */}
-      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, overflow: "hidden" }}>
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.4 }}
+        style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, overflow: "hidden", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `1px solid ${C.line}` }}>
           <p style={{ color: C.primary, fontWeight: 600, fontSize: 13, margin: 0 }}>Holdings</p>
           <div style={{ display: "flex", background: C.page, border: `1px solid ${C.line}`, borderRadius: 8, padding: 3, gap: 2 }}>
@@ -373,12 +390,14 @@ export default function PortfolioPage() {
             const { color, bg } = SYMBOL_COLORS[sym] ?? DEFAULT_COLOR;
             const navSymbol = toTradingViewSymbol(h.symbol);
             return (
-              <div key={h.symbol}
+              <motion.div key={h.symbol}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: Math.min(i * 0.04, 0.5), duration: 0.3 }}
+                whileHover={{ backgroundColor: C.hover }}
                 onClick={() => router.push(`/dashboard/stock/${navSymbol}?market=${market.id}`)}
-                style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 80px", padding: "14px 20px", borderBottom: i < sorted.length - 1 ? `1px solid ${C.line}` : "none", cursor: "pointer", transition: "background 0.15s", alignItems: "center" }}
-                className="table-row"
-                onMouseEnter={e => (e.currentTarget.style.background = C.hover)}
-                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 80px", padding: "14px 20px", borderBottom: i < sorted.length - 1 ? `1px solid ${C.line}` : "none", cursor: "pointer", alignItems: "center" }}
+                className="table-row">
                 <style>{`
                   @media (max-width: 1024px) {
                     .table-row { grid-template-columns: 2fr 1fr 1fr 80px !important; }
@@ -420,11 +439,11 @@ export default function PortfolioPage() {
                   style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 7, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
                   Trade <ArrowUpRight size={11} />
                 </button>
-              </div>
+              </motion.div>
             );
           })
         )}
-      </div>
+      </motion.div>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );

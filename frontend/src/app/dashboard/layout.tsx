@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -68,11 +68,10 @@ function ThemeToggle() {
   );
 }
 
-// ── Page transition wrapper ───────────────────────────────────────────────────
 function PageTransition({ children, pathname }: { children: React.ReactNode; pathname: string }) {
   const [displayChildren, setDisplayChildren] = useState(children);
-  const [transitionKey, setTransitionKey] = useState(pathname);
-  const [animating, setAnimating] = useState(false);
+  const [transitionKey,   setTransitionKey]   = useState(pathname);
+  const [animating,       setAnimating]       = useState(false);
 
   useEffect(() => {
     if (pathname !== transitionKey) {
@@ -92,7 +91,7 @@ function PageTransition({ children, pathname }: { children: React.ReactNode; pat
   return (
     <div style={{
       flex: 1,
-      opacity: animating ? 0 : 1,
+      opacity:   animating ? 0 : 1,
       transform: animating ? "translateY(6px)" : "translateY(0)",
       transition: "opacity 0.15s ease, transform 0.15s ease",
     }}>
@@ -121,22 +120,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isDark = !mounted || resolvedTheme === "dark";
 
-  const sidebarBg        = isDark ? "#0d0d0d"  : "#ffffff";
-  const sidebarBorder    = isDark ? "#1f1f1f"  : "#e5e7eb";
-  const headerBg         = isDark ? "#0d0d0d"  : "#ffffff";
-  const headerBorder     = isDark ? "#1f1f1f"  : "#e5e7eb";
-  const pageBg           = isDark ? "#0a0a0a"  : "#F3F2F2";
-  const primaryColor     = isDark ? "#ffffff"  : "#18181A";
-  const mutedColor       = isDark ? "#666666"  : "#6b7280";
-  const sectionLabel     = isDark ? "#3a3a3a"  : "#9ca3af";
-  const activeNavBg      = isDark ? "rgba(143,255,214,0.07)" : "rgba(143,255,214,0.12)";
-  const hoverNavBg       = isDark ? "#141414"  : "#f3f4f6";
-  const accountBg        = isDark ? "rgba(239,68,68,0.07)" : "rgba(239,68,68,0.06)";
-  const bellActiveBg     = isDark ? "#8FFFD611" : "rgba(143,255,214,0.1)";
-  const bellBg           = isDark ? "#141414"  : "#f5f5f5";
-  const bellBorder       = isDark ? "#1f1f1f"  : "#e5e7eb";
-  const bellActiveBorder = isDark ? "#8FFFD633" : "rgba(143,255,214,0.3)";
-  const dateColor        = isDark ? "#444444"  : "#9ca3af";
+  // ── Glass-aware color tokens ──────────────────────────────────────────────
+  const primaryColor = isDark ? "#ffffff"  : "#18181A";
+  const mutedColor   = isDark ? "#666666"  : "#6b7280";
+  const sectionLabel = isDark ? "#3a3a3a"  : "#9ca3af";
+  const pageBg       = isDark ? "#0a0a0a"  : "#F3F2F2";
+
+  // Sidebar — glass
+  const sidebarBg     = isDark ? "rgba(13,13,13,0.75)"  : "rgba(255,255,255,0.70)";
+  const sidebarBorder = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)";
+  const sidebarBlur   = "blur(20px)";
+
+  // Header — glass
+  const headerBg     = isDark ? "rgba(10,10,10,0.80)"  : "rgba(255,255,255,0.75)";
+  const headerBorder = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)";
+
+  // Nav states
+  const activeNavBg  = isDark ? "rgba(143,255,214,0.08)" : "rgba(143,255,214,0.14)";
+  const hoverNavBg   = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
+  const accountBg    = isDark ? "rgba(239,68,68,0.08)"   : "rgba(239,68,68,0.06)";
+
+  // Bell
+  const bellBg           = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
+  const bellBorder       = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const bellActiveBg     = isDark ? "rgba(143,255,214,0.10)" : "rgba(143,255,214,0.12)";
+  const bellActiveBorder = isDark ? "rgba(143,255,214,0.3)"  : "rgba(143,255,214,0.4)";
+
+  // Text
+  const dateColor        = isDark ? "#444444" : "#9ca3af";
   const breadcrumbActive = isDark ? "#ffffff"  : "#18181A";
   const breadcrumbMuted  = isDark ? "#555555"  : "#6b7280";
   const chevronColor     = isDark ? "#333333"  : "#d1d5db";
@@ -208,169 +219,242 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <MarketProvider>
-        <ToastProvider>
-      <TooltipProvider>
-        <style>{`
-          @keyframes slideInLeft {
-            from { opacity: 0; transform: translateX(-10px); }
-            to   { opacity: 1; transform: translateX(0); }
-          }
-          @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(8px); }
-            to   { opacity: 1; transform: translateY(0); }
-          }
-          @keyframes ping {
-            0%   { transform: scale(1);   opacity: 0.75; }
-            100% { transform: scale(2.2); opacity: 0; }
-          }
-          .nav-link {
-            display: flex; align-items: center; gap: 10px;
-            padding: 9px 10px; border-radius: 9px; margin-bottom: 2px;
-            text-decoration: none;
-            border-left: 2px solid transparent;
-            transition: background 0.15s, color 0.15s, border-color 0.15s, padding-left 0.18s;
-          }
-          .nav-link:hover { padding-left: 14px !important; }
-          .nav-link.active { padding-left: 10px; }
-        `}</style>
+      <ToastProvider>
+        <TooltipProvider>
+          <style>{`
+            @keyframes slideInLeft {
+              from { opacity: 0; transform: translateX(-10px); }
+              to   { opacity: 1; transform: translateX(0); }
+            }
+            @keyframes fadeInUp {
+              from { opacity: 0; transform: translateY(8px); }
+              to   { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes ping {
+              0%   { transform: scale(1);   opacity: 0.75; }
+              100% { transform: scale(2.2); opacity: 0; }
+            }
+            .nav-link {
+              display: flex; align-items: center; gap: 10px;
+              padding: 9px 10px; border-radius: 9px; margin-bottom: 2px;
+              text-decoration: none;
+              border-left: 2px solid transparent;
+              transition: background 0.15s, color 0.15s, border-color 0.15s, padding-left 0.18s;
+            }
+            .nav-link:hover { padding-left: 14px !important; }
+            .nav-link.active { padding-left: 10px; }
 
-        <div style={{ display: "flex", minHeight: "100vh", background: pageBg, color: primaryColor, fontFamily: "var(--font-geist-sans,'Geist',sans-serif)", transition: "background 0.2s, color 0.2s" }}>
+            /* Sidebar inner glow */
+            .sidebar-glass {
+              background: ${sidebarBg};
+              backdrop-filter: ${sidebarBlur};
+              -webkit-backdrop-filter: ${sidebarBlur};
+              border-right: 1px solid ${sidebarBorder};
+              box-shadow: inset -1px 0 0 ${isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)"};
+            }
 
-          {/* ── Sidebar ── */}
-          <aside style={{
-            width: 220, minHeight: "100vh", background: sidebarBg,
-            borderRight: `1px solid ${sidebarBorder}`,
-            display: "flex", flexDirection: "column", padding: "0 0 24px",
-            flexShrink: 0, position: "sticky", top: 0, height: "100vh",
-            transition: "background 0.2s, border-color 0.2s",
-            animation: "slideInLeft 0.3s ease both",
+            /* Header glass */
+            .header-glass {
+              background: ${headerBg};
+              backdrop-filter: blur(20px);
+              -webkit-backdrop-filter: blur(20px);
+              border-bottom: 1px solid ${headerBorder};
+              box-shadow: 0 1px 0 ${isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)"},
+                          0 4px 16px ${isDark ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0.06)"};
+            }
+          `}</style>
+
+          <div style={{
+            display: "flex", minHeight: "100vh",
+            background: pageBg, color: primaryColor,
+            fontFamily: "var(--font-gantari,'Gantari',system-ui,sans-serif)",
+            transition: "background 0.2s, color 0.2s",
           }}>
 
-            {/* Logo */}
-            <div style={{ padding: "22px 20px 18px", borderBottom: `1px solid ${sidebarBorder}`, display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 32, height: 32, background: "linear-gradient(135deg,#8FFFD6,#00c896)", borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <TrendingUp size={16} color="#0a0a0a" strokeWidth={2.5} />
-              </div>
-              <span style={{ color: primaryColor, fontWeight: 700, fontSize: 16, letterSpacing: -0.3 }}>StockSense</span>
-            </div>
-
-            {/* Market Switcher */}
-            <div style={{ padding: "14px 12px 10px" }}>
-              <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 2 }}>Market</p>
-              <MarketSwitcher />
-            </div>
-
-            {/* Nav */}
-            <nav style={{ padding: "10px 12px", flex: 1 }}>
-              <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 6 }}>Main Menu</p>
-              {NAV_ITEMS.map(({ href, label, icon: Icon }, idx) => {
-                const isActive = href === "/dashboard"
-                  ? pathname === "/dashboard"
-                  : pathname.startsWith(href);
-                return (
-                  <Link key={href} href={href}
-                    className={`nav-link${isActive ? " active" : ""}`}
-                    style={{
-                      background: isActive ? activeNavBg : "transparent",
-                      borderLeftColor: isActive ? "#8FFFD6" : "transparent",
-                      color: isActive ? "#8FFFD6" : mutedColor,
-                      animation: `slideInLeft 0.3s ease ${0.05 + idx * 0.04}s both`,
-                    }}
-                    onMouseEnter={e => {
-                      setHoveredNav(href);
-                      if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = hoverNavBg;
-                    }}
-                    onMouseLeave={e => {
-                      setHoveredNav(null);
-                      if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
-                    }}>
-                    <Icon size={15} strokeWidth={isActive ? 2 : 1.5} style={{ transition: "transform 0.15s", transform: hoveredNav === href && !isActive ? "scale(1.1)" : "scale(1)" }} />
-                    <span style={{ fontSize: 13, fontWeight: isActive ? 600 : 400 }}>{label}</span>
-                    {isActive && <ChevronRight size={12} style={{ marginLeft: "auto", animation: "fadeInUp 0.2s ease" }} strokeWidth={2} />}
-                  </Link>
-                );
-              })}
-            </nav>
-
-            {/* Account */}
-            <div style={{ padding: "0 12px", borderTop: `1px solid ${sidebarBorder}`, paddingTop: 16, animation: "fadeInUp 0.4s ease 0.5s both" }}>
-              <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 6 }}>Account</p>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 9, marginBottom: 4 }}>
-                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg,#8FFFD6,#00c896)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#0a0a0a", flexShrink: 0 }}>
-                  {avatarLetter}
-                </div>
-                <div style={{ overflow: "hidden" }}>
-                  <p style={{ color: emailColor, fontSize: 12, fontWeight: 500, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>
-                    {displayLabel}
-                  </p>
-                  <p style={{ color: planColor, fontSize: 10, margin: 0 }}>Free plan</p>
-                </div>
-              </div>
-              <button
-                onMouseEnter={() => setHoveredLogout(true)}
-                onMouseLeave={() => setHoveredLogout(false)}
-                onClick={() => logout()}
-                style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 9, background: hoveredLogout ? accountBg : "transparent", border: "none", cursor: "pointer", color: hoveredLogout ? "#ef4444" : mutedColor, transition: "all 0.15s" }}>
-                <LogOut size={14} style={{ transition: "transform 0.15s", transform: hoveredLogout ? "translateX(2px)" : "translateX(0)" }} />
-                <span style={{ fontSize: 13 }}>Sign out</span>
-              </button>
-            </div>
-          </aside>
-
-          {/* ── Main ── */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-            <header style={{
-              height: 60, borderBottom: `1px solid ${headerBorder}`,
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "0 32px", background: headerBg,
-              position: "sticky", top: 0, zIndex: 30, flexShrink: 0,
-              transition: "background 0.2s, border-color 0.2s",
-              animation: "fadeInUp 0.25s ease both",
+            {/* ── Sidebar ── */}
+            <aside className="sidebar-glass" style={{
+              width: 220, minHeight: "100vh",
+              display: "flex", flexDirection: "column", padding: "0 0 24px",
+              flexShrink: 0, position: "sticky", top: 0, height: "100vh",
+              animation: "slideInLeft 0.3s ease both",
             }}>
-              <nav style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {breadcrumb.map(({ label, href, isLast }) => (
-                  <span key={href} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {isLast
-                      ? <span style={{ color: breadcrumbActive, fontSize: 13, fontWeight: 600 }}>{label}</span>
-                      : <Link href={href} style={{ color: breadcrumbMuted, fontSize: 13, textDecoration: "none" }}>{label}</Link>}
-                    {!isLast && <ChevronRight size={12} color={chevronColor} />}
-                  </span>
-                ))}
-              </nav>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ color: dateColor, fontSize: 12 }}>
-                  {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-                </span>
-                <ThemeToggle />
-                <div style={{ position: "relative" }}>
-                  <button onClick={() => setDrawerOpen(v => !v)} style={{ width: 36, height: 36, borderRadius: "50%", background: drawerOpen ? bellActiveBg : bellBg, border: drawerOpen ? `1px solid ${bellActiveBorder}` : `1px solid ${bellBorder}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: drawerOpen ? "#8FFFD6" : mutedColor, transition: "all 0.15s" }}>
-                    <Bell size={15} />
-                  </button>
-                  {unreadCount > 0 && (
-                    <span style={{ position: "absolute", top: -2, right: -2, minWidth: 16, height: 16, padding: "0 4px", background: "#8FFFD6", borderRadius: 99, fontSize: 9, fontWeight: 700, color: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${headerBg}` }}>
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </span>
-                  )}
+
+              {/* Logo */}
+              <div style={{
+                padding: "22px 20px 18px",
+                borderBottom: `1px solid ${sidebarBorder}`,
+                display: "flex", alignItems: "center", gap: 10,
+              }}>
+                <div style={{
+                  width: 32, height: 32,
+                  background: "linear-gradient(135deg,#8FFFD6,#00c896)",
+                  borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center",
+                  boxShadow: "0 0 16px rgba(143,255,214,0.3)",
+                }}>
+                  <TrendingUp size={16} color="#0a0a0a" strokeWidth={2.5} />
                 </div>
+                <span style={{ color: primaryColor, fontWeight: 800, fontSize: 16, letterSpacing: -0.5 }}>
+                  StockSense
+                </span>
               </div>
-            </header>
 
-            {/* Page content with transition */}
-            <PageTransition pathname={pathname}>
-              <main style={{ flex: 1, overflow: "auto" }}>{children}</main>
-            </PageTransition>
+              {/* Market Switcher */}
+              <div style={{ padding: "14px 12px 10px" }}>
+                <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 2 }}>Market</p>
+                <MarketSwitcher />
+              </div>
+
+              {/* Nav */}
+              <nav style={{ padding: "10px 12px", flex: 1 }}>
+                <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 6 }}>Main Menu</p>
+                {NAV_ITEMS.map(({ href, label, icon: Icon }, idx) => {
+                  const isActive = href === "/dashboard"
+                    ? pathname === "/dashboard"
+                    : pathname.startsWith(href);
+                  return (
+                    <Link key={href} href={href}
+                      className={`nav-link${isActive ? " active" : ""}`}
+                      style={{
+                        background:      isActive ? activeNavBg : "transparent",
+                        borderLeftColor: isActive ? "#8FFFD6"   : "transparent",
+                        color:           isActive ? "#8FFFD6"   : mutedColor,
+                        animation: `slideInLeft 0.3s ease ${0.05 + idx * 0.04}s both`,
+                      }}
+                      onMouseEnter={e => {
+                        setHoveredNav(href);
+                        if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = hoverNavBg;
+                      }}
+                      onMouseLeave={e => {
+                        setHoveredNav(null);
+                        if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
+                      }}>
+                      <Icon size={15} strokeWidth={isActive ? 2 : 1.5}
+                        style={{ transition: "transform 0.15s", transform: hoveredNav === href && !isActive ? "scale(1.1)" : "scale(1)" }} />
+                      <span style={{ fontSize: 13, fontWeight: isActive ? 600 : 400 }}>{label}</span>
+                      {isActive && <ChevronRight size={12} style={{ marginLeft: "auto", animation: "fadeInUp 0.2s ease" }} strokeWidth={2} />}
+                    </Link>
+                  );
+                })}
+              </nav>
+
+              {/* Account */}
+              <div style={{
+                padding: "16px 12px 0",
+                borderTop: `1px solid ${sidebarBorder}`,
+                animation: "fadeInUp 0.4s ease 0.5s both",
+              }}>
+                <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 6 }}>Account</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 9, marginBottom: 4 }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: "50%",
+                    background: "linear-gradient(135deg,#8FFFD6,#00c896)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 11, fontWeight: 700, color: "#0a0a0a", flexShrink: 0,
+                    boxShadow: "0 0 10px rgba(143,255,214,0.25)",
+                  }}>
+                    {avatarLetter}
+                  </div>
+                  <div style={{ overflow: "hidden" }}>
+                    <p style={{ color: emailColor, fontSize: 12, fontWeight: 500, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>
+                      {displayLabel}
+                    </p>
+                    <p style={{ color: planColor, fontSize: 10, margin: 0 }}>Free plan</p>
+                  </div>
+                </div>
+                <button
+                  onMouseEnter={() => setHoveredLogout(true)}
+                  onMouseLeave={() => setHoveredLogout(false)}
+                  onClick={() => logout()}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 10,
+                    padding: "9px 10px", borderRadius: 9,
+                    background: hoveredLogout ? accountBg : "transparent",
+                    border: "none", cursor: "pointer",
+                    color: hoveredLogout ? "#ef4444" : mutedColor,
+                    transition: "all 0.15s",
+                  }}>
+                  <LogOut size={14} style={{ transition: "transform 0.15s", transform: hoveredLogout ? "translateX(2px)" : "translateX(0)" }} />
+                  <span style={{ fontSize: 13 }}>Sign out</span>
+                </button>
+              </div>
+            </aside>
+
+            {/* ── Main ── */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+
+              {/* Header */}
+              <header className="header-glass" style={{
+                height: 60,
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "0 32px",
+                position: "sticky", top: 0, zIndex: 30, flexShrink: 0,
+                animation: "fadeInUp 0.25s ease both",
+              }}>
+                <nav style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {breadcrumb.map(({ label, href, isLast }) => (
+                    <span key={href} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {isLast
+                        ? <span style={{ color: breadcrumbActive, fontSize: 13, fontWeight: 600 }}>{label}</span>
+                        : <Link href={href} style={{ color: breadcrumbMuted, fontSize: 13, textDecoration: "none" }}>{label}</Link>}
+                      {!isLast && <ChevronRight size={12} color={chevronColor} />}
+                    </span>
+                  ))}
+                </nav>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ color: dateColor, fontSize: 12 }}>
+                    {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                  </span>
+                  <ThemeToggle />
+                  <div style={{ position: "relative" }}>
+                    <button
+                      onClick={() => setDrawerOpen(v => !v)}
+                      style={{
+                        width: 36, height: 36, borderRadius: "50%",
+                        background: drawerOpen ? bellActiveBg  : bellBg,
+                        border:     drawerOpen ? `1px solid ${bellActiveBorder}` : `1px solid ${bellBorder}`,
+                        backdropFilter: "blur(8px)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: "pointer",
+                        color: drawerOpen ? "#8FFFD6" : mutedColor,
+                        transition: "all 0.15s",
+                        boxShadow: drawerOpen ? "0 0 16px rgba(143,255,214,0.15)" : "none",
+                      }}>
+                      <Bell size={15} />
+                    </button>
+                    {unreadCount > 0 && (
+                      <span style={{
+                        position: "absolute", top: -2, right: -2,
+                        minWidth: 16, height: 16, padding: "0 4px",
+                        background: "#8FFFD6", borderRadius: 99,
+                        fontSize: 9, fontWeight: 700, color: "#0a0a0a",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        border: `2px solid ${isDark ? "#0a0a0a" : "#F3F2F2"}`,
+                        boxShadow: "0 0 8px rgba(143,255,214,0.4)",
+                      }}>
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </header>
+
+              {/* Page content */}
+              <PageTransition pathname={pathname}>
+                <main style={{ flex: 1, overflow: "auto" }}>{children}</main>
+              </PageTransition>
+            </div>
           </div>
-        </div>
 
-        <NotificationsDrawer
-          open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          notifications={notifications}
-          onMarkRead={handleMarkRead}
-          onMarkAllRead={handleMarkAllRead}
-        />
-      </TooltipProvider>
-          </ToastProvider>    
+          <NotificationsDrawer
+            open={drawerOpen}
+            onClose={() => setDrawerOpen(false)}
+            notifications={notifications}
+            onMarkRead={handleMarkRead}
+            onMarkAllRead={handleMarkAllRead}
+          />
+        </TooltipProvider>
+      </ToastProvider>
     </MarketProvider>
   );
 }

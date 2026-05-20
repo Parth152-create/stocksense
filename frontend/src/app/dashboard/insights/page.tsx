@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useMarket, type MarketId } from "@/hooks/useMarket";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis,
@@ -663,11 +664,16 @@ function InsightCard({ s, expanded, onToggle }: { s: StockInsight; expanded: boo
       </div>
 
       {/* Expanded panel */}
-      {expanded && (
-        <div
-          style={{ padding: "0 14px 14px", borderTop: "1px solid var(--color-line)" }}
-          onClick={e => e.stopPropagation()}
-        >
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            style={{ padding: "0 14px 14px", borderTop: "1px solid var(--color-line)", overflow: "hidden" }}
+            onClick={e => e.stopPropagation()}
+          >
           {/* ── 3-col detail grid — stacks on small screens ── */}
           <div style={{
             display: "grid",
@@ -778,8 +784,9 @@ function InsightCard({ s, expanded, onToggle }: { s: StockInsight; expanded: boo
               ))}
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
+    </AnimatePresence>
     </div>
   );
 }
@@ -881,7 +888,8 @@ export default function InsightsPage() {
     }}>
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
         <div>
           <h1 style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 20, margin: 0, letterSpacing: -0.3 }}>AI Insights</h1>
           <p style={{ color: "var(--color-muted)", fontSize: 12, margin: "2px 0 0" }}>ML-powered signals · {market.flag} {market.label}</p>
@@ -902,13 +910,14 @@ export default function InsightsPage() {
             </button>
           ))}
         </div>
-      </div>
+      </motion.div>
 
       {/* Market Pulse + Sector Rotation — responsive */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,300px)", gap: 12 }}>
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.4 }}
+        style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,300px)", gap: 12 }}>
         <MarketPulse insights={insights} marketKey={key} />
         <SectorRotationPanel marketKey={key} />
-      </div>
+      </motion.div>
 
       {/* Insight cards */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -918,9 +927,14 @@ export default function InsightsPage() {
           </div>
         )}
         {filtered.map((s, i) => (
-          <InsightCard key={s.symbol} s={s}
-            expanded={expandedIdx === i}
-            onToggle={() => setExpandedIdx(expandedIdx === i ? null : i)} />
+          <motion.div key={s.symbol}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.07, duration: 0.35 }}>
+            <InsightCard s={s}
+              expanded={expandedIdx === i}
+              onToggle={() => setExpandedIdx(expandedIdx === i ? null : i)} />
+          </motion.div>
         ))}
       </div>
 

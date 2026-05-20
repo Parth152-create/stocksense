@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { motion } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { fetchWithAuth } from "@/lib/auth";
@@ -553,7 +554,23 @@ export default function StockPage() {
           {/* LEFT */}
           <div>
             {/* Hero */}
-            <div style={{ background:"var(--color-card)",border:"1px solid var(--color-line)",borderRadius:12,padding:"20px 24px",marginBottom:20,display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
+            <motion.div
+  initial={{ opacity: 0, y: 16 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.4 }}
+  style={{
+    background:"var(--color-card)",
+    border:"1px solid var(--color-line)",
+    borderRadius:12,
+    padding:"20px 24px",
+    marginBottom:20,
+    display:"flex",
+    justifyContent:"space-between",
+    alignItems:"flex-start",
+    backdropFilter:"blur(16px)",
+    WebkitBackdropFilter:"blur(16px)"
+  }}
+>
               <div>
                 {loading ? (
                   <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
@@ -598,13 +615,23 @@ export default function StockPage() {
                   {watchlisted?"Watchlisted":"Add to Watchlist"}
                 </button>
               </div>
-            </div>
+            </motion.div>
 
             {/* Chart */}
             <StockChart key={`${symbol}-${market.id}`} symbol={symbol} currency={market.currency||"$"} marketId={market.id}/>
 
             {/* Stats */}
-            <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20 }}>
+            <motion.div
+  initial={{ opacity: 0, y: 12 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ delay: 0.15, duration: 0.4 }}
+  style={{
+    display:"grid",
+    gridTemplateColumns:"repeat(4,1fr)",
+    gap:12,
+    marginBottom:20
+  }}
+>
               {loading ? Array.from({length:8}).map((_,i)=>(
                 <div key={i} style={{ background:"var(--color-card)",border:"1px solid var(--color-line)",borderRadius:10,padding:"12px 16px" }}>
                   <Skeleton w="60%" h={11}/><div style={{marginTop:6}}><Skeleton w="80%" h={18}/></div>
@@ -621,18 +648,46 @@ export default function StockPage() {
                   <StatCard label="Exchange"   value={overview.exchange??"—"}/>
                 </>
               ) : null}
-            </div>
+            </motion.div>
 
             {/* About */}
             {!loading && overview?.description && (
-              <div style={{ background:"var(--color-card)",border:"1px solid var(--color-line)",borderRadius:12,padding:"18px 20px",marginBottom:20 }}>
+              <motion.div
+  initial={{ opacity: 0, y: 16 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ delay: 0.2, duration: 0.4 }}
+  whileHover={{ y: -1 }}
+  style={{
+    background:"var(--color-card)",
+    border:"1px solid var(--color-line)",
+    backdropFilter:"blur(16px)",
+    WebkitBackdropFilter:"blur(16px)",
+    borderRadius:12,
+    padding:"18px 20px",
+    marginBottom:20
+  }}
+>
                 <h3 style={{ margin:"0 0 10px",fontSize:14,fontWeight:700 }}>About</h3>
                 <p style={{ margin:0,fontSize:13,color:"var(--color-muted)",lineHeight:1.7 }}>{overview.description}</p>
-              </div>
+              </motion.div>
             )}
 
             {/* Analyst Ratings */}
-            <div style={{ background:"var(--color-card)",border:"1px solid var(--color-line)",borderRadius:12,padding:"18px 20px",marginBottom:20 }}>
+            <motion.div
+  initial={{ opacity: 0, y: 16 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ delay: 0.2, duration: 0.4 }}
+  whileHover={{ y: -1 }}
+  style={{
+    background:"var(--color-card)",
+    border:"1px solid var(--color-line)",
+    backdropFilter:"blur(16px)",
+    WebkitBackdropFilter:"blur(16px)",
+    borderRadius:12,
+    padding:"18px 20px",
+    marginBottom:20
+  }}
+>
               <h3 style={{ margin:"0 0 14px",fontSize:14,fontWeight:700,display:"flex",alignItems:"center",gap:6 }}>
                 <BarChart2 size={15}/> Analyst Ratings
               </h3>
@@ -658,10 +713,24 @@ export default function StockPage() {
               ) : (
                 <p style={{ margin:0,color:"var(--color-muted)",fontSize:13 }}>No analyst data available</p>
               )}
-            </div>
+            </motion.div>
 
             {/* AI Insights */}
-            <div style={{ background:"var(--color-card)",border:"1px solid var(--color-line)",borderRadius:12,padding:"18px 20px",marginBottom:20 }}>
+            <motion.div
+  initial={{ opacity: 0, y: 16 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ delay: 0.2, duration: 0.4 }}
+  whileHover={{ y: -1 }}
+  style={{
+    background:"var(--color-card)",
+    border:"1px solid var(--color-line)",
+    backdropFilter:"blur(16px)",
+    WebkitBackdropFilter:"blur(16px)",
+    borderRadius:12,
+    padding:"18px 20px",
+    marginBottom:20
+  }}
+>
               <h3 style={{ margin:"0 0 14px",fontSize:14,fontWeight:700 }}>AI Insights</h3>
               {loading ? (
                 <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
@@ -687,10 +756,24 @@ export default function StockPage() {
                   ))}
                 </div>
               )}
-            </div>
+            </motion.div>
 
             {/* News Feed */}
-            <div style={{ background:"var(--color-card)",border:"1px solid var(--color-line)",borderRadius:12,padding:"18px 20px",animation:"fadeInUp 0.4s ease" }}>
+            <motion.div
+  initial={{ opacity: 0, y: 16 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ delay: 0.2, duration: 0.4 }}
+  whileHover={{ y: -1 }}
+  style={{
+    background:"var(--color-card)",
+    border:"1px solid var(--color-line)",
+    backdropFilter:"blur(16px)",
+    WebkitBackdropFilter:"blur(16px)",
+    borderRadius:12,
+    padding:"18px 20px",
+    marginBottom:20
+  }}
+>
               <h3 style={{ margin:"0 0 14px",fontSize:14,fontWeight:700,display:"flex",alignItems:"center",gap:6 }}>
                 <Newspaper size={15} color={ACCENT}/> Latest News
               </h3>
@@ -714,12 +797,26 @@ export default function StockPage() {
                   ))}
                 </div>
               )}
-            </div>
+            </motion.div>
           </div>
 
           {/* RIGHT — Order Panel + ML Insights */}
           <div style={{ position:"sticky",top:80,display:"flex",flexDirection:"column",gap:12 }}>
-            <div style={{ background:"var(--color-card)",border:"1px solid var(--color-line)",borderRadius:12,padding:"20px" }}>
+            <motion.div
+  initial={{ opacity: 0, y: 16 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ delay: 0.2, duration: 0.4 }}
+  whileHover={{ y: -1 }}
+  style={{
+    background:"var(--color-card)",
+    border:"1px solid var(--color-line)",
+    backdropFilter:"blur(16px)",
+    WebkitBackdropFilter:"blur(16px)",
+    borderRadius:12,
+    padding:"20px",
+    marginBottom:20
+  }}
+>
               <h3 style={{ margin:"0 0 16px",fontSize:14,fontWeight:700 }}>Place Order</h3>
 
               {/* BUY / SELL toggle */}
@@ -806,7 +903,7 @@ export default function StockPage() {
                   ? "Orders execute at market price. Not financial advice."
                   : "Pending orders are checked every minute against live prices."}
               </p>
-            </div>
+            </motion.div>
 
             {/* ML Insights Panel */}
             <MLInsightsPanel symbol={symbol} />

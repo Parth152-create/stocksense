@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import { motion } from "framer-motion";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell,
@@ -46,6 +47,10 @@ const C = {
   muted:   "var(--color-muted)",
   hover:   "var(--color-surface-hover)",
 };
+
+const fadeUp  = { hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } };
+const stagger = { visible: { transition: { staggerChildren: 0.09 } } };
+const cardV   = { hidden: { opacity: 0, y: 20, scale: 0.98 }, visible: { opacity: 1, y: 0, scale: 1 } };
 
 const SECTOR_COLORS = ["#8FFFD6", "#6366f1", "#f59e0b", "#ef4444", "#a855f7", "#ec4899"];
 
@@ -318,26 +323,40 @@ export default function AnalyticsPage() {
           }
         }
       `}</style>
-      <div style={{ padding: "28px 32px", maxWidth: 1200, margin: "0 auto", background: C.page, minHeight: "100vh", animation: "fadeInUp 0.35s ease both" }}>
+      <motion.div initial="hidden" animate="visible" variants={stagger}
+        style={{ padding: "28px 32px", maxWidth: 1200, margin: "0 auto",
+          background: C.page, minHeight: "100vh",
+          fontFamily: "var(--font-gantari,'Gantari',system-ui,sans-serif)" }}>
 
         {/* Header */}
-        <div style={{ marginBottom: 28 }}>
+        <motion.div variants={fadeUp} style={{ marginBottom: 28 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
             <BarChart2 size={20} color="#8FFFD6" />
             <h1 style={{ fontSize: 22, fontWeight: 700, color: C.primary, margin: 0 }}>Performance Analytics</h1>
           </div>
           <p style={{ color: C.muted, fontSize: 13, margin: 0 }}>Track your portfolio performance, risk exposure, and asset allocation</p>
-        </div>
+        </motion.div>
 
         {/* Stat cards */}
-        <div className="analytics-stat-grid" style={{ display: "grid", gap: 14, marginBottom: 20 }}>
-          <StatCard label="Portfolio Value"  value={countedTotalValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })} change={`${isUp?"+":""}${changePct.toFixed(2)}%`} positive={isUp}  currencySymbol={sym} />
-          <StatCard label="Total Invested"   value={countedTotalInvested.toLocaleString("en-IN", { minimumFractionDigits: 2 })} change="+4.75%"  positive={true}  currencySymbol={sym} />
-          <StatCard label="Unrealised P&L"   value={countedUnrealisedPnl.toLocaleString("en-IN", { minimumFractionDigits: 2 })} change={`${unrealisedPnlPct >= 0 ? "+" : ""}${unrealisedPnlPct.toFixed(2)}%`}  positive={unrealisedPnl >= 0} currencySymbol={unrealisedPnl < 0 ? `-${sym}` : sym} />
-        </div>
+        <motion.div variants={stagger} className="analytics-stat-grid" style={{ display: "grid", gap: 14, marginBottom: 20 }}>
+          {[
+            { label: "Portfolio Value", value: countedTotalValue.toLocaleString("en-IN", { minimumFractionDigits: 2 }), change: `${isUp?"+":""}${changePct.toFixed(2)}%`, positive: isUp, currencySymbol: sym },
+            { label: "Total Invested", value: countedTotalInvested.toLocaleString("en-IN", { minimumFractionDigits: 2 }), change: "+4.75%", positive: true, currencySymbol: sym },
+            { label: "Unrealised P&L", value: countedUnrealisedPnl.toLocaleString("en-IN", { minimumFractionDigits: 2 }), change: `${unrealisedPnlPct >= 0 ? "+" : ""}${unrealisedPnlPct.toFixed(2)}%`, positive: unrealisedPnl >= 0, currencySymbol: unrealisedPnl < 0 ? `-${sym}` : sym },
+          ].map(({ label, value, change, positive, currencySymbol }) => (
+            <motion.div key={label} variants={cardV}
+              transition={{ duration: 0.4 }}
+              whileHover={{ y: -2, boxShadow: "0 8px 32px rgba(0,0,0,0.15)" }}>
+              <StatCard label={label} value={value} change={change} positive={positive} currencySymbol={currencySymbol} />
+            </motion.div>
+          ))}
+        </motion.div>
 
         {/* ── Multi-portfolio comparison — matches Figma Page 3 ── */}
-        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "22px 24px", marginBottom: 20 }}>
+        <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
+          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
+            padding: "22px 24px", marginBottom: 20,
+            backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Activity size={15} color="#8FFFD6" />
@@ -380,10 +399,13 @@ export default function AnalyticsPage() {
               <Line type="monotone" dataKey="crypto"  stroke="#f59e0b" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#f59e0b", strokeWidth: 0 }} name="Crypto"  />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </motion.div>
 
         {/* Single portfolio performance */}
-        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "22px 24px", marginBottom: 20 }}>
+        <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
+          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
+            padding: "22px 24px", marginBottom: 20,
+            backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Activity size={15} color="#8FFFD6" />
@@ -407,13 +429,16 @@ export default function AnalyticsPage() {
               <Line type="monotone" dataKey="value" stroke="#8FFFD6" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#8FFFD6", strokeWidth: 0 }} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </motion.div>
 
         {/* Risk + Allocation */}
         <div className="analytics-risk-allocation-grid" style={{ display: "grid", gap: 14, marginBottom: 20 }}>
 
           {/* Risk */}
-          <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "22px 24px" }}>
+          <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
+            style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
+              padding: "22px 24px",
+              backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
               <Shield size={15} color="#8FFFD6" />
               <span style={{ color: C.primary, fontWeight: 600, fontSize: 14 }}>Risk Assessment</span>
@@ -438,10 +463,13 @@ export default function AnalyticsPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </motion.div>
 
           {/* Allocation */}
-          <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "22px 24px" }}>
+          <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
+            style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
+              padding: "22px 24px",
+              backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
               <PieChart size={15} color="#8FFFD6" />
               <span style={{ color: C.primary, fontWeight: 600, fontSize: 14 }}>Asset Allocation</span>
@@ -463,11 +491,14 @@ export default function AnalyticsPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Monthly Returns Bar Chart */}
-        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "22px 24px", marginBottom: 20 }}>
+        <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
+          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
+            padding: "22px 24px", marginBottom: 20,
+            backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
             <TrendingUp size={15} color="#8FFFD6" />
             <span style={{ color: C.primary, fontWeight: 600, fontSize: 14 }}>Monthly Returns</span>
@@ -490,35 +521,42 @@ export default function AnalyticsPage() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </motion.div>
 
         {/* Return Heatmap */}
-        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "22px 24px" }}>
+        <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
+          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
+            padding: "22px 24px", marginBottom: 20,
+            backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
             <TrendingDown size={15} color="#8FFFD6" />
             <span style={{ color: C.primary, fontWeight: 600, fontSize: 14 }}>Return Heatmap</span>
           </div>
           <div className="analytics-heatmap-grid" style={{ display: "grid", gap: 6 }}>
-            {MONTHLY.map(({ month, ret }) => {
+            {MONTHLY.map(({ month, ret }, i) => {
               const pos = ret >= 0;
               const intensity = Math.min(Math.abs(ret) / 10, 1);
               return (
-                <div key={month} style={{
-                  background: pos ? `rgba(143,255,214,${0.06 + intensity * 0.25})` : `rgba(239,68,68,${0.06 + intensity * 0.25})`,
-                  border: `1px solid ${pos ? "rgba(143,255,214,0.15)" : "rgba(239,68,68,0.15)"}`,
-                  borderRadius: 8, padding: "10px 4px", textAlign: "center",
-                  transition: "transform 0.15s",
-                }}>
+                <motion.div key={month}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.04, duration: 0.3 }}
+                  whileHover={{ scale: 1.05, zIndex: 1 }}
+                  style={{
+                    background: pos ? `rgba(143,255,214,${0.06 + intensity * 0.25})` : `rgba(239,68,68,${0.06 + intensity * 0.25})`,
+                    border: `1px solid ${pos ? "rgba(143,255,214,0.15)" : "rgba(239,68,68,0.15)"}`,
+                    borderRadius: 8, padding: "10px 4px", textAlign: "center", position: "relative",
+                  }}>
                   <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>{month}</div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: pos ? "#8FFFD6" : "#ef4444" }}>
                     {pos ? "+" : ""}{ret}%
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </>
   );
 }
