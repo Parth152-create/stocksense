@@ -2,6 +2,7 @@ package com.stocksense.controller;
 
 import com.stocksense.model.Order;
 import com.stocksense.model.Order.OrderType;
+import com.stocksense.model.Order.OrderKind;
 import com.stocksense.model.User;
 import com.stocksense.model.WalletBalance;
 import com.stocksense.model.WalletTransaction;
@@ -13,24 +14,26 @@ import com.stocksense.service.JwtService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-import static org.springframework.http.HttpStatus.BAD_REQUEST;
-import static org.springframework.http.HttpStatus.NOT_FOUND;
-import static org.springframework.http.HttpStatus.UNAUTHORIZED;
+import static org.springframework.http.HttpStatus.*;
 
 @RestController
 @RequestMapping("/api/orders")
 public class OrderController {
 
-    private final OrderRepository          orderRepository;
-    private final JwtService               jwtService;
-    private final UserRepository           userRepository;
-    private final WalletBalanceRepository  walletBalanceRepository;
+    private final OrderRepository             orderRepository;
+    private final JwtService                  jwtService;
+    private final UserRepository              userRepository;
+    private final WalletBalanceRepository     walletBalanceRepository;
     private final WalletTransactionRepository walletTxRepository;
 
     public OrderController(OrderRepository orderRepository,
@@ -45,18 +48,36 @@ public class OrderController {
         this.walletTxRepository      = walletTxRepository;
     }
 
-    // ── GET /api/orders ───────────────────────────────────────────────────────
     @GetMapping
     public ResponseEntity<List<Order>> getOrders(
             @RequestHeader("Authorization") String authHeader) {
         String email = extractEmail(authHeader);
-        User user = getUser(email);
+        User user    = getUser(email);
         return ResponseEntity.ok(
             orderRepository.findByUserIdOrderByCreatedAtDesc(user.getId().toString())
         );
     }
 
-    // ── POST /api/orders ──────────────────────────────────────────────────────
+    @GetMapping("/paginated")
+public ResponseEntity<Map<String, Object>> getOrdersPaginated(
+        @RequestHeader("Authorization") String authHeader,
+        @RequestParam(defaultValue = "0")  int page,
+        @RequestParam(defaultValue = "20") int size) {
+    String email = extractEmail(authHeader);
+    User user    = getUser(email);
+
+    Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+    Page<Order> result = orderRepository.findByUserId(user.getId().toString(), pageable);
+
+    return ResponseEntity.ok(Map.of(
+        "orders",      result.getContent(),
+        "totalOrders", result.getTotalElements(),
+        "totalPages",  result.getTotalPages(),
+        "currentPage", result.getNumber(),
+        "hasMore",     !result.isLast()
+    ));
+}
+
     @PostMapping
     public ResponseEntity<?> createOrder(
             @RequestHeader("Authorization") String authHeader,
@@ -68,67 +89,77 @@ public class OrderController {
         String symbol  = requireString(body, "symbol").toUpperCase();
         String market  = stringValue(body.getOrDefault("market", "US")).toUpperCase();
         String typeStr = requireString(body, "type").toUpperCase();
+        String kindStr = body.containsKey("kind")
+            ? body.get("kind").toString().toUpperCase()
+            : "MARKET";
 
-        // Frontend sends "qty"; also accept "quantity" as fallback
-        Object qtyRaw = body.containsKey("qty") ? body.get("qty") : body.get("quantity");
-        int qty        = parseQuantity(qtyRaw);
+        Object qtyRaw  = body.containsKey("qty") ? body.get("qty") : body.get("quantity");
+        int qty         = parseQuantity(qtyRaw);
 
-        BigDecimal price = parsePrice(body.get("price"));
-        BigDecimal total = price.multiply(BigDecimal.valueOf(qty));
+        BigDecimal price      = parsePrice(body.get("price"));
+        BigDecimal total      = price.multiply(BigDecimal.valueOf(qty));
+        OrderType  orderType  = parseOrderType(typeStr);
+        OrderKind  orderKind  = parseOrderKind(kindStr);
 
-        OrderType orderType = parseOrderType(typeStr);
+        // Parse limitPrice for LIMIT / STOP_LOSS orders
+        BigDecimal limitPrice = null;
+        if (orderKind != OrderKind.MARKET) {
+            if (!body.containsKey("limitPrice")) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "error", "limitPrice is required for " + orderKind + " orders"
+                ));
+            }
+            limitPrice = parsePrice(body.get("limitPrice"));
+        }
 
-        // ── Wallet validation ─────────────────────────────────────────────────
         WalletBalance wallet = walletBalanceRepository
             .findByUserId(user.getId())
-            .orElseGet(() -> {
-                WalletBalance w = new WalletBalance(user.getId());
-                return walletBalanceRepository.save(w);
-            });
+            .orElseGet(() -> walletBalanceRepository.save(new WalletBalance(user.getId())));
 
+        // For MARKET BUY — deduct immediately
+        // For LIMIT/STOP BUY — reserve funds upfront (deduct now, refund on cancel)
         if (orderType == OrderType.BUY) {
-            // Check sufficient balance
             if (wallet.getBalance().compareTo(total) < 0) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "error", "Insufficient wallet balance",
-                    "required", total,
+                    "error",     "Insufficient wallet balance",
+                    "required",  total,
                     "available", wallet.getBalance()
                 ));
             }
-            // Deduct from wallet
             wallet.setBalance(wallet.getBalance().subtract(total));
             wallet.setUpdatedAt(LocalDateTime.now());
             walletBalanceRepository.save(wallet);
 
-            // Record wallet transaction
             walletTxRepository.save(new WalletTransaction(
                 user.getId(), "withdrawal", total,
-                "BUY " + qty + " x " + symbol + " @ " + price
+                (orderKind == OrderKind.MARKET ? "BUY " : orderKind + " BUY reserved: ")
+                    + qty + " x " + symbol + " @ " + price
             ));
 
-        } else if (orderType == OrderType.SELL) {
-            // Credit wallet on sell
+        } else if (orderType == OrderType.SELL && orderKind == OrderKind.MARKET) {
+            // MARKET SELL — credit immediately
             wallet.setBalance(wallet.getBalance().add(total));
             wallet.setUpdatedAt(LocalDateTime.now());
             walletBalanceRepository.save(wallet);
 
-            // Record wallet transaction
             walletTxRepository.save(new WalletTransaction(
                 user.getId(), "deposit", total,
                 "SELL " + qty + " x " + symbol + " @ " + price
             ));
+            // LIMIT/STOP_LOSS SELL — credit happens when scheduler executes
         }
 
-        // ── Persist order ─────────────────────────────────────────────────────
         Order order = new Order();
         order.setUserId(user.getId().toString());
         order.setSymbol(symbol);
         order.setMarket(market);
         order.setType(orderType);
+        order.setKind(orderKind);
         order.setQuantity(qty);
         order.setPrice(price);
         order.setTotal(total);
-        order.setStatus("EXECUTED");
+        order.setLimitPrice(limitPrice);
+        order.setStatus(orderKind == OrderKind.MARKET ? "EXECUTED" : "PENDING");
 
         return ResponseEntity.ok(orderRepository.save(order));
     }
@@ -136,13 +167,11 @@ public class OrderController {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private String extractEmail(String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (authHeader == null || !authHeader.startsWith("Bearer "))
             throw new ResponseStatusException(UNAUTHORIZED, "Missing bearer token");
-        }
         String token = authHeader.substring(7).trim();
-        if (token.isEmpty()) {
+        if (token.isEmpty())
             throw new ResponseStatusException(UNAUTHORIZED, "Missing bearer token");
-        }
         return jwtService.extractEmail(token);
     }
 
@@ -156,39 +185,44 @@ public class OrderController {
     }
 
     private String stringValue(Object value) {
-        if (!(value instanceof String text) || text.isBlank()) {
+        if (!(value instanceof String text) || text.isBlank())
             throw new ResponseStatusException(BAD_REQUEST, "Invalid order request");
-        }
         return text.trim();
     }
 
     private int parseQuantity(Object value) {
         if (value == null) throw new ResponseStatusException(BAD_REQUEST, "Invalid order quantity");
         try {
-            int quantity = Integer.parseInt(value.toString());
-            if (quantity <= 0) throw new ResponseStatusException(BAD_REQUEST, "Order quantity must be positive");
-            return quantity;
+            int q = Integer.parseInt(value.toString());
+            if (q <= 0) throw new ResponseStatusException(BAD_REQUEST, "Quantity must be positive");
+            return q;
         } catch (NumberFormatException ex) {
             throw new ResponseStatusException(BAD_REQUEST, "Invalid order quantity", ex);
         }
     }
 
     private BigDecimal parsePrice(Object value) {
-        if (value == null) throw new ResponseStatusException(BAD_REQUEST, "Invalid order price");
+        if (value == null) throw new ResponseStatusException(BAD_REQUEST, "Invalid price");
         try {
-            BigDecimal price = new BigDecimal(value.toString());
-            if (price.signum() <= 0) throw new ResponseStatusException(BAD_REQUEST, "Order price must be positive");
-            return price;
+            BigDecimal p = new BigDecimal(value.toString());
+            if (p.signum() <= 0) throw new ResponseStatusException(BAD_REQUEST, "Price must be positive");
+            return p;
         } catch (NumberFormatException ex) {
-            throw new ResponseStatusException(BAD_REQUEST, "Invalid order price", ex);
+            throw new ResponseStatusException(BAD_REQUEST, "Invalid price", ex);
         }
     }
 
     private OrderType parseOrderType(String type) {
-        try {
-            return OrderType.valueOf(type);
-        } catch (IllegalArgumentException ex) {
+        try { return OrderType.valueOf(type); }
+        catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(BAD_REQUEST, "Invalid order type", ex);
+        }
+    }
+
+    private OrderKind parseOrderKind(String kind) {
+        try { return OrderKind.valueOf(kind); }
+        catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(BAD_REQUEST, "Invalid order kind", ex);
         }
     }
 }

@@ -35,7 +35,12 @@ interface Candle {
   time: number; open: number; high: number; low: number;
   close: number; volume: number;
 }
-interface OrderForm { type: "BUY" | "SELL"; qty: string; }
+interface OrderForm {
+  type: "BUY" | "SELL";
+  kind: "MARKET" | "LIMIT" | "STOP_LOSS";
+  qty: string;
+  limitPrice?: string;
+}
 
 type ChartType = "candle" | "area";
 type Range     = "1D" | "1W" | "1M" | "1Y" | "ALL";
@@ -401,7 +406,7 @@ export default function StockPage() {
   const [watchlisted,    setWatchlisted]    = useState(false);
   const [fallbackPrice,  setFallbackPrice]  = useState<number | null>(null);
   const [fallbackChange, setFallbackChange] = useState<number | null>(null);
-  const [orderForm,      setOrderForm]      = useState<OrderForm>({ type: "BUY", qty: "" });
+  const [orderForm,      setOrderForm]      = useState<OrderForm>({ type: "BUY", kind: "MARKET", qty: "" });
   const [orderStatus,    setOrderStatus]    = useState<"idle"|"loading"|"success"|"error">("idle");
   const [orderMsg,       setOrderMsg]       = useState("");
   const [loading,        setLoading]        = useState(true);
@@ -442,7 +447,6 @@ export default function StockPage() {
     }
   }, [symbol]);
 
-  // Load news separately so it doesn't block main content
   const loadNews = useCallback(async () => {
     setNewsLoading(true);
     try {
@@ -467,23 +471,43 @@ export default function StockPage() {
     if (!orderForm.qty || isNaN(Number(orderForm.qty)) || Number(orderForm.qty) <= 0) {
       setOrderMsg("Enter a valid quantity"); setOrderStatus("error"); return;
     }
+    if (orderForm.kind !== "MARKET") {
+      if (!orderForm.limitPrice || isNaN(Number(orderForm.limitPrice)) || Number(orderForm.limitPrice) <= 0) {
+        setOrderMsg("Enter a valid limit price"); setOrderStatus("error"); return;
+      }
+    }
     setOrderStatus("loading"); setOrderMsg("");
     try {
       const res = await fetchWithAuth("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          symbol, market: market.id, type: orderForm.type,
-          qty: Number(orderForm.qty), price: price ?? 0,
+          symbol,
+          market: market.id,
+          type:   orderForm.type,
+          kind:   orderForm.kind,
+          qty:    Number(orderForm.qty),
+          price:  price ?? 0,
+          ...(orderForm.kind !== "MARKET" && orderForm.limitPrice
+            ? { limitPrice: Number(orderForm.limitPrice) }
+            : {}),
         }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).error ?? "Order failed");
+      }
       setOrderStatus("success");
-      setOrderMsg(`${orderForm.type} order placed for ${orderForm.qty} shares`);
-      setOrderForm(f => ({ ...f, qty: "" }));
+      setOrderMsg(
+        orderForm.kind === "MARKET"
+          ? `${orderForm.type} order placed for ${orderForm.qty} shares`
+          : `${orderForm.kind === "STOP_LOSS" ? "Stop" : "Limit"} ${orderForm.type} order set at ${formatPrice(Number(orderForm.limitPrice))}`
+      );
+      setOrderForm(f => ({ ...f, qty: "", limitPrice: "" }));
       setTimeout(() => setOrderStatus("idle"), 3000);
-    } catch {
-      setOrderStatus("error"); setOrderMsg("Order failed — try again");
+    } catch (e: unknown) {
+      setOrderStatus("error");
+      setOrderMsg(e instanceof Error ? e.message : "Order failed — try again");
     }
   };
 
@@ -510,6 +534,7 @@ export default function StockPage() {
         @keyframes ping  { 0%{transform:scale(1);opacity:.75} 100%{transform:scale(2);opacity:0} }
         @keyframes fadeInUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         .order-tab { flex:1; padding:8px; border:none; cursor:pointer; font-size:13px; font-weight:600; border-radius:6px; transition:all .15s; }
+        .kind-tab  { flex:1; padding:6px 4px; border:none; cursor:pointer; font-size:11px; font-weight:600; border-radius:6px; transition:all .15s; }
       `}</style>
 
       <button onClick={() => router.back()} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",color:"var(--color-muted)",fontSize:13,marginBottom:20,padding:0 }}>
@@ -696,7 +721,9 @@ export default function StockPage() {
           <div style={{ position:"sticky",top:80,display:"flex",flexDirection:"column",gap:12 }}>
             <div style={{ background:"var(--color-card)",border:"1px solid var(--color-line)",borderRadius:12,padding:"20px" }}>
               <h3 style={{ margin:"0 0 16px",fontSize:14,fontWeight:700 }}>Place Order</h3>
-              <div style={{ display:"flex",gap:4,background:"var(--color-line)",borderRadius:8,padding:3,marginBottom:16 }}>
+
+              {/* BUY / SELL toggle */}
+              <div style={{ display:"flex",gap:4,background:"var(--color-line)",borderRadius:8,padding:3,marginBottom:10 }}>
                 {(["BUY","SELL"] as const).map(t=>(
                   <button key={t} className="order-tab" onClick={()=>setOrderForm(f=>({...f,type:t}))}
                     style={{ background:orderForm.type===t?(t==="BUY"?"var(--color-bull)":"var(--color-bear)"):"transparent",color:orderForm.type===t?"#fff":"var(--color-muted)" }}>
@@ -704,34 +731,85 @@ export default function StockPage() {
                   </button>
                 ))}
               </div>
+
+              {/* MARKET / LIMIT / STOP toggle */}
+              <div style={{ display:"flex",gap:4,background:"var(--color-line)",borderRadius:8,padding:3,marginBottom:14 }}>
+                {(["MARKET","LIMIT","STOP_LOSS"] as const).map(k=>(
+                  <button key={k} className="kind-tab" onClick={()=>setOrderForm(f=>({...f,kind:k,limitPrice:""}))}
+                    style={{ background:orderForm.kind===k?"var(--color-card)":"transparent",color:orderForm.kind===k?ACCENT:"var(--color-muted)" }}>
+                    {k === "STOP_LOSS" ? "STOP" : k}
+                  </button>
+                ))}
+              </div>
+
+              {/* Market price row */}
               <div style={{ padding:"10px 12px",borderRadius:8,marginBottom:14,background:"var(--color-page)",border:"1px solid var(--color-line)",display:"flex",justifyContent:"space-between",fontSize:13 }}>
                 <span style={{ color:"var(--color-muted)" }}>Market Price</span>
                 <strong>{price!==null?formatPrice(price):"—"}</strong>
               </div>
+
+              {/* Limit / Stop price input */}
+              {orderForm.kind !== "MARKET" && (
+                <>
+                  <label style={{ fontSize:12,color:"var(--color-muted)",display:"block",marginBottom:6 }}>
+                    {orderForm.kind === "LIMIT" ? "Limit Price" : "Stop Price"}
+                  </label>
+                  <input
+                    type="number" min={0} step="0.01"
+                    placeholder={price ? price.toFixed(2) : "0.00"}
+                    value={orderForm.limitPrice ?? ""}
+                    onChange={e=>setOrderForm(f=>({...f,limitPrice:e.target.value}))}
+                    style={{ width:"100%",padding:"10px 12px",borderRadius:8,fontSize:14,background:"var(--color-page)",border:`1px solid ${ACCENT}55`,color:"inherit",boxSizing:"border-box",outline:"none",marginBottom:6 }}
+                  />
+                  <p style={{ margin:"0 0 12px",fontSize:11,color:"var(--color-muted)",lineHeight:1.5 }}>
+                    {orderForm.kind === "LIMIT"
+                      ? orderForm.type === "BUY"
+                        ? "Executes when price drops to or below this value."
+                        : "Executes when price rises to or above this value."
+                      : orderForm.type === "BUY"
+                        ? "Executes when price rises to or above this value."
+                        : "Executes when price drops to or below this value."
+                    }
+                  </p>
+                </>
+              )}
+
               <label style={{ fontSize:12,color:"var(--color-muted)",display:"block",marginBottom:6 }}>Quantity (shares)</label>
               <input type="number" min={1} placeholder="0" value={orderForm.qty}
                 onChange={e=>setOrderForm(f=>({...f,qty:e.target.value}))}
                 style={{ width:"100%",padding:"10px 12px",borderRadius:8,fontSize:14,background:"var(--color-page)",border:"1px solid var(--color-line)",color:"inherit",boxSizing:"border-box",outline:"none",marginBottom:8 }}/>
+
               {price!==null&&orderForm.qty&&!isNaN(Number(orderForm.qty))&&(
                 <div style={{ display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:14,color:"var(--color-muted)" }}>
                   <span>Estimated Total</span>
                   <strong style={{ color:"inherit" }}>{formatPrice(price*Number(orderForm.qty))}</strong>
                 </div>
               )}
-              <button onClick={placeOrder} disabled={orderStatus==="loading"} style={{ width:"100%",padding:"11px",borderRadius:8,cursor:"pointer",border:"none",fontWeight:700,fontSize:14,background:orderForm.type==="BUY"?"var(--color-bull)":"var(--color-bear)",color:"#fff",opacity:orderStatus==="loading"?0.6:1 }}>
-                {orderStatus==="loading"?"Placing…":`${orderForm.type} ${symbol}`}
+
+              <button onClick={placeOrder} disabled={orderStatus==="loading"}
+                style={{ width:"100%",padding:"11px",borderRadius:8,cursor:"pointer",border:"none",fontWeight:700,fontSize:14,background:orderForm.type==="BUY"?"var(--color-bull)":"var(--color-bear)",color:"#fff",opacity:orderStatus==="loading"?0.6:1 }}>
+                {orderStatus==="loading"
+                  ? "Placing…"
+                  : orderForm.kind === "MARKET"
+                    ? `${orderForm.type} ${symbol}`
+                    : `Place ${orderForm.kind === "STOP_LOSS" ? "Stop" : "Limit"} ${orderForm.type}`
+                }
               </button>
-              {orderMsg&&(
-                <p style={{ margin:"10px 0 0",fontSize:12,textAlign:"center",color:orderStatus==="success"?"var(--color-bull)":"var(--color-bear)" }}>{orderMsg}</p>
+
+              {orderMsg && (
+                <p style={{ margin:"10px 0 0",fontSize:12,textAlign:"center",color:orderStatus==="success"?"var(--color-bull)":"var(--color-bear)" }}>
+                  {orderMsg}
+                </p>
               )}
               <p style={{ margin:"14px 0 0",fontSize:11,color:"var(--color-muted)",textAlign:"center",lineHeight:1.5 }}>
-                Orders execute at market price. Not financial advice.
+                {orderForm.kind === "MARKET"
+                  ? "Orders execute at market price. Not financial advice."
+                  : "Pending orders are checked every minute against live prices."}
               </p>
             </div>
 
             {/* ML Insights Panel */}
             <MLInsightsPanel symbol={symbol} />
-
           </div>
         </div>
       )}

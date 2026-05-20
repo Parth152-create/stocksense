@@ -13,6 +13,19 @@ spring:
     virtual:
       enabled: true
 
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: onealpha457@gmail.com
+    password: wrbxwvhdkanphmbb
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+
 server:
   port: 8081
 
@@ -22,7 +35,7 @@ alphavantage:
 
 jwt:
   secret: "your-256-bit-secret-here-change-in-production-min-32-chars"
-  expiration: 604800000   # 7 days in ms
+  expiration: 604800000
 
 google:
   client-id: "724652717839-u1lacrp7rmj5rp2117vhnpoj26t5vgm5.apps.googleusercontent.com"

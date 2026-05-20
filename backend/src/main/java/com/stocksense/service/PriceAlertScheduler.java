@@ -1,8 +1,10 @@
 package com.stocksense.service;
 
 import com.stocksense.model.Notification;
+import com.stocksense.model.User;
 import com.stocksense.model.WatchlistItem;
 import com.stocksense.repository.NotificationRepository;
+import com.stocksense.repository.UserRepository;
 import com.stocksense.repository.WatchlistRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,17 +16,6 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Runs every 5 minutes, checks all watchlist items that have an alertPrice set,
- * fetches the current price, and fires a PRICE_ALERT notification if the price
- * has crossed the alert threshold since the last check.
- *
- * Crossing logic:
- *   - Alert fires when current price crosses alertPrice in either direction
- *     (above or below) compared to lastCheckedPrice.
- *   - Once fired, lastCheckedPrice is updated so the alert doesn't re-fire
- *     every cycle until the price crosses back and then crosses again.
- */
 @Service
 public class PriceAlertScheduler {
 
@@ -33,13 +24,19 @@ public class PriceAlertScheduler {
     private final WatchlistRepository    watchlistRepository;
     private final NotificationRepository notificationRepository;
     private final AlphaVantageService    alphaVantageService;
+    private final EmailService           emailService;
+    private final UserRepository         userRepository;
 
     public PriceAlertScheduler(WatchlistRepository watchlistRepository,
                                NotificationRepository notificationRepository,
-                               AlphaVantageService alphaVantageService) {
+                               AlphaVantageService alphaVantageService,
+                               EmailService emailService,
+                               UserRepository userRepository) {
         this.watchlistRepository    = watchlistRepository;
         this.notificationRepository = notificationRepository;
         this.alphaVantageService    = alphaVantageService;
+        this.emailService           = emailService;
+        this.userRepository         = userRepository;
     }
 
     /**
@@ -50,7 +47,6 @@ public class PriceAlertScheduler {
     public void checkPriceAlerts() {
         log.info("[PriceAlertScheduler] Running price alert check…");
 
-        // Only process items that have an alertPrice set
         List<WatchlistItem> items = watchlistRepository.findAll()
             .stream()
             .filter(w -> w.getAlertPrice() != null)
@@ -65,7 +61,6 @@ public class PriceAlertScheduler {
             try {
                 processItem(item);
             } catch (Exception e) {
-                // Don't let one failure stop the rest
                 log.warn("[PriceAlertScheduler] Error processing {}: {}", item.getSymbol(), e.getMessage());
             }
         }
@@ -74,10 +69,9 @@ public class PriceAlertScheduler {
     }
 
     private void processItem(WatchlistItem item) {
-        String symbol     = item.getSymbol();
-        BigDecimal alert  = item.getAlertPrice();
+        String symbol    = item.getSymbol();
+        BigDecimal alert = item.getAlertPrice();
 
-        // Fetch current price from Alpha Vantage (with mock fallback)
         Map<String, Object> quote = alphaVantageService.getQuote(symbol);
         if (quote == null || quote.get("price") == null) {
             log.debug("[PriceAlertScheduler] No quote for {}", symbol);
@@ -89,17 +83,14 @@ public class PriceAlertScheduler {
 
         BigDecimal last = item.getLastCheckedPrice();
 
-        // Always update lastCheckedPrice
         item.setLastCheckedPrice(current);
         watchlistRepository.save(item);
 
-        // First check — no previous price to compare, just record
         if (last == null) {
             log.debug("[PriceAlertScheduler] First check for {} — recording price {}", symbol, current);
             return;
         }
 
-        // Check if price has crossed the alert threshold
         boolean wasBelow = last.compareTo(alert) < 0;
         boolean wasAbove = last.compareTo(alert) > 0;
         boolean nowAbove = current.compareTo(alert) >= 0;
@@ -124,6 +115,7 @@ public class PriceAlertScheduler {
             symbol, direction, alert.toPlainString(), current.toPlainString()
         );
 
+        // Save in-app notification
         Notification notif = new Notification(
             item.getUserId(),
             Notification.Type.PRICE_ALERT,
@@ -131,8 +123,21 @@ public class PriceAlertScheduler {
             msg,
             symbol
         );
-
         notificationRepository.save(notif);
+
+        // Send email to user's registered address
+        userRepository.findById(item.getUserId()).ifPresentOrElse(
+            user -> emailService.sendPriceAlert(
+                user.getEmail(),
+                user.getName() != null ? user.getName() : "Investor",
+                symbol,
+                direction,
+                alert,
+                current
+            ),
+            () -> log.warn("[PriceAlertScheduler] User {} not found — skipping email", item.getUserId())
+        );
+
         log.info("[PriceAlertScheduler] Fired alert for {} ({}) — crossed {} alert {}",
             symbol, item.getUserId(), direction, alert);
     }

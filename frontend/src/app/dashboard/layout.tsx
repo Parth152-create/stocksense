@@ -14,6 +14,7 @@ import MarketSwitcher from "@/components/MarketSwitcher";
 import NotificationsDrawer, { AppNotification } from "@/components/NotificationsDrawer";
 import { fetchWithAuth, getToken, logout } from "@/lib/auth";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ToastProvider } from "@/components/ToastContext";
 
 const NAV_ITEMS = [
   { href: "/dashboard",               label: "Dashboard",     icon: LayoutDashboard },
@@ -207,6 +208,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <MarketProvider>
+        <ToastProvider>
       <TooltipProvider>
         <style>{`
           @keyframes slideInLeft {
@@ -368,6 +370,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           onMarkAllRead={handleMarkAllRead}
         />
       </TooltipProvider>
+          </ToastProvider>    
     </MarketProvider>
   );
 }

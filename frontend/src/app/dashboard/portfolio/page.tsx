@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useMarket } from "@/hooks/useMarket";
 import {
@@ -10,30 +10,7 @@ import {
 import { TrendingUp, TrendingDown, Plus, RefreshCw, ArrowUpRight, Download } from "lucide-react";
 import { fetchWithAuth } from "@/lib/auth";
 import { exportPortfolioCsv } from "@/lib/csv-export";
-
-// ─── useCountUp Hook ────────────────────────────────────────────────────────
-
-const useCountUp = (target: number, duration: number = 1500) => {
-  const [count, setCount] = useState(0);
-  const animationRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    let startTime: number;
-    const animate = () => {
-      if (!startTime) startTime = Date.now();
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      setCount(Math.floor(progress * target));
-      if (progress < 1) {
-        animationRef.current = setTimeout(animate, 16);
-      }
-    };
-    animate();
-    return () => clearTimeout(animationRef.current!);
-  }, [target, duration]);
-
-  return count;
-};
+import { useCountUp } from "@/hooks/useCountUp";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
