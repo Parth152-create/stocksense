@@ -6,6 +6,7 @@ import {
   Eye, EyeOff, ShieldCheck, CreditCard, AlertTriangle,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/auth";
+import { useToast } from "@/components/ToastContext";
 
 const C = {
   page:    "var(--color-page)",
@@ -106,21 +107,6 @@ function ProfileAvatar({ name }: { name: string }) {
   );
 }
 
-function Toast({ message, type }: { message: string; type: "success" | "error" }) {
-  return (
-    <div style={{
-      position: "fixed", bottom: 28, right: 28, zIndex: 100,
-      background: type === "success" ? "#22c55e18" : "#ef444418",
-      border: `1px solid ${type === "success" ? "#22c55e44" : "#ef444444"}`,
-      color: type === "success" ? "#22c55e" : "#ef4444",
-      borderRadius: 12, padding: "12px 20px", fontSize: 13, fontWeight: 600,
-      animation: "fadeInUp 0.3s ease",
-    }}>
-      {type === "success" ? "✓ " : "✕ "}{message}
-    </div>
-  );
-}
-
 function formatDate(iso: string) {
   if (!iso) return "—";
   try {
@@ -131,6 +117,8 @@ function formatDate(iso: string) {
 }
 
 export default function SettingsPage() {
+  const { toast } = useToast();
+
   const [name,       setName]       = useState("");
   const [email,      setEmail]      = useState("");
   const [provider,   setProvider]   = useState("local");
@@ -149,15 +137,9 @@ export default function SettingsPage() {
   const [newsDigest,    setNewsDigest]    = useState(false);
   const [marketSummary, setMarketSummary] = useState(true);
 
-  const [twoFA, setTwoFA] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  const showToast = (message: string, type: "success" | "error") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
+  const [twoFA,              setTwoFA]              = useState(false);
+  const [savingProfile,      setSavingProfile]      = useState(false);
+  const [showDeleteConfirm,  setShowDeleteConfirm]  = useState(false);
 
   useEffect(() => {
     fetchWithAuth("/api/users/me")
@@ -181,13 +163,13 @@ export default function SettingsPage() {
         body: JSON.stringify({ name, email }),
       });
       if (res.ok) {
-        showToast("Profile updated successfully", "success");
+        toast("Profile updated successfully", "success");
       } else {
         const err = await res.json().catch(() => ({}));
-        showToast(err.error || "Failed to update profile", "error");
+        toast((err as any).error || "Failed to update profile", "error");
       }
     } catch {
-      showToast("Network error", "error");
+      toast("Network error", "error");
     } finally {
       setSavingProfile(false);
     }
@@ -195,13 +177,13 @@ export default function SettingsPage() {
 
   const handleChangePassword = async () => {
     if (!currentPw || !newPw || !confirmPw) {
-      showToast("Please fill all password fields", "error"); return;
+      toast("Please fill all password fields", "error"); return;
     }
     if (newPw !== confirmPw) {
-      showToast("New passwords do not match", "error"); return;
+      toast("New passwords do not match", "error"); return;
     }
     if (newPw.length < 8) {
-      showToast("Password must be at least 8 characters", "error"); return;
+      toast("Password must be at least 8 characters", "error"); return;
     }
     setPwLoading(true);
     try {
@@ -212,13 +194,13 @@ export default function SettingsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        showToast("Password changed successfully", "success");
+        toast("Password changed successfully", "success");
         setCurrentPw(""); setNewPw(""); setConfirmPw("");
       } else {
-        showToast(data.error || "Failed to change password", "error");
+        toast((data as any).error || "Failed to change password", "error");
       }
     } catch {
-      showToast("Network error", "error");
+      toast("Network error", "error");
     } finally {
       setPwLoading(false);
     }
@@ -337,13 +319,16 @@ export default function SettingsPage() {
                   <div style={{ color: C.primary, fontSize: 14, fontWeight: 500 }}>Two-Factor Authentication</div>
                   <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>Add an extra layer of security to your account</div>
                 </div>
-                <Toggle checked={twoFA} onChange={() => setTwoFA(!twoFA)} />
+                <Toggle checked={twoFA} onChange={() => {
+                  setTwoFA(!twoFA);
+                  toast(!twoFA ? "2FA enabled" : "2FA disabled", !twoFA ? "success" : "info");
+                }} />
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {[
-                  { label: "Last login",     value: "Today" },
+                  { label: "Last login",      value: "Today" },
                   { label: "Active sessions", value: "1 device" },
-                  { label: "Account created", value: formatDate(createdAt) },  // ← real date from API
+                  { label: "Account created", value: formatDate(createdAt) },
                 ].map(({ label, value }) => (
                   <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ color: C.muted, fontSize: 12 }}>{label}</span>
@@ -378,6 +363,7 @@ export default function SettingsPage() {
                       Cancel
                     </button>
                     <button
+                      onClick={() => toast("Account deletion is disabled in demo mode", "warning")}
                       style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "#ef4444", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>
                       Yes, Delete
                     </button>
@@ -388,8 +374,6 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
-
-      {toast && <Toast message={toast.message} type={toast.type} />}
     </>
   );
 }

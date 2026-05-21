@@ -5,6 +5,7 @@ import { useMarket } from "@/hooks/useMarket";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Plus, Link2, Trash2, ArrowUpRight, ArrowDownLeft, RefreshCw } from "lucide-react";
 import { fetchWithAuth } from "@/lib/auth";
+import { useToast } from "@/components/ToastContext";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -127,11 +128,11 @@ function TransferModal({ type, onClose, onSuccess, currency }: {
 }) {
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [fieldError, setFieldError] = useState("");
 
   const handle = async () => {
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0) { setError("Enter a valid amount"); return; }
+    if (!amt || amt <= 0) { setFieldError("Enter a valid amount"); return; }
     setLoading(true);
     try {
       const res = await fetchWithAuth(`/api/wallet/${type}`, {
@@ -144,10 +145,10 @@ function TransferModal({ type, onClose, onSuccess, currency }: {
         onSuccess(data.newBalance);
         onClose();
       } else {
-        setError(data.error || "Transaction failed");
+        setFieldError(data.error || "Transaction failed");
       }
     } catch {
-      setError("Network error");
+      setFieldError("Network error");
     } finally {
       setLoading(false);
     }
@@ -165,10 +166,10 @@ function TransferModal({ type, onClose, onSuccess, currency }: {
         </div>
         <label style={{ color: C.muted, fontSize: 12, display: "block", marginBottom: 6 }}>Amount ({currency})</label>
         <input
-          type="number" value={amount} onChange={e => { setAmount(e.target.value); setError(""); }}
+          type="number" value={amount} onChange={e => { setAmount(e.target.value); setFieldError(""); }}
           placeholder="0.00" autoFocus
-          style={{ width: "100%", background: C.page, border: `1px solid ${error ? "#ef4444" : C.line}`, borderRadius: 8, color: C.primary, fontSize: 18, fontWeight: 700, padding: "12px 14px", outline: "none", boxSizing: "border-box" }} />
-        {error && <p style={{ color: "#ef4444", fontSize: 12, margin: "6px 0 0" }}>{error}</p>}
+          style={{ width: "100%", background: C.page, border: `1px solid ${fieldError ? "#ef4444" : C.line}`, borderRadius: 8, color: C.primary, fontSize: 18, fontWeight: 700, padding: "12px 14px", outline: "none", boxSizing: "border-box" }} />
+        {fieldError && <p style={{ color: "#ef4444", fontSize: 12, margin: "6px 0 0" }}>{fieldError}</p>}
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
           <button onClick={onClose} style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Cancel</button>
           <button onClick={handle} disabled={loading}
@@ -185,15 +186,16 @@ function TransferModal({ type, onClose, onSuccess, currency }: {
 
 export default function WalletPage() {
   const { market } = useMarket();
+  const { toast } = useToast();
   const currency = market.currency || "$";
 
-  const [balance,      setBalance]      = useState<number | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [accounts,     setAccounts]     = useState<BankAccount[]>(MOCK_ACCOUNTS);
-  const [loadingBal,   setLoadingBal]   = useState(true);
-  const [showLinkModal,setShowLinkModal] = useState(false);
-  const [transferType, setTransferType] = useState<"deposit" | "withdrawal" | null>(null);
-  const [activeFilter, setActiveFilter] = useState<"all" | "deposit" | "withdrawal">("all");
+  const [balance,       setBalance]       = useState<number | null>(null);
+  const [transactions,  setTransactions]  = useState<Transaction[]>([]);
+  const [accounts,      setAccounts]      = useState<BankAccount[]>(MOCK_ACCOUNTS);
+  const [loadingBal,    setLoadingBal]    = useState(true);
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [transferType,  setTransferType]  = useState<"deposit" | "withdrawal" | null>(null);
+  const [activeFilter,  setActiveFilter]  = useState<"all" | "deposit" | "withdrawal">("all");
 
   // ── Load balance + transactions ──────────────────────────────────────────
   const loadWallet = async () => {
@@ -217,7 +219,22 @@ export default function WalletPage() {
 
   useEffect(() => { loadWallet(); }, []);
 
-  const handleUnlink = (id: string) => setAccounts(prev => prev.filter(a => a.id !== id));
+  const handleUnlink = (id: string) => {
+    const acc = accounts.find(a => a.id === id);
+    setAccounts(prev => prev.filter(a => a.id !== id));
+    if (acc) toast(`${acc.name} unlinked`, "info");
+  };
+
+  const handleTransferSuccess = (newBalance: number, type: "deposit" | "withdrawal") => {
+    setBalance(newBalance);
+    loadWallet(); // refresh transactions list
+    toast(
+      type === "deposit"
+        ? `Deposit successful — new balance ${currency}${newBalance.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+        : `Withdrawal successful — new balance ${currency}${newBalance.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      "success"
+    );
+  };
 
   const filteredTx = transactions.filter(t =>
     activeFilter === "all" || t.type === activeFilter
@@ -286,7 +303,7 @@ export default function WalletPage() {
       {/* Chart + Transactions */}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 380px", gap: 20 }}>
 
-        {/* Funding History Chart — height={220} NOT height="100%" */}
+        {/* Funding History Chart */}
         <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "22px 24px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <p style={{ color: C.primary, fontWeight: 600, fontSize: 14, margin: 0 }}>Funding History</p>
@@ -387,7 +404,7 @@ export default function WalletPage() {
             ))}
             <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
               <button onClick={() => setShowLinkModal(false)} style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Cancel</button>
-              <button onClick={() => setShowLinkModal(false)} style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "none", background: "#8FFFD6", color: "#0a0a0a", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>Link Account</button>
+              <button onClick={() => { setShowLinkModal(false); toast("Account linked successfully", "success"); }} style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "none", background: "#8FFFD6", color: "#0a0a0a", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>Link Account</button>
             </div>
           </div>
         </div>
@@ -399,7 +416,7 @@ export default function WalletPage() {
           type={transferType}
           currency={currency}
           onClose={() => setTransferType(null)}
-          onSuccess={newBalance => setBalance(newBalance)} />
+          onSuccess={newBalance => handleTransferSuccess(newBalance, transferType!)} />
       )}
 
       <style>{`@keyframes spin{to{transform:rotate(360deg);}} @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}`}</style>

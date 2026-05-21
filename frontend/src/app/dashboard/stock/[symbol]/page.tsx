@@ -8,6 +8,7 @@ import { fetchWithAuth } from "@/lib/auth";
 import { useLivePrices } from "@/lib/websocket";
 import { useMarket } from "@/lib/MarketContext";
 import { MLInsightsPanel } from "@/components/MLInsightsPanel";
+import { useToast } from "@/components/ToastContext";
 import {
   TrendingUp, TrendingDown, ArrowLeft, Star, StarOff,
   BarChart2, AlertCircle, CandlestickChart, LineChart as LineIcon,
@@ -393,6 +394,7 @@ function StockChart({ symbol, currency, marketId }: {
 export default function StockPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
 
   const rawSymbol = ((params?.symbol as string) ?? "").toUpperCase();
   const symbol    = rawSymbol.replace(/\.(BSE|NSE)$/i, "");
@@ -408,8 +410,7 @@ export default function StockPage() {
   const [fallbackPrice,  setFallbackPrice]  = useState<number | null>(null);
   const [fallbackChange, setFallbackChange] = useState<number | null>(null);
   const [orderForm,      setOrderForm]      = useState<OrderForm>({ type: "BUY", kind: "MARKET", qty: "" });
-  const [orderStatus,    setOrderStatus]    = useState<"idle"|"loading"|"success"|"error">("idle");
-  const [orderMsg,       setOrderMsg]       = useState("");
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [loading,        setLoading]        = useState(true);
   const [error,          setError]          = useState<string | null>(null);
 
@@ -465,19 +466,27 @@ export default function StockPage() {
   const toggleWatchlist = async () => {
     const method = watchlisted ? "DELETE" : "POST";
     const res    = await fetchWithAuth(`/api/watchlist/${symbol}`, { method });
-    if (res.ok) setWatchlisted(w => !w);
+    if (res.ok) {
+      setWatchlisted(w => !w);
+      toast(
+        watchlisted ? `${symbol} removed from watchlist` : `${symbol} added to watchlist`,
+        watchlisted ? "info" : "success"
+      );
+    }
   };
 
   const placeOrder = async () => {
     if (!orderForm.qty || isNaN(Number(orderForm.qty)) || Number(orderForm.qty) <= 0) {
-      setOrderMsg("Enter a valid quantity"); setOrderStatus("error"); return;
+      toast("Enter a valid quantity", "error");
+      return;
     }
     if (orderForm.kind !== "MARKET") {
       if (!orderForm.limitPrice || isNaN(Number(orderForm.limitPrice)) || Number(orderForm.limitPrice) <= 0) {
-        setOrderMsg("Enter a valid limit price"); setOrderStatus("error"); return;
+        toast("Enter a valid limit price", "error");
+        return;
       }
     }
-    setOrderStatus("loading"); setOrderMsg("");
+    setIsPlacingOrder(true);
     try {
       const res = await fetchWithAuth("/api/orders", {
         method: "POST",
@@ -498,17 +507,15 @@ export default function StockPage() {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as any).error ?? "Order failed");
       }
-      setOrderStatus("success");
-      setOrderMsg(
-        orderForm.kind === "MARKET"
-          ? `${orderForm.type} order placed for ${orderForm.qty} shares`
-          : `${orderForm.kind === "STOP_LOSS" ? "Stop" : "Limit"} ${orderForm.type} order set at ${formatPrice(Number(orderForm.limitPrice))}`
-      );
+      const successMsg = orderForm.kind === "MARKET"
+        ? `${orderForm.type} order placed — ${orderForm.qty} shares of ${symbol}`
+        : `${orderForm.kind === "STOP_LOSS" ? "Stop" : "Limit"} ${orderForm.type} set at ${formatPrice(Number(orderForm.limitPrice))}`;
+      toast(successMsg, "success");
       setOrderForm(f => ({ ...f, qty: "", limitPrice: "" }));
-      setTimeout(() => setOrderStatus("idle"), 3000);
     } catch (e: unknown) {
-      setOrderStatus("error");
-      setOrderMsg(e instanceof Error ? e.message : "Order failed — try again");
+      toast(e instanceof Error ? e.message : "Order failed — try again", "error");
+    } finally {
+      setIsPlacingOrder(false);
     }
   };
 
@@ -555,22 +562,22 @@ export default function StockPage() {
           <div>
             {/* Hero */}
             <motion.div
-  initial={{ opacity: 0, y: 16 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ duration: 0.4 }}
-  style={{
-    background:"var(--color-card)",
-    border:"1px solid var(--color-line)",
-    borderRadius:12,
-    padding:"20px 24px",
-    marginBottom:20,
-    display:"flex",
-    justifyContent:"space-between",
-    alignItems:"flex-start",
-    backdropFilter:"blur(16px)",
-    WebkitBackdropFilter:"blur(16px)"
-  }}
->
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              style={{
+                background:"var(--color-card)",
+                border:"1px solid var(--color-line)",
+                borderRadius:12,
+                padding:"20px 24px",
+                marginBottom:20,
+                display:"flex",
+                justifyContent:"space-between",
+                alignItems:"flex-start",
+                backdropFilter:"blur(16px)",
+                WebkitBackdropFilter:"blur(16px)"
+              }}
+            >
               <div>
                 {loading ? (
                   <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
@@ -622,16 +629,16 @@ export default function StockPage() {
 
             {/* Stats */}
             <motion.div
-  initial={{ opacity: 0, y: 12 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ delay: 0.15, duration: 0.4 }}
-  style={{
-    display:"grid",
-    gridTemplateColumns:"repeat(4,1fr)",
-    gap:12,
-    marginBottom:20
-  }}
->
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15, duration: 0.4 }}
+              style={{
+                display:"grid",
+                gridTemplateColumns:"repeat(4,1fr)",
+                gap:12,
+                marginBottom:20
+              }}
+            >
               {loading ? Array.from({length:8}).map((_,i)=>(
                 <div key={i} style={{ background:"var(--color-card)",border:"1px solid var(--color-line)",borderRadius:10,padding:"12px 16px" }}>
                   <Skeleton w="60%" h={11}/><div style={{marginTop:6}}><Skeleton w="80%" h={18}/></div>
@@ -653,20 +660,20 @@ export default function StockPage() {
             {/* About */}
             {!loading && overview?.description && (
               <motion.div
-  initial={{ opacity: 0, y: 16 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ delay: 0.2, duration: 0.4 }}
-  whileHover={{ y: -1 }}
-  style={{
-    background:"var(--color-card)",
-    border:"1px solid var(--color-line)",
-    backdropFilter:"blur(16px)",
-    WebkitBackdropFilter:"blur(16px)",
-    borderRadius:12,
-    padding:"18px 20px",
-    marginBottom:20
-  }}
->
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.4 }}
+                whileHover={{ y: -1 }}
+                style={{
+                  background:"var(--color-card)",
+                  border:"1px solid var(--color-line)",
+                  backdropFilter:"blur(16px)",
+                  WebkitBackdropFilter:"blur(16px)",
+                  borderRadius:12,
+                  padding:"18px 20px",
+                  marginBottom:20
+                }}
+              >
                 <h3 style={{ margin:"0 0 10px",fontSize:14,fontWeight:700 }}>About</h3>
                 <p style={{ margin:0,fontSize:13,color:"var(--color-muted)",lineHeight:1.7 }}>{overview.description}</p>
               </motion.div>
@@ -674,20 +681,20 @@ export default function StockPage() {
 
             {/* Analyst Ratings */}
             <motion.div
-  initial={{ opacity: 0, y: 16 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ delay: 0.2, duration: 0.4 }}
-  whileHover={{ y: -1 }}
-  style={{
-    background:"var(--color-card)",
-    border:"1px solid var(--color-line)",
-    backdropFilter:"blur(16px)",
-    WebkitBackdropFilter:"blur(16px)",
-    borderRadius:12,
-    padding:"18px 20px",
-    marginBottom:20
-  }}
->
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+              whileHover={{ y: -1 }}
+              style={{
+                background:"var(--color-card)",
+                border:"1px solid var(--color-line)",
+                backdropFilter:"blur(16px)",
+                WebkitBackdropFilter:"blur(16px)",
+                borderRadius:12,
+                padding:"18px 20px",
+                marginBottom:20
+              }}
+            >
               <h3 style={{ margin:"0 0 14px",fontSize:14,fontWeight:700,display:"flex",alignItems:"center",gap:6 }}>
                 <BarChart2 size={15}/> Analyst Ratings
               </h3>
@@ -717,20 +724,20 @@ export default function StockPage() {
 
             {/* AI Insights */}
             <motion.div
-  initial={{ opacity: 0, y: 16 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ delay: 0.2, duration: 0.4 }}
-  whileHover={{ y: -1 }}
-  style={{
-    background:"var(--color-card)",
-    border:"1px solid var(--color-line)",
-    backdropFilter:"blur(16px)",
-    WebkitBackdropFilter:"blur(16px)",
-    borderRadius:12,
-    padding:"18px 20px",
-    marginBottom:20
-  }}
->
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+              whileHover={{ y: -1 }}
+              style={{
+                background:"var(--color-card)",
+                border:"1px solid var(--color-line)",
+                backdropFilter:"blur(16px)",
+                WebkitBackdropFilter:"blur(16px)",
+                borderRadius:12,
+                padding:"18px 20px",
+                marginBottom:20
+              }}
+            >
               <h3 style={{ margin:"0 0 14px",fontSize:14,fontWeight:700 }}>AI Insights</h3>
               {loading ? (
                 <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
@@ -760,20 +767,20 @@ export default function StockPage() {
 
             {/* News Feed */}
             <motion.div
-  initial={{ opacity: 0, y: 16 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ delay: 0.2, duration: 0.4 }}
-  whileHover={{ y: -1 }}
-  style={{
-    background:"var(--color-card)",
-    border:"1px solid var(--color-line)",
-    backdropFilter:"blur(16px)",
-    WebkitBackdropFilter:"blur(16px)",
-    borderRadius:12,
-    padding:"18px 20px",
-    marginBottom:20
-  }}
->
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+              whileHover={{ y: -1 }}
+              style={{
+                background:"var(--color-card)",
+                border:"1px solid var(--color-line)",
+                backdropFilter:"blur(16px)",
+                WebkitBackdropFilter:"blur(16px)",
+                borderRadius:12,
+                padding:"18px 20px",
+                marginBottom:20
+              }}
+            >
               <h3 style={{ margin:"0 0 14px",fontSize:14,fontWeight:700,display:"flex",alignItems:"center",gap:6 }}>
                 <Newspaper size={15} color={ACCENT}/> Latest News
               </h3>
@@ -803,20 +810,20 @@ export default function StockPage() {
           {/* RIGHT — Order Panel + ML Insights */}
           <div style={{ position:"sticky",top:80,display:"flex",flexDirection:"column",gap:12 }}>
             <motion.div
-  initial={{ opacity: 0, y: 16 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ delay: 0.2, duration: 0.4 }}
-  whileHover={{ y: -1 }}
-  style={{
-    background:"var(--color-card)",
-    border:"1px solid var(--color-line)",
-    backdropFilter:"blur(16px)",
-    WebkitBackdropFilter:"blur(16px)",
-    borderRadius:12,
-    padding:"20px",
-    marginBottom:20
-  }}
->
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+              whileHover={{ y: -1 }}
+              style={{
+                background:"var(--color-card)",
+                border:"1px solid var(--color-line)",
+                backdropFilter:"blur(16px)",
+                WebkitBackdropFilter:"blur(16px)",
+                borderRadius:12,
+                padding:"20px",
+                marginBottom:20
+              }}
+            >
               <h3 style={{ margin:"0 0 16px",fontSize:14,fontWeight:700 }}>Place Order</h3>
 
               {/* BUY / SELL toggle */}
@@ -883,9 +890,9 @@ export default function StockPage() {
                 </div>
               )}
 
-              <button onClick={placeOrder} disabled={orderStatus==="loading"}
-                style={{ width:"100%",padding:"11px",borderRadius:8,cursor:"pointer",border:"none",fontWeight:700,fontSize:14,background:orderForm.type==="BUY"?"var(--color-bull)":"var(--color-bear)",color:"#fff",opacity:orderStatus==="loading"?0.6:1 }}>
-                {orderStatus==="loading"
+              <button onClick={placeOrder} disabled={isPlacingOrder}
+                style={{ width:"100%",padding:"11px",borderRadius:8,cursor:"pointer",border:"none",fontWeight:700,fontSize:14,background:orderForm.type==="BUY"?"var(--color-bull)":"var(--color-bear)",color:"#fff",opacity:isPlacingOrder?0.6:1 }}>
+                {isPlacingOrder
                   ? "Placing…"
                   : orderForm.kind === "MARKET"
                     ? `${orderForm.type} ${symbol}`
@@ -893,11 +900,6 @@ export default function StockPage() {
                 }
               </button>
 
-              {orderMsg && (
-                <p style={{ margin:"10px 0 0",fontSize:12,textAlign:"center",color:orderStatus==="success"?"var(--color-bull)":"var(--color-bear)" }}>
-                  {orderMsg}
-                </p>
-              )}
               <p style={{ margin:"14px 0 0",fontSize:11,color:"var(--color-muted)",textAlign:"center",lineHeight:1.5 }}>
                 {orderForm.kind === "MARKET"
                   ? "Orders execute at market price. Not financial advice."

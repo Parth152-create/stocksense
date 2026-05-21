@@ -9,6 +9,7 @@ import {
   TrendingUp, TrendingDown, ArrowUpRight, RefreshCw,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/auth";
+import { useToast } from "@/components/ToastContext";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -164,6 +165,7 @@ function AlertModal({ item, onClose, onSave }: {
 export default function WatchlistPage() {
   const router  = useRouter();
   const { market } = useMarket();
+  const { toast } = useToast();
   const currency = market.currency || "$";
 
   const [items,       setItems]       = useState<DisplayItem[]>([]);
@@ -184,7 +186,6 @@ export default function WatchlistPage() {
       const data: WatchlistItem[] = await res.json();
 
       if (Array.isArray(data) && data.length > 0) {
-        // Enrich with display metadata
         const enriched: DisplayItem[] = data.map(item => {
           const clean = item.symbol.replace(/\.(BSE|NSE)$/i, "");
           const meta  = SYMBOL_META[clean] ?? DEFAULT_META;
@@ -241,7 +242,7 @@ export default function WatchlistPage() {
 
   // Merge live prices into display items
   const displayItems: DisplayItem[] = items.map(item => {
-    const clean    = item.symbol.replace(/\.(BSE|NSE)$/i, "");
+    const clean     = item.symbol.replace(/\.(BSE|NSE)$/i, "");
     const livePrice = livePrices[clean] ?? livePrices[item.symbol];
     if (!livePrice) return item;
     const change    = livePrice - item.price;
@@ -258,11 +259,11 @@ export default function WatchlistPage() {
       if (res.ok) {
         setShowAdd(false);
         setAddSymbol("");
+        toast(`${sym} added to watchlist`, "success");
         loadWatchlist();
         return;
       }
     } catch { /* fallback to navigation */ }
-    // Fallback: navigate to stock page where user can add to watchlist
     router.push(`/dashboard/stock/${sym}`);
     setShowAdd(false);
     setAddSymbol("");
@@ -271,6 +272,7 @@ export default function WatchlistPage() {
   // ── Remove from watchlist ─────────────────────────────────────────────────
   const handleRemove = async (symbol: string) => {
     setItems(prev => prev.filter(i => i.symbol !== symbol));
+    toast(`${symbol.replace(/\.(BSE|NSE)$/i, "")} removed from watchlist`, "info");
     try {
       await fetchWithAuth(`/api/watchlist/${symbol}`, { method: "DELETE" });
     } catch { /* optimistic update already applied */ }
@@ -281,7 +283,8 @@ export default function WatchlistPage() {
     setItems(prev => prev.map(i =>
       i.symbol === symbol ? { ...i, alertPrice: price } : i
     ));
-    // Optionally persist to backend if you add PUT /api/watchlist/:symbol/alert
+    const clean = symbol.replace(/\.(BSE|NSE)$/i, "");
+    toast(`Alert set for ${clean} at ${currency}${price}`, "warning");
   };
 
   const filtered = displayItems.filter(i =>
