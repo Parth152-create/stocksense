@@ -10,6 +10,14 @@ RUN mvn clean package -DskipTests -q
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
+
+# Run as non-root for security
+RUN addgroup -S spring && adduser -S spring -G spring
+USER spring
+
 COPY --from=build /app/target/*.jar app.jar
+
 EXPOSE 8081
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# JAVA_OPTS picked up from docker-compose environment
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

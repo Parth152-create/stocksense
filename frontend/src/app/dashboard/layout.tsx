@@ -6,9 +6,10 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Briefcase, BookMarked, BarChart3,
   Settings, Bell, LogOut, ChevronRight, TrendingUp, Sparkles, Wallet,
-  Sun, Moon,
+  Sun, Moon, Menu, X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { motion, AnimatePresence } from "framer-motion";
 import { MarketProvider } from "@/lib/MarketContext";
 import MarketSwitcher from "@/components/MarketSwitcher";
 import NotificationsDrawer, { AppNotification } from "@/components/NotificationsDrawer";
@@ -100,13 +101,148 @@ function PageTransition({ children, pathname }: { children: React.ReactNode; pat
   );
 }
 
+// ── Sidebar content — shared between desktop aside and mobile drawer ──────────
+function SidebarContent({
+  pathname, primaryColor, mutedColor, sectionLabel, sidebarBorder,
+  activeNavBg, hoverNavBg, accountBg, emailColor, planColor,
+  avatarLetter, displayLabel, onNavClick,
+}: {
+  pathname: string;
+  primaryColor: string; mutedColor: string; sectionLabel: string; sidebarBorder: string;
+  activeNavBg: string; hoverNavBg: string; accountBg: string;
+  emailColor: string; planColor: string;
+  avatarLetter: string; displayLabel: string;
+  onNavClick?: () => void;
+}) {
+  const [hoveredNav,    setHoveredNav]    = useState<string | null>(null);
+  const [hoveredLogout, setHoveredLogout] = useState(false);
+
+  return (
+    <>
+      {/* Logo */}
+      <div style={{
+        padding: "22px 20px 18px",
+        borderBottom: `1px solid ${sidebarBorder}`,
+        display: "flex", alignItems: "center", gap: 10,
+      }}>
+        <div style={{
+          width: 32, height: 32,
+          background: "linear-gradient(135deg,#8FFFD6,#00c896)",
+          borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: "0 0 16px rgba(143,255,214,0.3)",
+        }}>
+          <TrendingUp size={16} color="#0a0a0a" strokeWidth={2.5} />
+        </div>
+        <span style={{ color: primaryColor, fontWeight: 800, fontSize: 16, letterSpacing: -0.5 }}>
+          StockSense
+        </span>
+      </div>
+
+      {/* Market Switcher */}
+      <div style={{ padding: "14px 12px 10px" }}>
+        <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 2 }}>Market</p>
+        <MarketSwitcher />
+      </div>
+
+      {/* Nav */}
+      <nav style={{ padding: "10px 12px", flex: 1 }}>
+        <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 6 }}>Main Menu</p>
+        {NAV_ITEMS.map(({ href, label, icon: Icon }, idx) => {
+          const isActive = href === "/dashboard"
+            ? pathname === "/dashboard"
+            : pathname.startsWith(href);
+          return (
+            <Link key={href} href={href}
+              onClick={onNavClick}
+              className={`nav-link${isActive ? " active" : ""}`}
+              style={{
+                background:      isActive ? activeNavBg : "transparent",
+                borderLeftColor: isActive ? "#8FFFD6"   : "transparent",
+                color:           isActive ? "#8FFFD6"   : mutedColor,
+                animation: `slideInLeft 0.3s ease ${0.05 + idx * 0.04}s both`,
+              }}
+              onMouseEnter={e => {
+                setHoveredNav(href);
+                if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = hoverNavBg;
+              }}
+              onMouseLeave={e => {
+                setHoveredNav(null);
+                if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
+              }}>
+              <Icon size={15} strokeWidth={isActive ? 2 : 1.5}
+                style={{ transition: "transform 0.15s", transform: hoveredNav === href && !isActive ? "scale(1.1)" : "scale(1)" }} />
+              <span style={{ fontSize: 13, fontWeight: isActive ? 600 : 400 }}>{label}</span>
+              {isActive && <ChevronRight size={12} style={{ marginLeft: "auto", animation: "fadeInUp 0.2s ease" }} strokeWidth={2} />}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Account */}
+      <div style={{
+        padding: "16px 12px 0",
+        borderTop: `1px solid ${sidebarBorder}`,
+        animation: "fadeInUp 0.4s ease 0.5s both",
+      }}>
+        <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 6 }}>Account</p>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 9, marginBottom: 4 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: "50%",
+            background: "linear-gradient(135deg,#8FFFD6,#00c896)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 11, fontWeight: 700, color: "#0a0a0a", flexShrink: 0,
+            boxShadow: "0 0 10px rgba(143,255,214,0.25)",
+          }}>
+            {avatarLetter}
+          </div>
+          <div style={{ overflow: "hidden" }}>
+            <p style={{ color: emailColor, fontSize: 12, fontWeight: 500, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>
+              {displayLabel}
+            </p>
+            <p style={{ color: planColor, fontSize: 10, margin: 0 }}>Free plan</p>
+          </div>
+        </div>
+        <button
+          onMouseEnter={() => setHoveredLogout(true)}
+          onMouseLeave={() => setHoveredLogout(false)}
+          onClick={() => logout()}
+          style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 10,
+            padding: "9px 10px", borderRadius: 9,
+            background: hoveredLogout ? accountBg : "transparent",
+            border: "none", cursor: "pointer",
+            color: hoveredLogout ? "#ef4444" : mutedColor,
+            transition: "all 0.15s",
+          }}>
+          <LogOut size={14} style={{ transition: "transform 0.15s", transform: hoveredLogout ? "translateX(2px)" : "translateX(0)" }} />
+          <span style={{ fontSize: 13 }}>Sign out</span>
+        </button>
+      </div>
+    </>
+  );
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router   = useRouter();
   const { resolvedTheme } = useTheme();
-  const [mounted,     setMounted]     = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
+  const [mounted,        setMounted]        = useState(false);
+  const [authChecked,    setAuthChecked]    = useState(false);
+  const [mobileNavOpen,  setMobileNavOpen]  = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // Close mobile nav on route change
+  useEffect(() => { setMobileNavOpen(false); }, [pathname]);
+
+  // Prevent body scroll when mobile nav is open
+  useEffect(() => {
+    if (mobileNavOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileNavOpen]);
 
   useEffect(() => {
     const token = getToken();
@@ -120,33 +256,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isDark = !mounted || resolvedTheme === "dark";
 
-  // ── Glass-aware color tokens ──────────────────────────────────────────────
+  // ── Color tokens ─────────────────────────────────────────────────────────
   const primaryColor = isDark ? "#ffffff"  : "#18181A";
   const mutedColor   = isDark ? "#666666"  : "#6b7280";
   const sectionLabel = isDark ? "#3a3a3a"  : "#9ca3af";
   const pageBg       = isDark ? "#0a0a0a"  : "#F3F2F2";
 
-  // Sidebar — glass
-  const sidebarBg     = isDark ? "rgba(13,13,13,0.75)"  : "rgba(255,255,255,0.70)";
+  const sidebarBg     = isDark ? "rgba(13,13,13,0.75)"    : "rgba(255,255,255,0.70)";
   const sidebarBorder = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)";
   const sidebarBlur   = "blur(20px)";
 
-  // Header — glass
-  const headerBg     = isDark ? "rgba(10,10,10,0.80)"  : "rgba(255,255,255,0.75)";
+  const headerBg     = isDark ? "rgba(10,10,10,0.80)"    : "rgba(255,255,255,0.75)";
   const headerBorder = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)";
 
-  // Nav states
   const activeNavBg  = isDark ? "rgba(143,255,214,0.08)" : "rgba(143,255,214,0.14)";
   const hoverNavBg   = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
   const accountBg    = isDark ? "rgba(239,68,68,0.08)"   : "rgba(239,68,68,0.06)";
 
-  // Bell
   const bellBg           = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
   const bellBorder       = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
   const bellActiveBg     = isDark ? "rgba(143,255,214,0.10)" : "rgba(143,255,214,0.12)";
   const bellActiveBorder = isDark ? "rgba(143,255,214,0.3)"  : "rgba(143,255,214,0.4)";
 
-  // Text
   const dateColor        = isDark ? "#444444" : "#9ca3af";
   const breadcrumbActive = isDark ? "#ffffff"  : "#18181A";
   const breadcrumbMuted  = isDark ? "#555555"  : "#6b7280";
@@ -173,11 +304,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const displayLabel = userName || userEmail || "…";
   const avatarLetter = displayLabel !== "…" ? displayLabel[0].toUpperCase() : "U";
 
-  const [hoveredLogout, setHoveredLogout] = useState(false);
   const [drawerOpen,    setDrawerOpen]    = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount,   setUnreadCount]   = useState(0);
-  const [hoveredNav,    setHoveredNav]    = useState<string | null>(null);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -215,6 +344,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     isLast: i === arr.length - 1,
   }));
 
+  // Shared sidebar props
+  const sidebarProps = {
+    pathname, primaryColor, mutedColor, sectionLabel, sidebarBorder,
+    activeNavBg, hoverNavBg, accountBg, emailColor, planColor,
+    avatarLetter, displayLabel,
+  };
+
   if (!authChecked) return null;
 
   return (
@@ -244,7 +380,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             .nav-link:hover { padding-left: 14px !important; }
             .nav-link.active { padding-left: 10px; }
 
-            /* Sidebar inner glow */
             .sidebar-glass {
               background: ${sidebarBg};
               backdrop-filter: ${sidebarBlur};
@@ -252,8 +387,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               border-right: 1px solid ${sidebarBorder};
               box-shadow: inset -1px 0 0 ${isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)"};
             }
-
-            /* Header glass */
             .header-glass {
               background: ${headerBg};
               backdrop-filter: blur(20px);
@@ -261,6 +394,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               border-bottom: 1px solid ${headerBorder};
               box-shadow: 0 1px 0 ${isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)"},
                           0 4px 16px ${isDark ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0.06)"};
+            }
+
+            /* Hide desktop sidebar on mobile, show hamburger */
+            .desktop-sidebar { display: flex; }
+            .hamburger-btn   { display: none; }
+
+            @media (max-width: 768px) {
+              .desktop-sidebar { display: none !important; }
+              .hamburger-btn   { display: flex !important; }
+              .header-date     { display: none !important; }
             }
           `}</style>
 
@@ -271,113 +414,82 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             transition: "background 0.2s, color 0.2s",
           }}>
 
-            {/* ── Sidebar ── */}
-            <aside className="sidebar-glass" style={{
+            {/* ── Desktop Sidebar ── */}
+            <aside className="sidebar-glass desktop-sidebar" style={{
               width: 220, minHeight: "100vh",
-              display: "flex", flexDirection: "column", padding: "0 0 24px",
+              flexDirection: "column", padding: "0 0 24px",
               flexShrink: 0, position: "sticky", top: 0, height: "100vh",
               animation: "slideInLeft 0.3s ease both",
             }}>
-
-              {/* Logo */}
-              <div style={{
-                padding: "22px 20px 18px",
-                borderBottom: `1px solid ${sidebarBorder}`,
-                display: "flex", alignItems: "center", gap: 10,
-              }}>
-                <div style={{
-                  width: 32, height: 32,
-                  background: "linear-gradient(135deg,#8FFFD6,#00c896)",
-                  borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center",
-                  boxShadow: "0 0 16px rgba(143,255,214,0.3)",
-                }}>
-                  <TrendingUp size={16} color="#0a0a0a" strokeWidth={2.5} />
-                </div>
-                <span style={{ color: primaryColor, fontWeight: 800, fontSize: 16, letterSpacing: -0.5 }}>
-                  StockSense
-                </span>
-              </div>
-
-              {/* Market Switcher */}
-              <div style={{ padding: "14px 12px 10px" }}>
-                <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 2 }}>Market</p>
-                <MarketSwitcher />
-              </div>
-
-              {/* Nav */}
-              <nav style={{ padding: "10px 12px", flex: 1 }}>
-                <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 6 }}>Main Menu</p>
-                {NAV_ITEMS.map(({ href, label, icon: Icon }, idx) => {
-                  const isActive = href === "/dashboard"
-                    ? pathname === "/dashboard"
-                    : pathname.startsWith(href);
-                  return (
-                    <Link key={href} href={href}
-                      className={`nav-link${isActive ? " active" : ""}`}
-                      style={{
-                        background:      isActive ? activeNavBg : "transparent",
-                        borderLeftColor: isActive ? "#8FFFD6"   : "transparent",
-                        color:           isActive ? "#8FFFD6"   : mutedColor,
-                        animation: `slideInLeft 0.3s ease ${0.05 + idx * 0.04}s both`,
-                      }}
-                      onMouseEnter={e => {
-                        setHoveredNav(href);
-                        if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = hoverNavBg;
-                      }}
-                      onMouseLeave={e => {
-                        setHoveredNav(null);
-                        if (!isActive) (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
-                      }}>
-                      <Icon size={15} strokeWidth={isActive ? 2 : 1.5}
-                        style={{ transition: "transform 0.15s", transform: hoveredNav === href && !isActive ? "scale(1.1)" : "scale(1)" }} />
-                      <span style={{ fontSize: 13, fontWeight: isActive ? 600 : 400 }}>{label}</span>
-                      {isActive && <ChevronRight size={12} style={{ marginLeft: "auto", animation: "fadeInUp 0.2s ease" }} strokeWidth={2} />}
-                    </Link>
-                  );
-                })}
-              </nav>
-
-              {/* Account */}
-              <div style={{
-                padding: "16px 12px 0",
-                borderTop: `1px solid ${sidebarBorder}`,
-                animation: "fadeInUp 0.4s ease 0.5s both",
-              }}>
-                <p style={{ color: sectionLabel, fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 6 }}>Account</p>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 9, marginBottom: 4 }}>
-                  <div style={{
-                    width: 28, height: 28, borderRadius: "50%",
-                    background: "linear-gradient(135deg,#8FFFD6,#00c896)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 11, fontWeight: 700, color: "#0a0a0a", flexShrink: 0,
-                    boxShadow: "0 0 10px rgba(143,255,214,0.25)",
-                  }}>
-                    {avatarLetter}
-                  </div>
-                  <div style={{ overflow: "hidden" }}>
-                    <p style={{ color: emailColor, fontSize: 12, fontWeight: 500, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>
-                      {displayLabel}
-                    </p>
-                    <p style={{ color: planColor, fontSize: 10, margin: 0 }}>Free plan</p>
-                  </div>
-                </div>
-                <button
-                  onMouseEnter={() => setHoveredLogout(true)}
-                  onMouseLeave={() => setHoveredLogout(false)}
-                  onClick={() => logout()}
-                  style={{
-                    width: "100%", display: "flex", alignItems: "center", gap: 10,
-                    padding: "9px 10px", borderRadius: 9,
-                    background: hoveredLogout ? accountBg : "transparent",
-                    border: "none", cursor: "pointer",
-                    color: hoveredLogout ? "#ef4444" : mutedColor,
-                    transition: "all 0.15s",
-                  }}>
-                  <LogOut size={14} style={{ transition: "transform 0.15s", transform: hoveredLogout ? "translateX(2px)" : "translateX(0)" }} />
-                  <span style={{ fontSize: 13 }}>Sign out</span>
-                </button>
-              </div>
+              <SidebarContent {...sidebarProps} />
             </aside>
+
+            {/* ── Mobile Overlay + Drawer ── */}
+            <AnimatePresence>
+              {mobileNavOpen && (
+                <>
+                  {/* Backdrop */}
+                  <motion.div
+                    key="mobile-backdrop"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    onClick={() => setMobileNavOpen(false)}
+                    style={{
+                      position: "fixed", inset: 0, zIndex: 49,
+                      background: isDark
+                        ? "rgba(0,0,0,0.65)"
+                        : "rgba(0,0,0,0.35)",
+                      backdropFilter: "blur(2px)",
+                      WebkitBackdropFilter: "blur(2px)",
+                    }}
+                  />
+
+                  {/* Drawer panel */}
+                  <motion.div
+                    key="mobile-drawer"
+                    initial={{ x: "-100%" }}
+                    animate={{ x: 0 }}
+                    exit={{ x: "-100%" }}
+                    transition={{ type: "spring", stiffness: 320, damping: 32, mass: 0.9 }}
+                    style={{
+                      position: "fixed", left: 0, top: 0, bottom: 0,
+                      width: 260, zIndex: 50,
+                      display: "flex", flexDirection: "column",
+                      padding: "0 0 24px",
+                      background: isDark ? "rgba(10,10,10,0.97)" : "rgba(255,255,255,0.97)",
+                      backdropFilter: "blur(24px)",
+                      WebkitBackdropFilter: "blur(24px)",
+                      borderRight: `1px solid ${sidebarBorder}`,
+                      boxShadow: isDark
+                        ? "4px 0 32px rgba(0,0,0,0.6)"
+                        : "4px 0 32px rgba(0,0,0,0.12)",
+                      overflowY: "auto",
+                    }}
+                  >
+                    {/* Close button inside drawer */}
+                    <button
+                      onClick={() => setMobileNavOpen(false)}
+                      style={{
+                        position: "absolute", top: 16, right: 16, zIndex: 10,
+                        width: 32, height: 32, borderRadius: 8,
+                        background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+                        border: `1px solid ${sidebarBorder}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: "pointer", color: mutedColor,
+                      }}>
+                      <X size={15} />
+                    </button>
+
+                    <SidebarContent
+                      {...sidebarProps}
+                      onNavClick={() => setMobileNavOpen(false)}
+                    />
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
 
             {/* ── Main ── */}
             <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
@@ -386,23 +498,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <header className="header-glass" style={{
                 height: 60,
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "0 32px",
+                padding: "0 20px 0 16px",
                 position: "sticky", top: 0, zIndex: 30, flexShrink: 0,
                 animation: "fadeInUp 0.25s ease both",
               }}>
-                <nav style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {breadcrumb.map(({ label, href, isLast }) => (
-                    <span key={href} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      {isLast
-                        ? <span style={{ color: breadcrumbActive, fontSize: 13, fontWeight: 600 }}>{label}</span>
-                        : <Link href={href} style={{ color: breadcrumbMuted, fontSize: 13, textDecoration: "none" }}>{label}</Link>}
-                      {!isLast && <ChevronRight size={12} color={chevronColor} />}
-                    </span>
-                  ))}
-                </nav>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  {/* Hamburger — mobile only */}
+                  <button
+                    className="hamburger-btn"
+                    onClick={() => setMobileNavOpen(true)}
+                    aria-label="Open menu"
+                    style={{
+                      width: 36, height: 36, borderRadius: 9,
+                      background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                      border: `1px solid ${sidebarBorder}`,
+                      alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", color: primaryColor,
+                      flexShrink: 0,
+                    }}>
+                    <Menu size={17} />
+                  </button>
+
+                  {/* Breadcrumb */}
+                  <nav style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {breadcrumb.map(({ label, href, isLast }) => (
+                      <span key={href} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {isLast
+                          ? <span style={{ color: breadcrumbActive, fontSize: 13, fontWeight: 600 }}>{label}</span>
+                          : <Link href={href} style={{ color: breadcrumbMuted, fontSize: 13, textDecoration: "none" }}>{label}</Link>}
+                        {!isLast && <ChevronRight size={12} color={chevronColor} />}
+                      </span>
+                    ))}
+                  </nav>
+                </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <span style={{ color: dateColor, fontSize: 12 }}>
+                  <span className="header-date" style={{ color: dateColor, fontSize: 12 }}>
                     {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
                   </span>
                   <ThemeToggle />
