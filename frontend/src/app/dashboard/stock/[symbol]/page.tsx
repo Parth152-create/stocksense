@@ -52,31 +52,54 @@ const BULL   = "#22c55e";
 const BEAR   = "#ef4444";
 const ACCENT = "#8FFFD6";
 
+// ── easing ────────────────────────────────────────────────────────────────────
+const APPLE = [0.22, 1, 0.36, 1] as const;
+
 function Skeleton({ w, h = 16 }: { w: string | number; h?: number }) {
-  return <div style={{ width: w, height: h, borderRadius: 4, background: "var(--color-line)", animation: "pulse 1.5s ease-in-out infinite" }} />;
-}
-function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div style={{ background: "var(--color-card)", border: "1px solid var(--color-line)", borderRadius: 10, padding: "12px 16px" }}>
-      <p style={{ margin: 0, fontSize: 11, color: "var(--color-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</p>
-      <p style={{ margin: "4px 0 0", fontSize: 15, fontWeight: 700 }}>{value}</p>
-    </div>
+    <div style={{
+      width: w, height: h, borderRadius: 4,
+      background: "var(--color-line)",
+      animation: "pulse 1.5s ease-in-out infinite",
+    }} />
   );
 }
-function AnalystBar({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {
+
+function StatCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <motion.div
+      whileHover={{ y: -2, transition: { duration: 0.15 } }}
+      style={{
+        background: "var(--color-card)",
+        border: "1px solid var(--color-line)",
+        borderRadius: 10, padding: "12px 16px",
+      }}
+    >
+      <p style={{ margin: 0, fontSize: 11, color: "var(--color-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</p>
+      <p style={{ margin: "4px 0 0", fontSize: 15, fontWeight: 700 }}>{value}</p>
+    </motion.div>
+  );
+}
+
+function AnalystBar({ label, count, total, color }: {
+  label: string; count: number; total: number; color: string;
+}) {
   const pct = total > 0 ? (count / total) * 100 : 0;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <span style={{ width: 72, color: "var(--color-muted)", fontSize: 12 }}>{label}</span>
       <div style={{ flex: 1, height: 6, background: "var(--color-line)", borderRadius: 3, overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 3, transition: "width .5s" }} />
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.6, ease: APPLE, delay: 0.1 }}
+          style={{ height: "100%", background: color, borderRadius: 3 }}
+        />
       </div>
       <span style={{ width: 20, textAlign: "right", fontWeight: 600, fontSize: 13 }}>{count}</span>
     </div>
   );
 }
-
-// ─── NewsCard ─────────────────────────────────────────────────────────────────
 
 function NewsCard({ article }: { article: NewsArticle }) {
   const timeAgo = (iso: string) => {
@@ -88,12 +111,10 @@ function NewsCard({ article }: { article: NewsArticle }) {
       return `${Math.floor(h / 24)}d ago`;
     } catch { return ""; }
   };
-
   return (
     <a
       href={article.url !== "#" ? article.url : undefined}
-      target="_blank"
-      rel="noopener noreferrer"
+      target="_blank" rel="noopener noreferrer"
       style={{
         display: "block", textDecoration: "none", color: "inherit",
         padding: "14px 16px", borderRadius: 10,
@@ -105,12 +126,12 @@ function NewsCard({ article }: { article: NewsArticle }) {
       onMouseEnter={e => {
         if (article.url !== "#") {
           (e.currentTarget as HTMLElement).style.borderColor = ACCENT + "66";
-          (e.currentTarget as HTMLElement).style.background = "var(--color-surface-hover)";
+          (e.currentTarget as HTMLElement).style.background  = "var(--color-surface-hover)";
         }
       }}
       onMouseLeave={e => {
         (e.currentTarget as HTMLElement).style.borderColor = "var(--color-line)";
-        (e.currentTarget as HTMLElement).style.background = "var(--color-page)";
+        (e.currentTarget as HTMLElement).style.background  = "var(--color-page)";
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
@@ -119,8 +140,11 @@ function NewsCard({ article }: { article: NewsArticle }) {
             {article.title}
           </p>
           {article.description && (
-            <p style={{ margin: "0 0 8px", fontSize: 12, color: "var(--color-muted)", lineHeight: 1.5,
-              overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}>
+            <p style={{
+              margin: "0 0 8px", fontSize: 12, color: "var(--color-muted)", lineHeight: 1.5,
+              overflow: "hidden", display: "-webkit-box",
+              WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const,
+            }}>
               {article.description}
             </p>
           )}
@@ -130,13 +154,10 @@ function NewsCard({ article }: { article: NewsArticle }) {
             <span style={{ fontSize: 11, color: "var(--color-muted)" }}>{timeAgo(article.publishedAt)}</span>
           </div>
         </div>
-        {article.urlToImage && article.urlToImage !== "" && (
-          <img
-            src={article.urlToImage}
-            alt=""
+        {article.urlToImage && (
+          <img src={article.urlToImage} alt=""
             style={{ width: 72, height: 54, objectFit: "cover", borderRadius: 7, flexShrink: 0 }}
-            onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-          />
+            onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
         )}
       </div>
       {article.url !== "#" && (
@@ -148,8 +169,7 @@ function NewsCard({ article }: { article: NewsArticle }) {
   );
 }
 
-// ─── StockChart ───────────────────────────────────────────────────────────────
-
+// ── StockChart — light mode fix ───────────────────────────────────────────────
 function StockChart({ symbol, currency, marketId }: {
   symbol: string; currency: string; marketId: string;
 }) {
@@ -183,14 +203,16 @@ function StockChart({ symbol, currency, marketId }: {
       const LWC = (window as any).LightweightCharts;
       if (!LWC) return;
 
-      const darkMode  = isDark;
-      const bgColor   = darkMode ? "#0d0d0d" : "#ffffff";
-      const gridColor = darkMode ? "#1a1a1a" : "#f0f0f0";
-      const textColor = darkMode ? "#555555" : "#9ca3af";
-      const borderCol = darkMode ? "#1f1f1f" : "#e5e7eb";
+      // ── theme tokens ────────────────────────────────────────────────────────
+      // Key fix: derive ALL colours from isDark so light mode is always clean white
+      const bgColor    = isDark ? "#0d0d0d"  : "#ffffff";
+      const gridColor  = isDark ? "#1c1c1c"  : "#f3f4f6";
+      const textColor  = isDark ? "#6b7280"  : "#9ca3af";
+      const borderCol  = isDark ? "#222222"  : "#e5e7eb";
+      const crossColor = isDark ? "#333333"  : "#d1d5db";
 
       if (chartRef.current) {
-        try { chartRef.current.remove(); } catch { /* gone */ }
+        try { chartRef.current.remove(); } catch { /* already removed */ }
         chartRef.current = null;
       }
 
@@ -200,17 +222,23 @@ function StockChart({ symbol, currency, marketId }: {
         layout: {
           background: { type: "solid", color: bgColor },
           textColor,
-          fontFamily: "'Geist','Inter',sans-serif",
+          fontFamily: "var(--font-gantari,'Gantari','Inter',sans-serif)",
           fontSize: 11,
         },
         grid: {
           vertLines: { color: gridColor },
           horzLines: { color: gridColor },
         },
-        crosshair: { mode: 1 },
+        crosshair: {
+          mode: 1,
+          vertLine: { color: crossColor, width: 1, style: 2 },
+          horzLine: { color: crossColor, width: 1, style: 2 },
+        },
         rightPriceScale: {
           borderColor: borderCol,
           scaleMargins: { top: 0.1, bottom: 0.22 },
+          // Fix: make price scale background match chart background
+          entireTextOnly: false,
         },
         timeScale: {
           borderColor:    borderCol,
@@ -226,11 +254,12 @@ function StockChart({ symbol, currency, marketId }: {
       chartRef.current = chart;
 
       let priceSeries: any;
+
       if (chartType === "candle" && candles.length > 0) {
         priceSeries = chart.addCandlestickSeries({
-          upColor: BULL, downColor: BEAR,
-          borderUpColor: BULL, borderDownColor: BEAR,
-          wickUpColor: BULL, wickDownColor: BEAR,
+          upColor:        BULL, downColor:        BEAR,
+          borderUpColor:  BULL, borderDownColor:  BEAR,
+          wickUpColor:    BULL, wickDownColor:    BEAR,
         });
         priceSeries.setData(candles.map(c => ({
           time: c.time, open: c.open, high: c.high, low: c.low, close: c.close,
@@ -243,7 +272,7 @@ function StockChart({ symbol, currency, marketId }: {
           lineColor,
           topColor:    lineColor + "33",
           bottomColor: lineColor + "05",
-          lineWidth:   2,
+          lineWidth: 2,
           crosshairMarkerVisible: true,
           crosshairMarkerRadius:  4,
         });
@@ -299,10 +328,10 @@ function StockChart({ symbol, currency, marketId }: {
     } else {
       const existing = document.querySelector('script[data-lwc="1"]');
       if (!existing) {
-        const script = document.createElement("script");
-        script.src   = "https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js";
+        const script    = document.createElement("script");
+        script.src      = "https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js";
         script.setAttribute("data-lwc", "1");
-        script.onload = () => build();
+        script.onload   = () => build();
         document.head.appendChild(script);
       } else {
         const poll = setInterval(() => {
@@ -326,8 +355,19 @@ function StockChart({ symbol, currency, marketId }: {
   const rangeUp    = rangeChg >= 0;
 
   return (
-    <div style={{ background: "var(--color-card)", border: "1px solid var(--color-line)", borderRadius: 12, overflow: "hidden", marginBottom: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid var(--color-line)" }}>
+    <div style={{
+      // Fix: explicit background so it always matches theme — no bleed-through
+      background: isDark ? "#0d0d0d" : "#ffffff",
+      border: `1px solid var(--color-line)`,
+      borderRadius: 12, overflow: "hidden", marginBottom: 20,
+    }}>
+      {/* Header */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "14px 18px",
+        borderBottom: "1px solid var(--color-line)",
+        background: "var(--color-card)",           // header stays on card bg
+      }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
           {hoverInfo ? (
             <>
@@ -346,38 +386,85 @@ function StockChart({ symbol, currency, marketId }: {
             </>
           )}
         </div>
+
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ display: "flex", background: "var(--color-page)", border: "1px solid var(--color-line)", borderRadius: 8, padding: 3, gap: 2 }}>
+          {/* Chart type toggle */}
+          <div style={{
+            display: "flex", background: "var(--color-page)",
+            border: "1px solid var(--color-line)", borderRadius: 8, padding: 3, gap: 2,
+          }}>
             {([
               { type: "candle" as ChartType, icon: <CandlestickChart size={13} /> },
               { type: "area"   as ChartType, icon: <LineIcon size={13} />          },
             ]).map(({ type, icon }) => (
-              <button key={type} onClick={() => setChartType(type)}
-                style={{ display: "flex", alignItems: "center", padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", background: chartType === type ? "var(--color-card)" : "transparent", color: chartType === type ? ACCENT : "var(--color-muted)" }}>
+              <button key={type} onClick={() => setChartType(type)} style={{
+                display: "flex", alignItems: "center", padding: "5px 10px",
+                borderRadius: 6, border: "none", cursor: "pointer",
+                background: chartType === type ? "var(--color-card)" : "transparent",
+                color:      chartType === type ? ACCENT : "var(--color-muted)",
+                transition: "all 0.15s",
+              }}>
                 {icon}
               </button>
             ))}
           </div>
-          <div style={{ display: "flex", background: "var(--color-page)", border: "1px solid var(--color-line)", borderRadius: 8, padding: 3, gap: 2 }}>
+
+          {/* Range toggle */}
+          <div style={{
+            display: "flex", background: "var(--color-page)",
+            border: "1px solid var(--color-line)", borderRadius: 8, padding: 3, gap: 2,
+          }}>
             {RANGES.map(r => (
-              <button key={r} onClick={() => setRange(r)}
-                style={{ padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: range === r ? "var(--color-card)" : "transparent", color: range === r ? ACCENT : "var(--color-muted)" }}>
+              <button key={r} onClick={() => setRange(r)} style={{
+                padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+                fontSize: 11, fontWeight: 600,
+                background: range === r ? "var(--color-card)" : "transparent",
+                color:      range === r ? ACCENT : "var(--color-muted)",
+                transition: "all 0.15s",
+              }}>
                 {r}
               </button>
             ))}
           </div>
         </div>
       </div>
+
+      {/* Chart canvas — explicit bg, no backdrop-filter bleed */}
       <div style={{ position: "relative" }}>
         {loading && (
-          <div style={{ position: "absolute", inset: 0, zIndex: 10, background: "var(--color-card)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
-            <div style={{ width: 28, height: 28, borderRadius: "50%", border: "2px solid var(--color-line)", borderTop: `2px solid ${ACCENT}`, animation: "spin 0.8s linear infinite" }} />
+          <div style={{
+            position: "absolute", inset: 0, zIndex: 10,
+            // Fix: match the chart bg exactly so the spinner doesn't flicker
+            background: isDark ? "#0d0d0d" : "#ffffff",
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", gap: 12,
+          }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: "50%",
+              border: "2px solid var(--color-line)",
+              borderTop: `2px solid ${ACCENT}`,
+              animation: "spin 0.8s linear infinite",
+            }} />
             <span style={{ color: "var(--color-muted)", fontSize: 12 }}>Loading chart…</span>
           </div>
         )}
-        <div ref={containerRef} style={{ height: 340, width: "100%" }} />
+        {/* Fix: div gets explicit background so LWC canvas doesn't inherit transparency */}
+        <div
+          ref={containerRef}
+          style={{
+            height: 340, width: "100%",
+            background: isDark ? "#0d0d0d" : "#ffffff",
+          }}
+        />
       </div>
-      <div style={{ padding: "8px 18px", borderTop: "1px solid var(--color-line)", display: "flex", justifyContent: "space-between" }}>
+
+      {/* Footer */}
+      <div style={{
+        padding: "8px 18px",
+        borderTop: "1px solid var(--color-line)",
+        background: "var(--color-card)",          // footer stays on card bg
+        display: "flex", justifyContent: "space-between",
+      }}>
         <span style={{ fontSize: 10, color: "var(--color-muted)" }}>
           Lightweight Charts™ · {candles.length} candles
         </span>
@@ -389,8 +476,7 @@ function StockChart({ symbol, currency, marketId }: {
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
+// ── Page ──────────────────────────────────────────────────────────────────────
 export default function StockPage() {
   const params = useParams();
   const router = useRouter();
@@ -429,8 +515,8 @@ export default function StockPage() {
       ]);
       if (!ovRes.ok) throw new Error(`Symbol not found: ${symbol}`);
       setOverview(await ovRes.json());
-      if (ratRes.ok) setRatings(await ratRes.json());
-      if (insRes.ok) setInsights(await insRes.json());
+      if (ratRes.ok)  setRatings(await ratRes.json());
+      if (insRes.ok)  setInsights(await insRes.json());
       if (quoteRes.ok) {
         const q = await quoteRes.json();
         if (q.price > 0)                  setFallbackPrice(q.price);
@@ -470,20 +556,18 @@ export default function StockPage() {
       setWatchlisted(w => !w);
       toast(
         watchlisted ? `${symbol} removed from watchlist` : `${symbol} added to watchlist`,
-        watchlisted ? "info" : "success"
+        watchlisted ? "info" : "success",
       );
     }
   };
 
   const placeOrder = async () => {
     if (!orderForm.qty || isNaN(Number(orderForm.qty)) || Number(orderForm.qty) <= 0) {
-      toast("Enter a valid quantity", "error");
-      return;
+      toast("Enter a valid quantity", "error"); return;
     }
     if (orderForm.kind !== "MARKET") {
       if (!orderForm.limitPrice || isNaN(Number(orderForm.limitPrice)) || Number(orderForm.limitPrice) <= 0) {
-        toast("Enter a valid limit price", "error");
-        return;
+        toast("Enter a valid limit price", "error"); return;
       }
     }
     setIsPlacingOrder(true);
@@ -492,25 +576,21 @@ export default function StockPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          symbol,
-          market: market.id,
-          type:   orderForm.type,
-          kind:   orderForm.kind,
-          qty:    Number(orderForm.qty),
-          price:  price ?? 0,
+          symbol, market: market.id,
+          type: orderForm.type, kind: orderForm.kind,
+          qty:  Number(orderForm.qty), price: price ?? 0,
           ...(orderForm.kind !== "MARKET" && orderForm.limitPrice
-            ? { limitPrice: Number(orderForm.limitPrice) }
-            : {}),
+            ? { limitPrice: Number(orderForm.limitPrice) } : {}),
         }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as any).error ?? "Order failed");
       }
-      const successMsg = orderForm.kind === "MARKET"
+      const msg = orderForm.kind === "MARKET"
         ? `${orderForm.type} order placed — ${orderForm.qty} shares of ${symbol}`
         : `${orderForm.kind === "STOP_LOSS" ? "Stop" : "Limit"} ${orderForm.type} set at ${formatPrice(Number(orderForm.limitPrice))}`;
-      toast(successMsg, "success");
+      toast(msg, "success");
       setOrderForm(f => ({ ...f, qty: "", limitPrice: "" }));
     } catch (e: unknown) {
       toast(e instanceof Error ? e.message : "Order failed — try again", "error");
@@ -534,125 +614,127 @@ export default function StockPage() {
     return formatPrice(n, 0);
   };
 
+  const cardStyle: React.CSSProperties = {
+    background: "var(--color-card)",
+    border: "1px solid var(--color-line)",
+    backdropFilter: "blur(16px)",
+    WebkitBackdropFilter: "blur(16px)",
+    borderRadius: 12,
+    padding: "18px 20px",
+    marginBottom: 20,
+  };
+
   return (
     <div style={{ padding: "32px 28px", maxWidth: 1100, margin: "0 auto" }}>
       <style>{`
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-        @keyframes spin  { to{transform:rotate(360deg)} }
-        @keyframes ping  { 0%{transform:scale(1);opacity:.75} 100%{transform:scale(2);opacity:0} }
+        @keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:.4} }
+        @keyframes spin     { to{transform:rotate(360deg)} }
+        @keyframes ping     { 0%{transform:scale(1);opacity:.75} 100%{transform:scale(2);opacity:0} }
         @keyframes fadeInUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         .order-tab { flex:1; padding:8px; border:none; cursor:pointer; font-size:13px; font-weight:600; border-radius:6px; transition:all .15s; }
         .kind-tab  { flex:1; padding:6px 4px; border:none; cursor:pointer; font-size:11px; font-weight:600; border-radius:6px; transition:all .15s; }
       `}</style>
 
-      <button onClick={() => router.back()} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",color:"var(--color-muted)",fontSize:13,marginBottom:20,padding:0 }}>
-        <ArrowLeft size={14}/> Back
-      </button>
+      <motion.button
+        onClick={() => router.back()}
+        whileHover={{ x: -2 }}
+        style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", fontSize: 13, marginBottom: 20, padding: 0 }}
+      >
+        <ArrowLeft size={14} /> Back
+      </motion.button>
 
       {error ? (
-        <div style={{ display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:300,gap:12,color:"var(--color-bear)" }}>
-          <AlertCircle size={32}/>
-          <p style={{ margin:0,fontSize:16 }}>{error}</p>
-          <button onClick={load} style={{ padding:"8px 20px",borderRadius:8,background:"var(--color-primary)",color:"#000",border:"none",cursor:"pointer",fontWeight:600 }}>Retry</button>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 300, gap: 12, color: "var(--color-bear)" }}>
+          <AlertCircle size={32} />
+          <p style={{ margin: 0, fontSize: 16 }}>{error}</p>
+          <button onClick={load} style={{ padding: "8px 20px", borderRadius: 8, background: "var(--color-primary)", color: "#000", border: "none", cursor: "pointer", fontWeight: 600 }}>Retry</button>
         </div>
       ) : (
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 300px",gap:20,alignItems:"start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20, alignItems: "start" }}>
 
-          {/* LEFT */}
+          {/* ── LEFT ── */}
           <div>
-            {/* Hero */}
+            {/* Hero card */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              style={{
-                background:"var(--color-card)",
-                border:"1px solid var(--color-line)",
-                borderRadius:12,
-                padding:"20px 24px",
-                marginBottom:20,
-                display:"flex",
-                justifyContent:"space-between",
-                alignItems:"flex-start",
-                backdropFilter:"blur(16px)",
-                WebkitBackdropFilter:"blur(16px)"
-              }}
+              transition={{ duration: 0.4, ease: APPLE }}
+              style={{ ...cardStyle, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}
             >
               <div>
                 {loading ? (
-                  <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-                    <Skeleton w={120} h={28}/><Skeleton w={200}/><Skeleton w={80}/>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <Skeleton w={120} h={28} /><Skeleton w={200} /><Skeleton w={80} />
                   </div>
                 ) : (
                   <>
-                    <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                      <h1 style={{ margin:0,fontSize:26,fontWeight:800 }}>{symbol}</h1>
-                      <span style={{ padding:"2px 8px",borderRadius:6,fontSize:11,background:"var(--color-line)",color:"var(--color-muted)" }}>{overview?.exchange}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800 }}>{symbol}</h1>
+                      <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 11, background: "var(--color-line)", color: "var(--color-muted)" }}>{overview?.exchange}</span>
                     </div>
-                    <p style={{ margin:"4px 0",color:"var(--color-muted)",fontSize:14 }}>{overview?.name}</p>
-                    <p style={{ margin:0,fontSize:12,color:"var(--color-muted)" }}>{overview?.sector} · {overview?.industry}</p>
+                    <p style={{ margin: "4px 0", color: "var(--color-muted)", fontSize: 14 }}>{overview?.name}</p>
+                    <p style={{ margin: 0, fontSize: 12, color: "var(--color-muted)" }}>{overview?.sector} · {overview?.industry}</p>
                   </>
                 )}
               </div>
-              <div style={{ textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8 }}>
+              <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
                 {loading ? (
-                  <><Skeleton w={100} h={32}/><Skeleton w={70}/></>
+                  <><Skeleton w={100} h={32} /><Skeleton w={70} /></>
                 ) : price !== null ? (
                   <>
-                    <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       {isLive && (
-                        <span style={{ position:"relative",display:"inline-flex",width:8,height:8 }}>
-                          <span style={{ position:"absolute",inset:0,borderRadius:"50%",background:ACCENT,opacity:0.75,animation:"ping 1s cubic-bezier(0,0,0.2,1) infinite" }}/>
-                          <span style={{ position:"relative",borderRadius:"50%",width:8,height:8,background:ACCENT,display:"inline-flex" }}/>
+                        <span style={{ position: "relative", display: "inline-flex", width: 8, height: 8 }}>
+                          <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: ACCENT, opacity: 0.75, animation: "ping 1s cubic-bezier(0,0,0.2,1) infinite" }} />
+                          <span style={{ position: "relative", borderRadius: "50%", width: 8, height: 8, background: ACCENT, display: "inline-flex" }} />
                         </span>
                       )}
-                      <span style={{ fontSize:28,fontWeight:800 }}>{formatPrice(price)}</span>
+                      <span style={{ fontSize: 28, fontWeight: 800 }}>{formatPrice(price)}</span>
                     </div>
-                    <span style={{ display:"flex",alignItems:"center",gap:4,fontSize:14,fontWeight:600,color:isUp?"var(--color-bull)":"var(--color-bear)" }}>
-                      {isUp?<TrendingUp size={14}/>:<TrendingDown size={14}/>}
-                      {isUp?"+":""}{changePct?.toFixed(2)}%
-                      {!isLive&&<span style={{ fontSize:10,color:"var(--color-muted)",fontWeight:400,marginLeft:4 }}>delayed</span>}
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 14, fontWeight: 600, color: isUp ? BULL : BEAR }}>
+                      {isUp ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                      {isUp ? "+" : ""}{changePct?.toFixed(2)}%
+                      {!isLive && <span style={{ fontSize: 10, color: "var(--color-muted)", fontWeight: 400, marginLeft: 4 }}>delayed</span>}
                     </span>
                   </>
                 ) : (
-                  <span style={{ color:"var(--color-muted)",fontSize:14 }}>Price unavailable</span>
+                  <span style={{ color: "var(--color-muted)", fontSize: 14 }}>Price unavailable</span>
                 )}
-                <button onClick={toggleWatchlist} style={{ display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,cursor:"pointer",fontSize:12,background:watchlisted?"color-mix(in srgb,var(--color-primary) 15%,transparent)":"transparent",border:`1px solid ${watchlisted?"var(--color-primary)":"var(--color-line)"}`,color:watchlisted?"var(--color-primary)":"var(--color-muted)",fontWeight:600 }}>
-                  {watchlisted?<Star size={12} fill="currentColor"/>:<StarOff size={12}/>}
-                  {watchlisted?"Watchlisted":"Add to Watchlist"}
-                </button>
+                <motion.button
+                  whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                  onClick={toggleWatchlist}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8, cursor: "pointer", fontSize: 12, background: watchlisted ? "color-mix(in srgb,var(--color-primary) 15%,transparent)" : "transparent", border: `1px solid ${watchlisted ? "var(--color-primary)" : "var(--color-line)"}`, color: watchlisted ? "var(--color-primary)" : "var(--color-muted)", fontWeight: 600 }}
+                >
+                  {watchlisted ? <Star size={12} fill="currentColor" /> : <StarOff size={12} />}
+                  {watchlisted ? "Watchlisted" : "Add to Watchlist"}
+                </motion.button>
               </div>
             </motion.div>
 
             {/* Chart */}
-            <StockChart key={`${symbol}-${market.id}`} symbol={symbol} currency={market.currency||"$"} marketId={market.id}/>
+            <StockChart key={`${symbol}-${market.id}`} symbol={symbol} currency={market.currency || "$"} marketId={market.id} />
 
-            {/* Stats */}
+            {/* Stats grid */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15, duration: 0.4 }}
-              style={{
-                display:"grid",
-                gridTemplateColumns:"repeat(4,1fr)",
-                gap:12,
-                marginBottom:20
-              }}
+              transition={{ delay: 0.15, duration: 0.4, ease: APPLE }}
+              style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}
             >
-              {loading ? Array.from({length:8}).map((_,i)=>(
-                <div key={i} style={{ background:"var(--color-card)",border:"1px solid var(--color-line)",borderRadius:10,padding:"12px 16px" }}>
-                  <Skeleton w="60%" h={11}/><div style={{marginTop:6}}><Skeleton w="80%" h={18}/></div>
+              {loading ? Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} style={{ background: "var(--color-card)", border: "1px solid var(--color-line)", borderRadius: 10, padding: "12px 16px" }}>
+                  <Skeleton w="60%" h={11} /><div style={{ marginTop: 6 }}><Skeleton w="80%" h={18} /></div>
                 </div>
               )) : overview ? (
                 <>
-                  <StatCard label="Market Cap" value={fmtCap(overview.marketCap)}/>
-                  <StatCard label="P/E Ratio"  value={overview.peRatio?.toFixed(2)??"N/A"}/>
-                  <StatCard label="EPS"        value={formatPrice(overview.eps??0)}/>
-                  <StatCard label="Div. Yield" value={overview.dividendYield?`${(overview.dividendYield*100).toFixed(2)}%`:"N/A"}/>
-                  <StatCard label="52W High"   value={formatPrice(overview.week52High??0)}/>
-                  <StatCard label="52W Low"    value={formatPrice(overview.week52Low??0)}/>
-                  <StatCard label="Sector"     value={overview.sector??"—"}/>
-                  <StatCard label="Exchange"   value={overview.exchange??"—"}/>
+                  <StatCard label="Market Cap" value={fmtCap(overview.marketCap)} />
+                  <StatCard label="P/E Ratio"  value={overview.peRatio?.toFixed(2) ?? "N/A"} />
+                  <StatCard label="EPS"        value={formatPrice(overview.eps ?? 0)} />
+                  <StatCard label="Div. Yield" value={overview.dividendYield ? `${(overview.dividendYield * 100).toFixed(2)}%` : "N/A"} />
+                  <StatCard label="52W High"   value={formatPrice(overview.week52High ?? 0)} />
+                  <StatCard label="52W Low"    value={formatPrice(overview.week52Low ?? 0)} />
+                  <StatCard label="Sector"     value={overview.sector ?? "—"} />
+                  <StatCard label="Exchange"   value={overview.exchange ?? "—"} />
                 </>
               ) : null}
             </motion.div>
@@ -660,145 +742,113 @@ export default function StockPage() {
             {/* About */}
             {!loading && overview?.description && (
               <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2, duration: 0.4 }}
+                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.4, ease: APPLE }}
                 whileHover={{ y: -1 }}
-                style={{
-                  background:"var(--color-card)",
-                  border:"1px solid var(--color-line)",
-                  backdropFilter:"blur(16px)",
-                  WebkitBackdropFilter:"blur(16px)",
-                  borderRadius:12,
-                  padding:"18px 20px",
-                  marginBottom:20
-                }}
+                style={cardStyle}
               >
-                <h3 style={{ margin:"0 0 10px",fontSize:14,fontWeight:700 }}>About</h3>
-                <p style={{ margin:0,fontSize:13,color:"var(--color-muted)",lineHeight:1.7 }}>{overview.description}</p>
+                <h3 style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700 }}>About</h3>
+                <p style={{ margin: 0, fontSize: 13, color: "var(--color-muted)", lineHeight: 1.7 }}>{overview.description}</p>
               </motion.div>
             )}
 
             {/* Analyst Ratings */}
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.4 }}
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4, ease: APPLE }}
               whileHover={{ y: -1 }}
-              style={{
-                background:"var(--color-card)",
-                border:"1px solid var(--color-line)",
-                backdropFilter:"blur(16px)",
-                WebkitBackdropFilter:"blur(16px)",
-                borderRadius:12,
-                padding:"18px 20px",
-                marginBottom:20
-              }}
+              style={cardStyle}
             >
-              <h3 style={{ margin:"0 0 14px",fontSize:14,fontWeight:700,display:"flex",alignItems:"center",gap:6 }}>
-                <BarChart2 size={15}/> Analyst Ratings
+              <h3 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                <BarChart2 size={15} /> Analyst Ratings
               </h3>
               {loading ? (
-                <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-                  {Array.from({length:5}).map((_,i)=><Skeleton key={i} w="100%" h={10}/>)}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} w="100%" h={10} />)}
                 </div>
               ) : ratings ? (
                 <>
-                  <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:14 }}>
-                    <AnalystBar label="Strong Buy"  count={ratings.strongBuy}  total={totalRatings} color="#22c55e"/>
-                    <AnalystBar label="Buy"         count={ratings.buy}        total={totalRatings} color="#86efac"/>
-                    <AnalystBar label="Hold"        count={ratings.hold}       total={totalRatings} color="#f59e0b"/>
-                    <AnalystBar label="Sell"        count={ratings.sell}       total={totalRatings} color="#fca5a5"/>
-                    <AnalystBar label="Strong Sell" count={ratings.strongSell} total={totalRatings} color="#ef4444"/>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+                    <AnalystBar label="Strong Buy"  count={ratings.strongBuy}  total={totalRatings} color="#22c55e" />
+                    <AnalystBar label="Buy"         count={ratings.buy}        total={totalRatings} color="#86efac" />
+                    <AnalystBar label="Hold"        count={ratings.hold}       total={totalRatings} color="#f59e0b" />
+                    <AnalystBar label="Sell"        count={ratings.sell}       total={totalRatings} color="#fca5a5" />
+                    <AnalystBar label="Strong Sell" count={ratings.strongSell} total={totalRatings} color="#ef4444" />
                   </div>
-                  <p style={{ margin:0,fontSize:13,color:"var(--color-muted)" }}>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--color-muted)" }}>
                     Consensus target:{" "}
-                    <strong style={{ color:"var(--color-primary)" }}>{formatPrice(ratings.targetPrice)}</strong>
-                    {price!==null&&<span> ({((ratings.targetPrice-price)/price*100).toFixed(1)}% upside)</span>}
+                    <strong style={{ color: "var(--color-primary)" }}>{formatPrice(ratings.targetPrice)}</strong>
+                    {price !== null && <span> ({((ratings.targetPrice - price) / price * 100).toFixed(1)}% upside)</span>}
                   </p>
                 </>
               ) : (
-                <p style={{ margin:0,color:"var(--color-muted)",fontSize:13 }}>No analyst data available</p>
+                <p style={{ margin: 0, color: "var(--color-muted)", fontSize: 13 }}>No analyst data available</p>
               )}
             </motion.div>
 
             {/* AI Insights */}
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.4 }}
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4, ease: APPLE }}
               whileHover={{ y: -1 }}
-              style={{
-                background:"var(--color-card)",
-                border:"1px solid var(--color-line)",
-                backdropFilter:"blur(16px)",
-                WebkitBackdropFilter:"blur(16px)",
-                borderRadius:12,
-                padding:"18px 20px",
-                marginBottom:20
-              }}
+              style={cardStyle}
             >
-              <h3 style={{ margin:"0 0 14px",fontSize:14,fontWeight:700 }}>AI Insights</h3>
+              <h3 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 700 }}>AI Insights</h3>
               {loading ? (
-                <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
-                  {Array.from({length:3}).map((_,i)=>(
-                    <div key={i} style={{ display:"flex",flexDirection:"column",gap:6 }}>
-                      <Skeleton w="40%" h={12}/><Skeleton w="100%"/><Skeleton w="80%"/>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <Skeleton w="40%" h={12} /><Skeleton w="100%" /><Skeleton w="80%" />
                     </div>
                   ))}
                 </div>
-              ) : insights.length===0 ? (
-                <p style={{ margin:0,color:"var(--color-muted)",fontSize:13 }}>No insights available</p>
+              ) : insights.length === 0 ? (
+                <p style={{ margin: 0, color: "var(--color-muted)", fontSize: 13 }}>No insights available</p>
               ) : (
-                <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
-                  {insights.map(ins=>(
-                    <div key={ins.id} style={{ padding:"12px 14px",borderRadius:8,border:"1px solid var(--color-line)",borderLeft:`3px solid ${ins.type==="BULLISH"?"#22c55e":ins.type==="BEARISH"?"#ef4444":"#f59e0b"}` }}>
-                      <div style={{ display:"flex",justifyContent:"space-between",marginBottom:4 }}>
-                        <span style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:ins.type==="BULLISH"?"#22c55e":ins.type==="BEARISH"?"#ef4444":"#f59e0b" }}>{ins.type}</span>
-                        <span style={{ fontSize:11,color:"var(--color-muted)" }}>{new Date(ins.publishedAt).toLocaleDateString()}</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {insights.map(ins => (
+                    <motion.div key={ins.id}
+                      initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3, ease: APPLE }}
+                      style={{ padding: "12px 14px", borderRadius: 8, border: "1px solid var(--color-line)", borderLeft: `3px solid ${ins.type === "BULLISH" ? "#22c55e" : ins.type === "BEARISH" ? "#ef4444" : "#f59e0b"}` }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: ins.type === "BULLISH" ? "#22c55e" : ins.type === "BEARISH" ? "#ef4444" : "#f59e0b" }}>{ins.type}</span>
+                        <span style={{ fontSize: 11, color: "var(--color-muted)" }}>{new Date(ins.publishedAt).toLocaleDateString()}</span>
                       </div>
-                      <p style={{ margin:"0 0 4px",fontSize:13,fontWeight:600 }}>{ins.title}</p>
-                      <p style={{ margin:0,fontSize:12,color:"var(--color-muted)",lineHeight:1.6 }}>{ins.body}</p>
-                    </div>
+                      <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 600 }}>{ins.title}</p>
+                      <p style={{ margin: 0, fontSize: 12, color: "var(--color-muted)", lineHeight: 1.6 }}>{ins.body}</p>
+                    </motion.div>
                   ))}
                 </div>
               )}
             </motion.div>
 
-            {/* News Feed */}
+            {/* News */}
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.4 }}
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4, ease: APPLE }}
               whileHover={{ y: -1 }}
-              style={{
-                background:"var(--color-card)",
-                border:"1px solid var(--color-line)",
-                backdropFilter:"blur(16px)",
-                WebkitBackdropFilter:"blur(16px)",
-                borderRadius:12,
-                padding:"18px 20px",
-                marginBottom:20
-              }}
+              style={cardStyle}
             >
-              <h3 style={{ margin:"0 0 14px",fontSize:14,fontWeight:700,display:"flex",alignItems:"center",gap:6 }}>
-                <Newspaper size={15} color={ACCENT}/> Latest News
+              <h3 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                <Newspaper size={15} color={ACCENT} /> Latest News
               </h3>
               {newsLoading ? (
-                <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-                  {Array.from({length:3}).map((_,i)=>(
-                    <div key={i} style={{ padding:"14px 16px",borderRadius:10,border:"1px solid var(--color-line)" }}>
-                      <Skeleton w="80%" h={13}/><div style={{marginTop:8}}><Skeleton w="100%" h={11}/></div>
-                      <div style={{marginTop:6}}><Skeleton w="40%" h={11}/></div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} style={{ padding: "14px 16px", borderRadius: 10, border: "1px solid var(--color-line)" }}>
+                      <Skeleton w="80%" h={13} /><div style={{ marginTop: 8 }}><Skeleton w="100%" h={11} /></div>
+                      <div style={{ marginTop: 6 }}><Skeleton w="40%" h={11} /></div>
                     </div>
                   ))}
                 </div>
               ) : news.length === 0 ? (
-                <p style={{ margin:0,color:"var(--color-muted)",fontSize:13 }}>No recent news found.</p>
+                <p style={{ margin: 0, color: "var(--color-muted)", fontSize: 13 }}>No recent news found.</p>
               ) : (
-                <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {news.map((article, i) => (
-                    <div key={i} style={{ animation:`fadeInUp 0.3s ease ${i * 0.05}s both` }}>
+                    <div key={i} style={{ animation: `fadeInUp 0.3s ease ${i * 0.05}s both` }}>
                       <NewsCard article={article} />
                     </div>
                   ))}
@@ -807,107 +857,94 @@ export default function StockPage() {
             </motion.div>
           </div>
 
-          {/* RIGHT — Order Panel + ML Insights */}
-          <div style={{ position:"sticky",top:80,display:"flex",flexDirection:"column",gap:12 }}>
+          {/* ── RIGHT: Order Panel + ML ── */}
+          <div style={{ position: "sticky", top: 80, display: "flex", flexDirection: "column", gap: 12 }}>
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.4 }}
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4, ease: APPLE }}
               whileHover={{ y: -1 }}
-              style={{
-                background:"var(--color-card)",
-                border:"1px solid var(--color-line)",
-                backdropFilter:"blur(16px)",
-                WebkitBackdropFilter:"blur(16px)",
-                borderRadius:12,
-                padding:"20px",
-                marginBottom:20
-              }}
+              style={{ ...cardStyle, marginBottom: 0 }}
             >
-              <h3 style={{ margin:"0 0 16px",fontSize:14,fontWeight:700 }}>Place Order</h3>
+              <h3 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 700 }}>Place Order</h3>
 
-              {/* BUY / SELL toggle */}
-              <div style={{ display:"flex",gap:4,background:"var(--color-line)",borderRadius:8,padding:3,marginBottom:10 }}>
-                {(["BUY","SELL"] as const).map(t=>(
-                  <button key={t} className="order-tab" onClick={()=>setOrderForm(f=>({...f,type:t}))}
-                    style={{ background:orderForm.type===t?(t==="BUY"?"var(--color-bull)":"var(--color-bear)"):"transparent",color:orderForm.type===t?"#fff":"var(--color-muted)" }}>
+              {/* BUY / SELL */}
+              <div style={{ display: "flex", gap: 4, background: "var(--color-line)", borderRadius: 8, padding: 3, marginBottom: 10 }}>
+                {(["BUY", "SELL"] as const).map(t => (
+                  <button key={t} className="order-tab" onClick={() => setOrderForm(f => ({ ...f, type: t }))}
+                    style={{ background: orderForm.type === t ? (t === "BUY" ? BULL : BEAR) : "transparent", color: orderForm.type === t ? "#fff" : "var(--color-muted)" }}>
                     {t}
                   </button>
                 ))}
               </div>
 
-              {/* MARKET / LIMIT / STOP toggle */}
-              <div style={{ display:"flex",gap:4,background:"var(--color-line)",borderRadius:8,padding:3,marginBottom:14 }}>
-                {(["MARKET","LIMIT","STOP_LOSS"] as const).map(k=>(
-                  <button key={k} className="kind-tab" onClick={()=>setOrderForm(f=>({...f,kind:k,limitPrice:""}))}
-                    style={{ background:orderForm.kind===k?"var(--color-card)":"transparent",color:orderForm.kind===k?ACCENT:"var(--color-muted)" }}>
+              {/* MARKET / LIMIT / STOP */}
+              <div style={{ display: "flex", gap: 4, background: "var(--color-line)", borderRadius: 8, padding: 3, marginBottom: 14 }}>
+                {(["MARKET", "LIMIT", "STOP_LOSS"] as const).map(k => (
+                  <button key={k} className="kind-tab" onClick={() => setOrderForm(f => ({ ...f, kind: k, limitPrice: "" }))}
+                    style={{ background: orderForm.kind === k ? "var(--color-card)" : "transparent", color: orderForm.kind === k ? ACCENT : "var(--color-muted)" }}>
                     {k === "STOP_LOSS" ? "STOP" : k}
                   </button>
                 ))}
               </div>
 
-              {/* Market price row */}
-              <div style={{ padding:"10px 12px",borderRadius:8,marginBottom:14,background:"var(--color-page)",border:"1px solid var(--color-line)",display:"flex",justifyContent:"space-between",fontSize:13 }}>
-                <span style={{ color:"var(--color-muted)" }}>Market Price</span>
-                <strong>{price!==null?formatPrice(price):"—"}</strong>
+              {/* Market price */}
+              <div style={{ padding: "10px 12px", borderRadius: 8, marginBottom: 14, background: "var(--color-page)", border: "1px solid var(--color-line)", display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span style={{ color: "var(--color-muted)" }}>Market Price</span>
+                <strong>{price !== null ? formatPrice(price) : "—"}</strong>
               </div>
 
-              {/* Limit / Stop price input */}
+              {/* Limit/Stop price */}
               {orderForm.kind !== "MARKET" && (
                 <>
-                  <label style={{ fontSize:12,color:"var(--color-muted)",display:"block",marginBottom:6 }}>
+                  <label style={{ fontSize: 12, color: "var(--color-muted)", display: "block", marginBottom: 6 }}>
                     {orderForm.kind === "LIMIT" ? "Limit Price" : "Stop Price"}
                   </label>
-                  <input
-                    type="number" min={0} step="0.01"
+                  <input type="number" min={0} step="0.01"
                     placeholder={price ? price.toFixed(2) : "0.00"}
                     value={orderForm.limitPrice ?? ""}
-                    onChange={e=>setOrderForm(f=>({...f,limitPrice:e.target.value}))}
-                    style={{ width:"100%",padding:"10px 12px",borderRadius:8,fontSize:14,background:"var(--color-page)",border:`1px solid ${ACCENT}55`,color:"inherit",boxSizing:"border-box",outline:"none",marginBottom:6 }}
+                    onChange={e => setOrderForm(f => ({ ...f, limitPrice: e.target.value }))}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, fontSize: 14, background: "var(--color-page)", border: `1px solid ${ACCENT}55`, color: "inherit", boxSizing: "border-box", outline: "none", marginBottom: 6 }}
                   />
-                  <p style={{ margin:"0 0 12px",fontSize:11,color:"var(--color-muted)",lineHeight:1.5 }}>
+                  <p style={{ margin: "0 0 12px", fontSize: 11, color: "var(--color-muted)", lineHeight: 1.5 }}>
                     {orderForm.kind === "LIMIT"
-                      ? orderForm.type === "BUY"
-                        ? "Executes when price drops to or below this value."
-                        : "Executes when price rises to or above this value."
-                      : orderForm.type === "BUY"
-                        ? "Executes when price rises to or above this value."
-                        : "Executes when price drops to or below this value."
-                    }
+                      ? orderForm.type === "BUY" ? "Executes when price drops to or below this value." : "Executes when price rises to or above this value."
+                      : orderForm.type === "BUY" ? "Executes when price rises to or above this value." : "Executes when price drops to or below this value."}
                   </p>
                 </>
               )}
 
-              <label style={{ fontSize:12,color:"var(--color-muted)",display:"block",marginBottom:6 }}>Quantity (shares)</label>
+              <label style={{ fontSize: 12, color: "var(--color-muted)", display: "block", marginBottom: 6 }}>Quantity (shares)</label>
               <input type="number" min={1} placeholder="0" value={orderForm.qty}
-                onChange={e=>setOrderForm(f=>({...f,qty:e.target.value}))}
-                style={{ width:"100%",padding:"10px 12px",borderRadius:8,fontSize:14,background:"var(--color-page)",border:"1px solid var(--color-line)",color:"inherit",boxSizing:"border-box",outline:"none",marginBottom:8 }}/>
+                onChange={e => setOrderForm(f => ({ ...f, qty: e.target.value }))}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, fontSize: 14, background: "var(--color-page)", border: "1px solid var(--color-line)", color: "inherit", boxSizing: "border-box", outline: "none", marginBottom: 8 }}
+              />
 
-              {price!==null&&orderForm.qty&&!isNaN(Number(orderForm.qty))&&(
-                <div style={{ display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:14,color:"var(--color-muted)" }}>
+              {price !== null && orderForm.qty && !isNaN(Number(orderForm.qty)) && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 14, color: "var(--color-muted)" }}>
                   <span>Estimated Total</span>
-                  <strong style={{ color:"inherit" }}>{formatPrice(price*Number(orderForm.qty))}</strong>
+                  <strong style={{ color: "inherit" }}>{formatPrice(price * Number(orderForm.qty))}</strong>
                 </div>
               )}
 
-              <button onClick={placeOrder} disabled={isPlacingOrder}
-                style={{ width:"100%",padding:"11px",borderRadius:8,cursor:"pointer",border:"none",fontWeight:700,fontSize:14,background:orderForm.type==="BUY"?"var(--color-bull)":"var(--color-bear)",color:"#fff",opacity:isPlacingOrder?0.6:1 }}>
+              <motion.button
+                whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                onClick={placeOrder} disabled={isPlacingOrder}
+                style={{ width: "100%", padding: "11px", borderRadius: 8, cursor: "pointer", border: "none", fontWeight: 700, fontSize: 14, background: orderForm.type === "BUY" ? BULL : BEAR, color: "#fff", opacity: isPlacingOrder ? 0.6 : 1 }}
+              >
                 {isPlacingOrder
                   ? "Placing…"
                   : orderForm.kind === "MARKET"
                     ? `${orderForm.type} ${symbol}`
-                    : `Place ${orderForm.kind === "STOP_LOSS" ? "Stop" : "Limit"} ${orderForm.type}`
-                }
-              </button>
+                    : `Place ${orderForm.kind === "STOP_LOSS" ? "Stop" : "Limit"} ${orderForm.type}`}
+              </motion.button>
 
-              <p style={{ margin:"14px 0 0",fontSize:11,color:"var(--color-muted)",textAlign:"center",lineHeight:1.5 }}>
+              <p style={{ margin: "14px 0 0", fontSize: 11, color: "var(--color-muted)", textAlign: "center", lineHeight: 1.5 }}>
                 {orderForm.kind === "MARKET"
                   ? "Orders execute at market price. Not financial advice."
                   : "Pending orders are checked every minute against live prices."}
               </p>
             </motion.div>
 
-            {/* ML Insights Panel */}
             <MLInsightsPanel symbol={symbol} />
           </div>
         </div>

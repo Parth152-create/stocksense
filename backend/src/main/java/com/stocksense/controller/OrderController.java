@@ -48,6 +48,7 @@ public class OrderController {
         this.walletTxRepository      = walletTxRepository;
     }
 
+    // ── GET /api/orders ───────────────────────────────────────────────────────
     @GetMapping
     public ResponseEntity<List<Order>> getOrders(
             @RequestHeader("Authorization") String authHeader) {
@@ -58,26 +59,28 @@ public class OrderController {
         );
     }
 
+    // ── GET /api/orders/paginated ─────────────────────────────────────────────
     @GetMapping("/paginated")
-public ResponseEntity<Map<String, Object>> getOrdersPaginated(
-        @RequestHeader("Authorization") String authHeader,
-        @RequestParam(defaultValue = "0")  int page,
-        @RequestParam(defaultValue = "20") int size) {
-    String email = extractEmail(authHeader);
-    User user    = getUser(email);
+    public ResponseEntity<Map<String, Object>> getOrdersPaginated(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size) {
+        String email = extractEmail(authHeader);
+        User user    = getUser(email);
 
-    Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-    Page<Order> result = orderRepository.findByUserId(user.getId().toString(), pageable);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<Order> result = orderRepository.findByUserId(user.getId().toString(), pageable);
 
-    return ResponseEntity.ok(Map.of(
-        "orders",      result.getContent(),
-        "totalOrders", result.getTotalElements(),
-        "totalPages",  result.getTotalPages(),
-        "currentPage", result.getNumber(),
-        "hasMore",     !result.isLast()
-    ));
-}
+        return ResponseEntity.ok(Map.of(
+            "orders",      result.getContent(),
+            "totalOrders", result.getTotalElements(),
+            "totalPages",  result.getTotalPages(),
+            "currentPage", result.getNumber(),
+            "hasMore",     !result.isLast()
+        ));
+    }
 
+    // ── POST /api/orders ──────────────────────────────────────────────────────
     @PostMapping
     public ResponseEntity<?> createOrder(
             @RequestHeader("Authorization") String authHeader,
@@ -93,13 +96,13 @@ public ResponseEntity<Map<String, Object>> getOrdersPaginated(
             ? body.get("kind").toString().toUpperCase()
             : "MARKET";
 
-        Object qtyRaw  = body.containsKey("qty") ? body.get("qty") : body.get("quantity");
-        int qty         = parseQuantity(qtyRaw);
+        Object qtyRaw = body.containsKey("qty") ? body.get("qty") : body.get("quantity");
+        int qty        = parseQuantity(qtyRaw);
 
-        BigDecimal price      = parsePrice(body.get("price"));
-        BigDecimal total      = price.multiply(BigDecimal.valueOf(qty));
-        OrderType  orderType  = parseOrderType(typeStr);
-        OrderKind  orderKind  = parseOrderKind(kindStr);
+        BigDecimal price     = parsePrice(body.get("price"));
+        BigDecimal total     = price.multiply(BigDecimal.valueOf(qty));
+        OrderType  orderType = parseOrderType(typeStr);
+        OrderKind  orderKind = parseOrderKind(kindStr);
 
         // Parse limitPrice for LIMIT / STOP_LOSS orders
         BigDecimal limitPrice = null;
@@ -116,8 +119,7 @@ public ResponseEntity<Map<String, Object>> getOrdersPaginated(
             .findByUserId(user.getId())
             .orElseGet(() -> walletBalanceRepository.save(new WalletBalance(user.getId())));
 
-        // For MARKET BUY — deduct immediately
-        // For LIMIT/STOP BUY — reserve funds upfront (deduct now, refund on cancel)
+        // BUY orders — deduct or reserve funds upfront
         if (orderType == OrderType.BUY) {
             if (wallet.getBalance().compareTo(total) < 0) {
                 return ResponseEntity.badRequest().body(Map.of(
@@ -162,6 +164,77 @@ public ResponseEntity<Map<String, Object>> getOrdersPaginated(
         order.setStatus(orderKind == OrderKind.MARKET ? "EXECUTED" : "PENDING");
 
         return ResponseEntity.ok(orderRepository.save(order));
+    }
+
+    // ── DELETE /api/orders/{id} — cancel + refund ─────────────────────────────
+    //
+    // Rules:
+    //   - Only PENDING orders can be cancelled (EXECUTED/CANCELLED → 409)
+    //   - Only the order owner can cancel (ownership mismatch → 403)
+    //   - LIMIT BUY / STOP_LOSS BUY → refund the reserved total back to wallet
+    //   - LIMIT SELL / STOP_LOSS SELL → no wallet change (funds were never reserved)
+    //   - MARKET orders are EXECUTED immediately, never reach here as PENDING
+    // ─────────────────────────────────────────────────────────────────────────
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> cancelOrder(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable Long id) {
+
+        String email = extractEmail(authHeader);
+        User   user  = getUser(email);
+
+        // 1. Find the order
+        Order order = orderRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Order not found"));
+
+        // 2. Ownership check
+        if (!order.getUserId().equals(user.getId().toString())) {
+            throw new ResponseStatusException(FORBIDDEN, "You do not own this order");
+        }
+
+        // 3. Only PENDING orders can be cancelled
+        if (!"PENDING".equals(order.getStatus())) {
+            return ResponseEntity.status(CONFLICT).body(Map.of(
+                "error",  "Only PENDING orders can be cancelled",
+                "status", order.getStatus()
+            ));
+        }
+
+        // 4. Refund if it was a BUY (funds were reserved upfront)
+        if (order.getType() == OrderType.BUY) {
+            BigDecimal refundAmount = order.getTotal();
+
+            WalletBalance wallet = walletBalanceRepository
+                .findByUserId(user.getId())
+                .orElseGet(() -> walletBalanceRepository.save(new WalletBalance(user.getId())));
+
+            wallet.setBalance(wallet.getBalance().add(refundAmount));
+            wallet.setUpdatedAt(LocalDateTime.now());
+            walletBalanceRepository.save(wallet);
+
+            // Record the refund as a wallet transaction
+            walletTxRepository.save(new WalletTransaction(
+                user.getId(),
+                "deposit",
+                refundAmount,
+                "Refund: cancelled " + order.getKind() + " BUY "
+                    + order.getQuantity() + " x " + order.getSymbol()
+                    + " @ " + order.getPrice()
+            ));
+        }
+        // LIMIT/STOP_LOSS SELL — no refund needed, funds were never deducted
+
+        // 5. Mark order as CANCELLED
+        order.setStatus("CANCELLED");
+        orderRepository.save(order);
+
+        return ResponseEntity.ok(Map.of(
+            "success",  true,
+            "orderId",  id,
+            "status",   "CANCELLED",
+            "refunded", order.getType() == OrderType.BUY,
+            "amount",   order.getType() == OrderType.BUY ? order.getTotal() : BigDecimal.ZERO
+        ));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

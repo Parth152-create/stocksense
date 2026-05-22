@@ -46,13 +46,66 @@ const useCountUp = (target: number, duration: number = 1500) => {
   return count;
 };
 
+// ── Card network logos ────────────────────────────────────────────────────────
+function VisaLogo() {
+  return (
+    <svg width="26" height="16" viewBox="0 0 50 16" aria-label="Visa">
+      <text
+        x="0" y="13"
+        fontFamily="Arial, sans-serif"
+        fontWeight="900"
+        fontSize="15"
+        fill="#1a1f71"
+        letterSpacing="-0.5"
+        fontStyle="italic"
+      >
+        VISA
+      </text>
+    </svg>
+  );
+}
+
+function MastercardLogo() {
+  return (
+    <svg width="24" height="16" viewBox="0 0 38 24" aria-label="Mastercard">
+      <circle cx="14" cy="12" r="10" fill="#EB001B"/>
+      <circle cx="24" cy="12" r="10" fill="#F79E1B"/>
+      {/* Overlap blend zone */}
+      <path
+        d="M19 4.87a10 10 0 0 1 0 14.26A10 10 0 0 1 19 4.87z"
+        fill="#FF5F00"
+      />
+    </svg>
+  );
+}
+
+// ── Card network icon picker ──────────────────────────────────────────────────
+type CardNetwork = "visa" | "mastercard" | null;
+
+function CardNetworkIcon({ network }: { network: CardNetwork }) {
+  if (network === "visa")       return <VisaLogo />;
+  if (network === "mastercard") return <MastercardLogo />;
+  return null;
+}
+
+// ── MARKET_DATA (with card network + masked numbers) ──────────────────────────
 const MARKET_DATA: Record<string, {
   holdings: { symbol: string; shares: number; color: string; bg: string; letter: string }[];
-  transactions: { symbol: string; name: string; change: number | null; amount: number; color: string; bg: string; letter: string }[];
+  transactions: {
+    symbol:      string;
+    name:        string;
+    change:      number | null;
+    amount:      number;
+    color:       string;
+    bg:          string;
+    letter:      string;
+    cardNetwork: CardNetwork;
+    cardLast4:   string;
+  }[];
   portfolioValue: string;
-  portfolioGain: string;
-  tradingScore: string;
-  tradingPoints: number;
+  portfolioGain:  string;
+  tradingScore:   string;
+  tradingPoints:  number;
 }> = {
   IN: {
     holdings: [
@@ -63,11 +116,11 @@ const MARKET_DATA: Record<string, {
       { symbol: "WIPRO",    shares: 60,  color: "#ef4444", bg: "#ef444422", letter: "W" },
     ],
     transactions: [
-      { symbol: "RELIANCE", name: "Reliance",  change: +2,   amount: -4200, color: "#0ea5e9", bg: "#0ea5e922", letter: "R" },
-      { symbol: "TCS",      name: "TCS",       change: -3,   amount: +1800, color: "#8b5cf6", bg: "#8b5cf622", letter: "T" },
-      { symbol: "INFY",     name: "Infosys",   change: null, amount: +950,  color: "#f59e0b", bg: "#f59e0b22", letter: "I" },
-      { symbol: "HDFCBANK", name: "HDFC Bank", change: null, amount: -2100, color: "#10b981", bg: "#10b98122", letter: "H" },
-      { symbol: "WIPRO",    name: "Wipro",     change: null, amount: -800,  color: "#ef4444", bg: "#ef444422", letter: "W" },
+      { symbol: "RELIANCE", name: "Reliance",  change: +2,   amount: -4200, color: "#0ea5e9", bg: "#0ea5e922", letter: "R", cardNetwork: "mastercard", cardLast4: "4641" },
+      { symbol: "TCS",      name: "TCS",       change: -3,   amount: +1800, color: "#8b5cf6", bg: "#8b5cf622", letter: "T", cardNetwork: "visa",       cardLast4: "8941" },
+      { symbol: "INFY",     name: "Infosys",   change: null, amount: +950,  color: "#f59e0b", bg: "#f59e0b22", letter: "I", cardNetwork: "mastercard", cardLast4: "4641" },
+      { symbol: "HDFCBANK", name: "HDFC Bank", change: null, amount: -2100, color: "#10b981", bg: "#10b98122", letter: "H", cardNetwork: "visa",       cardLast4: "8941" },
+      { symbol: "WIPRO",    name: "Wipro",     change: null, amount: -800,  color: "#ef4444", bg: "#ef444422", letter: "W", cardNetwork: "mastercard", cardLast4: "4641" },
     ],
     portfolioValue: "₹7,84,320",
     portfolioGain:  "+₹62,410 this month",
@@ -83,11 +136,11 @@ const MARKET_DATA: Record<string, {
       { symbol: "AAPL", shares: 48,  color: "#aaaaaa", bg: "#aaaaaa22", letter: "" },
     ],
     transactions: [
-      { symbol: "TSLA",  name: "Tesla",      change: +3,   amount: -525,  color: "#ef4444", bg: "#ef444422", letter: "T" },
-      { symbol: "AAPL",  name: "Apple",      change: -7,   amount: +120,  color: "#aaaaaa", bg: "#aaaaaa22", letter: "" },
-      { symbol: "AMD",   name: "AMD",        change: null, amount: +280,  color: "#ed1c24", bg: "#ed1c2422", letter: "A" },
-      { symbol: "SNCLD", name: "Soundcloud", change: null, amount: -90,   color: "#ff5500", bg: "#ff550022", letter: "S" },
-      { symbol: "MCD",   name: "McDonald's", change: null, amount: -340,  color: "#ffbc0d", bg: "#ffbc0d22", letter: "M" },
+      { symbol: "TSLA",  name: "Tesla",      change: +3,   amount: -525,  color: "#ef4444", bg: "#ef444422", letter: "T", cardNetwork: "mastercard", cardLast4: "4641" },
+      { symbol: "AAPL",  name: "Apple",      change: -7,   amount: +120,  color: "#aaaaaa", bg: "#aaaaaa22", letter: "", cardNetwork: "visa",        cardLast4: "8941" },
+      { symbol: "AMD",   name: "AMD",        change: null, amount: +280,  color: "#ed1c24", bg: "#ed1c2422", letter: "A", cardNetwork: "mastercard", cardLast4: "4641" },
+      { symbol: "SNCLD", name: "Soundcloud", change: null, amount: -90,   color: "#ff5500", bg: "#ff550022", letter: "S", cardNetwork: "visa",       cardLast4: "8941" },
+      { symbol: "MCD",   name: "McDonald's", change: null, amount: -340,  color: "#ffbc0d", bg: "#ffbc0d22", letter: "M", cardNetwork: "mastercard", cardLast4: "4641" },
     ],
     portfolioValue: "$93,314",
     portfolioGain:  "+$8,461 this month",
@@ -103,11 +156,11 @@ const MARKET_DATA: Record<string, {
       { symbol: "AVAX", shares: 15,   color: "#e84142", bg: "#e8414222", letter: "A" },
     ],
     transactions: [
-      { symbol: "BTC",  name: "Bitcoin",   change: +2.4, amount: -1240, color: "#f7931a", bg: "#f7931a22", letter: "₿" },
-      { symbol: "ETH",  name: "Ethereum",  change: -1.8, amount: +620,  color: "#627eea", bg: "#627eea22", letter: "Ξ" },
-      { symbol: "SOL",  name: "Solana",    change: +5.1, amount: -380,  color: "#9945ff", bg: "#9945ff22", letter: "S" },
-      { symbol: "BNB",  name: "BNB",       change: null, amount: +210,  color: "#f3ba2f", bg: "#f3ba2f22", letter: "B" },
-      { symbol: "AVAX", name: "Avalanche", change: null, amount: -90,   color: "#e84142", bg: "#e8414222", letter: "A" },
+      { symbol: "BTC",  name: "Bitcoin",   change: +2.4, amount: -1240, color: "#f7931a", bg: "#f7931a22", letter: "₿", cardNetwork: "mastercard", cardLast4: "4641" },
+      { symbol: "ETH",  name: "Ethereum",  change: -1.8, amount: +620,  color: "#627eea", bg: "#627eea22", letter: "Ξ", cardNetwork: "visa",       cardLast4: "8941" },
+      { symbol: "SOL",  name: "Solana",    change: +5.1, amount: -380,  color: "#9945ff", bg: "#9945ff22", letter: "S", cardNetwork: "mastercard", cardLast4: "4641" },
+      { symbol: "BNB",  name: "BNB",       change: null, amount: +210,  color: "#f3ba2f", bg: "#f3ba2f22", letter: "B", cardNetwork: "visa",       cardLast4: "8941" },
+      { symbol: "AVAX", name: "Avalanche", change: null, amount: -90,   color: "#e84142", bg: "#e8414222", letter: "A", cardNetwork: "mastercard", cardLast4: "4641" },
     ],
     portfolioValue: "$28,540",
     portfolioGain:  "+$3,120 this month",
@@ -123,11 +176,11 @@ const MARKET_DATA: Record<string, {
       { symbol: "USD/CAD", shares: 6000,  color: "#ef4444", bg: "#ef444422", letter: "C" },
     ],
     transactions: [
-      { symbol: "EUR/USD", name: "EUR/USD", change: +1,   amount: -1200, color: "#3b82f6", bg: "#3b82f622", letter: "€" },
-      { symbol: "GBP/USD", name: "GBP/USD", change: -2,  amount: +800,  color: "#8b5cf6", bg: "#8b5cf622", letter: "£" },
-      { symbol: "USD/JPY", name: "USD/JPY", change: null, amount: +450,  color: "#f59e0b", bg: "#f59e0b22", letter: "¥" },
-      { symbol: "AUD/USD", name: "AUD/USD", change: null, amount: -320,  color: "#10b981", bg: "#10b98122", letter: "A" },
-      { symbol: "USD/CAD", name: "USD/CAD", change: null, amount: -180,  color: "#ef4444", bg: "#ef444422", letter: "C" },
+      { symbol: "EUR/USD", name: "EUR/USD", change: +1,   amount: -1200, color: "#3b82f6", bg: "#3b82f622", letter: "€", cardNetwork: "visa",       cardLast4: "8941" },
+      { symbol: "GBP/USD", name: "GBP/USD", change: -2,  amount: +800,  color: "#8b5cf6", bg: "#8b5cf622", letter: "£", cardNetwork: "mastercard", cardLast4: "4641" },
+      { symbol: "USD/JPY", name: "USD/JPY", change: null, amount: +450,  color: "#f59e0b", bg: "#f59e0b22", letter: "¥", cardNetwork: "visa",       cardLast4: "8941" },
+      { symbol: "AUD/USD", name: "AUD/USD", change: null, amount: -320,  color: "#10b981", bg: "#10b98122", letter: "A", cardNetwork: "mastercard", cardLast4: "4641" },
+      { symbol: "USD/CAD", name: "USD/CAD", change: null, amount: -180,  color: "#ef4444", bg: "#ef444422", letter: "C", cardNetwork: "visa",       cardLast4: "8941" },
     ],
     portfolioValue: "$48,720",
     portfolioGain:  "+$3,210 this month",
@@ -640,9 +693,10 @@ export default function DashboardPage() {
           </Card>
         </motion.div>
 
-        {/* RIGHT: Transactions */}
+        {/* ── RIGHT: Transactions ── */}
         <motion.div variants={fadeUp}>
           <Card style={{ minWidth: 0, height: "100%" }}>
+            {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>Transactions</span>
@@ -658,11 +712,13 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* Sub-header */}
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
               <span style={{ color: "var(--color-muted)", fontSize: 11 }}>Today</span>
               <span style={{ color: "var(--color-muted)", fontSize: 11 }}>5 Transactions</span>
             </div>
 
+            {/* Transaction rows */}
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               {md.transactions.map((tx, i) => {
                 const resolvedSym   = resolveSymbol(tx.symbol, key);
@@ -671,6 +727,7 @@ export default function DashboardPage() {
                 const displayChange = live?.live ? liveChange : tx.change;
                 const isPos = displayChange !== null && displayChange > 0;
                 const isNeg = displayChange !== null && displayChange < 0;
+
                 return (
                   <motion.button key={tx.symbol}
                     initial={{ opacity: 0, x: 20 }}
@@ -680,22 +737,32 @@ export default function DashboardPage() {
                     onClick={() => router.push(`/dashboard/stock/${resolvedSym}?market=${key}`)}
                     style={{
                       display: "flex", alignItems: "center", gap: 8,
-                      padding: "6px 6px", borderRadius: 10, width: "100%",
+                      padding: "7px 6px", borderRadius: 10, width: "100%",
                       background: "transparent", border: "none", cursor: "pointer",
                     }}>
+
+                    {/* Stock avatar */}
                     <StockAvatar symbol={tx.symbol} color={tx.color} bg={tx.bg} letter={tx.letter} px={30} />
+
+                    {/* Name + card info */}
                     <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
-                      <p style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <p style={{
+                        color: "var(--color-primary)", fontSize: 11, fontWeight: 600,
+                        margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      }}>
                         {tx.symbol.replace(".BSE","")}
                       </p>
-                      {live?.live ? (
-                        <p style={{ fontSize: 10, fontWeight: 600, margin: 0, color: isPos ? "#22c55e" : isNeg ? "#ef4444" : "var(--color-muted)" }}>
-                          {currency}{live.price?.toFixed(2)}
-                        </p>
-                      ) : (
-                        <p style={{ color: "var(--color-muted)", fontSize: 10, margin: 0 }}>{tx.name}</p>
-                      )}
+
+                      {/* Card network logo + masked number */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <CardNetworkIcon network={tx.cardNetwork} />
+                        <span style={{ color: "var(--color-muted)", fontSize: 10, letterSpacing: "0.05em" }}>
+                          ****{tx.cardLast4}
+                        </span>
+                      </div>
                     </div>
+
+                    {/* Change badge */}
                     {displayChange !== null && (
                       <span style={{
                         fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 99, flexShrink: 0,
@@ -705,6 +772,8 @@ export default function DashboardPage() {
                         {isPos ? "+" : ""}{live?.live ? `${liveChange?.toFixed(1)}%` : displayChange}
                       </span>
                     )}
+
+                    {/* Amount badge */}
                     <span style={{
                       fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 8, flexShrink: 0,
                       background: tx.amount < 0 ? "#ef444422" : "#22c55e22",

@@ -6,146 +6,360 @@
 ───────────────────────────────────────────── */
 
 :root {
-  /* ── Light mode ── */
-  --color-page:         #F0EFEF;
-  --color-surface:      #ffffff;
-  --color-surface-hover:#f5f5f5;
-  --color-card:         rgba(255, 255, 255, 0.92);
-  --color-line:         rgba(0, 0, 0, 0.10);
-  --color-line-strong:  rgba(0, 0, 0, 0.18);
+  --color-page:          #F0EFEF;
+  --color-surface:       #ffffff;
+  --color-surface-hover: #f5f5f5;
+  --color-card:          rgba(255, 255, 255, 0.92);
+  --color-line:          rgba(0, 0, 0, 0.10);
+  --color-line-strong:   rgba(0, 0, 0, 0.18);
 
-  --color-primary:      #18181A;
-  --color-muted:        #6b7280;
-  --color-subtle:       #9ca3af;
+  --color-primary:       #18181A;
+  --color-muted:         #6b7280;
+  --color-subtle:        #9ca3af;
 
-  --color-accent:       #8FFFD6;
-  --color-accent-muted: rgba(143, 255, 214, 0.18);
+  --color-accent:        #8FFFD6;
+  --color-accent-muted:  rgba(143, 255, 214, 0.18);
 
-  --color-bull:         #22c55e;
-  --color-bull-muted:   rgba(34, 197, 94, 0.12);
-  --color-bear:         #ef4444;
-  --color-bear-muted:   rgba(239, 68, 68, 0.12);
+  --color-bull:          #22c55e;
+  --color-bull-muted:    rgba(34, 197, 94, 0.12);
+  --color-bear:          #ef4444;
+  --color-bear-muted:    rgba(239, 68, 68, 0.12);
 
-  --color-chart-1:      #8FFFD6;
-  --color-chart-2:      #3b82f6;
-  --color-chart-3:      #f59e0b;
-  --color-chart-4:      #8b5cf6;
+  --color-chart-1:       #8FFFD6;
+  --color-chart-2:       #3b82f6;
+  --color-chart-3:       #f59e0b;
+  --color-chart-4:       #8b5cf6;
 
-  --shadow-card:        0 2px 8px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-card-hover:  0 8px 32px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.06);
+  --shadow-card:         0 2px 8px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-card-hover:   0 8px 32px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.06);
 
-  /* Glass — light mode: white-dominant, strong border */
-  --glass-bg:           rgba(255, 255, 255, 0.88);
-  --glass-border:       rgba(0, 0, 0, 0.09);
-  --glass-blur:         blur(16px);
-  --glass-shadow:       0 2px 16px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+  --glass-bg:            rgba(255, 255, 255, 0.88);
+  --glass-border:        rgba(0, 0, 0, 0.09);
+  --glass-blur:          blur(16px);
+  --glass-shadow:        0 2px 16px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+
+  /* Page padding — desktop */
+  --page-px:  32px;
+  --page-py:  24px;
 }
 
 .dark {
-  /* ── Dark mode ── */
-  --color-page:         #0a0a0a;
-  --color-surface:      #111111;
-  --color-surface-hover:#161616;
-  --color-card:         rgba(255, 255, 255, 0.03);
-  --color-line:         rgba(255, 255, 255, 0.07);
-  --color-line-strong:  rgba(255, 255, 255, 0.12);
+  --color-page:          #0a0a0a;
+  --color-surface:       #111111;
+  --color-surface-hover: #161616;
+  --color-card:          rgba(255, 255, 255, 0.03);
+  --color-line:          rgba(255, 255, 255, 0.07);
+  --color-line-strong:   rgba(255, 255, 255, 0.12);
 
-  --color-primary:      #ffffff;
-  --color-muted:        #6b7280;
-  --color-subtle:       #4b5563;
+  --color-primary:       #ffffff;
+  --color-muted:         #6b7280;
+  --color-subtle:        #4b5563;
 
-  --color-accent:       #8FFFD6;
-  --color-accent-muted: rgba(143, 255, 214, 0.10);
+  --color-accent:        #8FFFD6;
+  --color-accent-muted:  rgba(143, 255, 214, 0.10);
 
-  --color-bull:         #22c55e;
-  --color-bull-muted:   rgba(34, 197, 94, 0.12);
-  --color-bear:         #ef4444;
-  --color-bear-muted:   rgba(239, 68, 68, 0.12);
+  --color-bull:          #22c55e;
+  --color-bull-muted:    rgba(34, 197, 94, 0.12);
+  --color-bear:          #ef4444;
+  --color-bear-muted:    rgba(239, 68, 68, 0.12);
 
-  --color-chart-1:      #8FFFD6;
-  --color-chart-2:      #3b82f6;
-  --color-chart-3:      #f59e0b;
-  --color-chart-4:      #8b5cf6;
+  --color-chart-1:       #8FFFD6;
+  --color-chart-2:       #3b82f6;
+  --color-chart-3:       #f59e0b;
+  --color-chart-4:       #8b5cf6;
 
-  --shadow-card:        none;
-  --shadow-card-hover:  0 8px 32px rgba(0,0,0,0.4);
+  --shadow-card:         none;
+  --shadow-card-hover:   0 8px 32px rgba(0,0,0,0.4);
 
-  /* Glass — dark mode */
-  --glass-bg:           rgba(255, 255, 255, 0.04);
-  --glass-border:       rgba(255, 255, 255, 0.08);
-  --glass-blur:         blur(16px);
-  --glass-shadow:       0 4px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+  --glass-bg:            rgba(255, 255, 255, 0.04);
+  --glass-border:        rgba(255, 255, 255, 0.08);
+  --glass-blur:          blur(16px);
+  --glass-shadow:        0 4px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+/* ─────────────────────────────────────────────
+   Mobile page padding overrides
+───────────────────────────────────────────── */
+@media (max-width: 768px) {
+  :root {
+    --page-px: 16px;
+    --page-py: 16px;
+  }
+}
+@media (max-width: 480px) {
+  :root {
+    --page-px: 12px;
+    --page-py: 12px;
+  }
 }
 
 /* ─────────────────────────────────────────────
    Base resets
 ───────────────────────────────────────────── */
-* { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+html {
+  -webkit-font-smoothing:  antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 
 body {
   background-color: var(--color-page);
-  color: var(--color-primary);
-  font-family: var(--font-gantari), 'Gantari', system-ui, sans-serif;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  color:            var(--color-primary);
+  font-family: 'Gantari', system-ui, sans-serif;
+  transition:       background-color 0.2s ease, color 0.2s ease;
 }
 
 /* ─────────────────────────────────────────────
-   Glass card — core building block
+   Glass card
 ───────────────────────────────────────────── */
 .glass {
-  background:     var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
+  background:              var(--glass-bg);
+  backdrop-filter:         var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  box-shadow: var(--glass-shadow);
+  border:                  1px solid var(--glass-border);
+  border-radius:           16px;
+  box-shadow:              var(--glass-shadow);
 }
 
 .glass-sm {
-  background:     var(--glass-bg);
-  backdrop-filter: blur(8px);
+  background:              var(--glass-bg);
+  backdrop-filter:         blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  box-shadow: var(--glass-shadow);
+  border:                  1px solid var(--glass-border);
+  border-radius:           12px;
+  box-shadow:              var(--glass-shadow);
 }
 
-/* Accent glow */
 .glass-accent {
-  background:     var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
+  background:              var(--glass-bg);
+  backdrop-filter:         var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid rgba(143, 255, 214, 0.2);
-  border-radius: 16px;
-  box-shadow: var(--glass-shadow), 0 0 40px rgba(143, 255, 214, 0.06);
+  border:                  1px solid rgba(143, 255, 214, 0.2);
+  border-radius:           16px;
+  box-shadow:              var(--glass-shadow), 0 0 40px rgba(143, 255, 214, 0.06);
 }
 
-/* ─────────────────────────────────────────────
-   Legacy .card — now glass-powered
-   Light mode: near-opaque white so text pops
-───────────────────────────────────────────── */
 .card {
-  background:      var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
+  background:              var(--glass-bg);
+  backdrop-filter:         var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  border-radius: 0.75rem;
-  box-shadow: var(--glass-shadow);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  border:                  1px solid var(--glass-border);
+  border-radius:           0.75rem;
+  box-shadow:              var(--glass-shadow);
+  transition:              box-shadow 0.2s ease, border-color 0.2s ease;
 }
-.card:hover {
-  box-shadow: var(--shadow-card-hover);
-}
+.card:hover { box-shadow: var(--shadow-card-hover); }
 
-/* Light mode: give cards a subtle top highlight so they lift off the page */
 :root .card,
 :root .glass,
 :root .glass-accent {
-  box-shadow:
-    var(--glass-shadow),
-    inset 0 1px 0 rgba(255,255,255,0.9);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+
+/* ─────────────────────────────────────────────
+   Page wrapper — use this on every page root div
+   instead of hardcoded padding: "24px 32px"
+───────────────────────────────────────────── */
+.page-wrapper {
+  padding:    var(--page-py) var(--page-px);
+  max-width:  1200px;
+  margin:     0 auto;
+  min-height: 100vh;
+  background: var(--color-page);
+  font-family: 'Gantari', system-ui, sans-serif;
+}
+
+/* ─────────────────────────────────────────────
+   Responsive grid helpers
+───────────────────────────────────────────── */
+
+/* 4-col → 2-col → 1-col */
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+@media (max-width: 1024px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px)  { .grid-4 { grid-template-columns: 1fr; } }
+
+/* 3-col → 1-col */
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+@media (max-width: 900px)  { .grid-3 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px)  { .grid-3 { grid-template-columns: 1fr; } }
+
+/* 2-col → 1-col */
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+@media (max-width: 640px)  { .grid-2 { grid-template-columns: 1fr; } }
+
+/* Dashboard row 1: chart + score card */
+.dashboard-row-1 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 12px;
+}
+@media (max-width: 768px) { .dashboard-row-1 { grid-template-columns: 1fr; } }
+
+/* Dashboard row 2: holdings + portfolio + transactions */
+.dashboard-row-2 {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr);
+  gap: 12px;
+}
+@media (max-width: 1024px) { .dashboard-row-2 { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 640px)  { .dashboard-row-2 { grid-template-columns: 1fr; } }
+
+/* Chart + donut side by side */
+.chart-donut-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  gap: 16px;
+}
+@media (max-width: 900px) { .chart-donut-grid { grid-template-columns: 1fr; } }
+
+/* Stock detail: chart left, order panel right */
+.stock-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 1024px) { .stock-detail-grid { grid-template-columns: 1fr; } }
+
+/* Stats grid — portfolio/orders */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 1024px) { .stats-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 480px)  { .stats-grid { grid-template-columns: 1fr; } }
+
+/* ─────────────────────────────────────────────
+   Holdings / Orders table responsive columns
+───────────────────────────────────────────── */
+
+/* Portfolio holdings table */
+.holdings-cols {
+  display: grid;
+  grid-template-columns: 2.2fr 0.8fr 1fr 1fr 1.1fr 1.1fr 90px;
+}
+@media (max-width: 1024px) {
+  .holdings-cols {
+    grid-template-columns: 2fr 1fr 1.1fr 80px;
+  }
+  .holdings-cols .col-avg,
+  .holdings-cols .col-current,
+  .holdings-cols .col-value { display: none; }
+}
+@media (max-width: 640px) {
+  .holdings-cols {
+    grid-template-columns: 1fr 1.1fr 80px;
+  }
+  .holdings-cols .col-weight { display: none; }
+}
+
+/* Orders table */
+.orders-cols {
+  display: grid;
+  grid-template-columns: 1.6fr 72px 80px 108px 1fr 1fr 1fr 130px;
+}
+@media (max-width: 1100px) {
+  .orders-cols {
+    grid-template-columns: 1.6fr 72px 100px 1fr 1fr 130px;
+  }
+  .orders-cols .col-kind,
+  .orders-cols .col-price { display: none; }
+}
+@media (max-width: 700px) {
+  .orders-cols {
+    grid-template-columns: 1fr 80px 1fr 100px;
+  }
+  .orders-cols .col-qty,
+  .orders-cols .col-total { display: none; }
+}
+@media (max-width: 480px) {
+  .orders-cols {
+    grid-template-columns: 1fr 90px 110px;
+  }
+  .orders-cols .col-date { display: none; }
+}
+
+/* ─────────────────────────────────────────────
+   Visibility helpers
+───────────────────────────────────────────── */
+.hide-mobile  { }
+.hide-tablet  { }
+.show-mobile  { display: none; }
+
+@media (max-width: 768px) {
+  .hide-mobile { display: none !important; }
+  .show-mobile { display: block !important; }
+}
+@media (max-width: 1024px) {
+  .hide-tablet { display: none !important; }
+}
+
+/* ─────────────────────────────────────────────
+   Mobile-friendly card padding
+───────────────────────────────────────────── */
+.card-pad {
+  padding: 20px 22px;
+}
+@media (max-width: 640px) {
+  .card-pad { padding: 14px 14px; }
+}
+
+/* ─────────────────────────────────────────────
+   Header responsive tweaks
+───────────────────────────────────────────── */
+.header-date  { }
+.hamburger-btn { display: none; }
+.desktop-sidebar { display: flex; }
+
+@media (max-width: 768px) {
+  .header-date      { display: none !important; }
+  .hamburger-btn    { display: flex !important; }
+  .desktop-sidebar  { display: none !important; }
+}
+
+/* ─────────────────────────────────────────────
+   Scrollable table wrapper on mobile
+───────────────────────────────────────────── */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 640px) {
+  .table-scroll { border-radius: 14px; }
+}
+
+/* ─────────────────────────────────────────────
+   Notifications page
+───────────────────────────────────────────── */
+.notif-wrapper {
+  padding:    var(--page-py) var(--page-px);
+  max-width:  720px;
+  margin:     0 auto;
+}
+
+/* ─────────────────────────────────────────────
+   Mobile bottom safe area (iPhone home bar)
+───────────────────────────────────────────── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .page-wrapper,
+  .notif-wrapper {
+    padding-bottom: calc(var(--page-py) + env(safe-area-inset-bottom));
+  }
 }
 
 /* ─────────────────────────────────────────────
@@ -175,20 +389,23 @@ body {
    Inputs
 ───────────────────────────────────────────── */
 .input-themed {
-  background:    var(--glass-bg);
-  backdrop-filter: blur(8px);
+  background:              var(--glass-bg);
+  backdrop-filter:         blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--glass-border);
-  color: var(--color-primary);
-  border-radius: 0.5rem;
-  padding: 0.625rem 0.75rem;
-  font-size: 0.875rem;
-  width: 100%;
-  transition: border-color 0.15s;
-  outline: none;
+  border:                  1px solid var(--glass-border);
+  color:                   var(--color-primary);
+  border-radius:           0.5rem;
+  padding:                 0.625rem 0.75rem;
+  font-size:               0.875rem;
+  width:                   100%;
+  transition:              border-color 0.15s;
+  outline:                 none;
 }
 .input-themed::placeholder { color: var(--color-subtle); }
-.input-themed:focus        { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgba(143,255,214,0.12); }
+.input-themed:focus {
+  border-color: var(--color-accent);
+  box-shadow:   0 0 0 3px rgba(143,255,214,0.12);
+}
 
 /* ─────────────────────────────────────────────
    Scrollbar
@@ -198,7 +415,7 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--color-line-strong); border-radius: 2px; }
 
 /* ─────────────────────────────────────────────
-   Noise texture overlay — subtle grain on glass
+   Noise texture overlay
 ───────────────────────────────────────────── */
 .glass::before,
 .glass-accent::before {
@@ -212,7 +429,7 @@ body {
 }
 
 /* ─────────────────────────────────────────────
-   Dashboard responsive grid
+   Dashboard responsive grid (legacy compat)
 ───────────────────────────────────────────── */
 .dashboard-grid {
   display: grid;
@@ -225,14 +442,8 @@ body {
 .chart-card-wide { grid-column: 1 / -1; }
 @media (min-width: 1280px) { .chart-card-wide { grid-column: span 2; } }
 
-.stock-detail-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
-@media (min-width: 1024px) { .stock-detail-grid { grid-template-columns: 1fr 340px; } }
-
 /* ─────────────────────────────────────────────
-   Page background — mesh gradient
-   Gives glass cards something to blur against.
-   Light mode: brighter, more distinct orbs so
-   glass cards read as clearly elevated.
+   Page background mesh gradient
 ───────────────────────────────────────────── */
 body::before {
   content: "";
@@ -240,13 +451,11 @@ body::before {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  /* Light: slightly stronger orbs so glass has visual depth */
   background:
     radial-gradient(ellipse 80% 50% at 20% 10%,  rgba(143,255,214,0.10) 0%, transparent 60%),
     radial-gradient(ellipse 60% 40% at 80% 80%,  rgba(99, 102,241,0.07)  0%, transparent 60%),
     radial-gradient(ellipse 50% 60% at 50% 50%,  rgba(245,158,11,0.05)   0%, transparent 70%);
 }
-
 .dark body::before {
   background:
     radial-gradient(ellipse 80% 50% at 20% 10%,  rgba(143,255,214,0.04) 0%, transparent 60%),
@@ -255,27 +464,11 @@ body::before {
 }
 
 /* ─────────────────────────────────────────────
-   Light mode — inline card style overrides
-   Pages use var(--color-card) directly in JSX.
-   These vars are already set above; this section
-   handles the case where pages use style={}
-   with hardcoded rgba values that don't adapt.
-   Force card backgrounds in light to be readable.
-───────────────────────────────────────────── */
-:root {
-  /* Inline styles on cards reference these */
-  --card-bg-inline: rgba(255, 255, 255, 0.92);
-}
-.dark {
-  --card-bg-inline: rgba(255, 255, 255, 0.03);
-}
-
-/* ─────────────────────────────────────────────
    Theme transition
 ───────────────────────────────────────────── */
 *, *::before, *::after {
-  transition-property: background-color, border-color, color, box-shadow;
-  transition-duration: 0.15s;
+  transition-property:        background-color, border-color, color, box-shadow;
+  transition-duration:        0.15s;
   transition-timing-function: ease;
 }
 .no-theme-transition,
