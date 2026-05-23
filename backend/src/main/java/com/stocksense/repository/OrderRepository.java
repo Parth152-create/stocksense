@@ -10,8 +10,9 @@ import java.util.List;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
-    List<Order> findByUserIdOrderByCreatedAtDesc(String userId);
+  List<Order> findByUserIdOrderByCreatedAtDesc(String userId);
     List<Order> findByUserIdAndSymbolOrderByCreatedAtDesc(String userId, String symbol);
     List<Order> findByStatus(String status);
     Page<Order> findByUserId(String userId, Pageable pageable);
+    void deleteByUserId(String userId);
 }

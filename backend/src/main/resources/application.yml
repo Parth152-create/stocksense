@@ -44,3 +44,13 @@ logging:
   level:
     com.stocksense: DEBUG
     com.stocksense.service.StockService: INFO
+
+# ── Actuator — expose /actuator/health for Docker healthcheck ─────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

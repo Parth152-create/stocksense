@@ -400,6 +400,75 @@ public class StockService {
         }
     }
 
+    /**
+     * CoinGecko market chart — returns OHLCV candles for a given range.
+     * Maps to LightweightCharts format: { time (seconds), open, high, low, close, volume }
+     *
+     * CoinGecko /coins/{id}/ohlc endpoint:
+     *   days=1  → hourly candles
+     *   days=7  → hourly candles
+     *   days=30 → daily candles
+     *   days=365→ weekly candles (approximated as daily)
+     */
+    public List<Map<String, Object>> getCryptoHistory(String coinId, String range) {
+        String cacheKey = "crypto:history:" + coinId + ":" + range;
+        List<Map<String, Object>> cached = cryptoCache.getIfPresent(cacheKey);
+        if (cached != null) return cached;
+
+        try {
+            int days = switch (range.toUpperCase()) {
+                case "1D"  -> 1;
+                case "1W"  -> 7;
+                case "1M"  -> 30;
+                case "1Y"  -> 365;
+                case "ALL" -> 1825; // 5 years
+                default    -> 30;
+            };
+
+            String url = "https://api.coingecko.com/api/v3/coins/" + coinId
+                + "/ohlc?vs_currency=usd&days=" + days;
+
+            HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Accept", "application/json")
+                .GET()
+                .timeout(Duration.ofSeconds(10))
+                .build();
+
+            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+
+            if (resp.statusCode() == 429) {
+                log.warn("CoinGecko rate limit hit for history: {}", coinId);
+                return Collections.emptyList();
+            }
+            if (resp.statusCode() != 200) return Collections.emptyList();
+
+            // CoinGecko OHLC response: [[timestamp_ms, open, high, low, close], ...]
+            JsonNode arr = mapper.readTree(resp.body());
+            List<Map<String, Object>> candles = new ArrayList<>();
+
+            for (JsonNode row : arr) {
+                if (row.size() < 5) continue;
+                Map<String, Object> candle = new LinkedHashMap<>();
+                // Convert ms → seconds for LightweightCharts
+                candle.put("time",   row.get(0).asLong() / 1000L);
+                candle.put("open",   Math.round(row.get(1).asDouble() * 100.0) / 100.0);
+                candle.put("high",   Math.round(row.get(2).asDouble() * 100.0) / 100.0);
+                candle.put("low",    Math.round(row.get(3).asDouble() * 100.0) / 100.0);
+                candle.put("close",  Math.round(row.get(4).asDouble() * 100.0) / 100.0);
+                candle.put("volume", 0L); // CoinGecko OHLC doesn't include volume
+                candles.add(candle);
+            }
+
+            if (!candles.isEmpty()) cryptoCache.put(cacheKey, candles);
+            return candles;
+
+        } catch (Exception e) {
+            log.error("CoinGecko history error for {}: {}", coinId, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
     // ─── Search ──────────────────────────────────────────────────────────────
     public List<Map<String, Object>> searchSymbol(String query) {
         try {

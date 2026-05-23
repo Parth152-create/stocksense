@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface HoldingRepository extends JpaRepository<Holding, UUID> {
     List<Holding> findByPortfolioId(UUID portfolioId);
+    void deleteByPortfolioId(UUID portfolioId);
 }

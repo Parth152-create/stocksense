@@ -2,6 +2,7 @@ package com.stocksense.controller;
 
 import com.stocksense.service.AlphaVantageService;
 import com.stocksense.service.MarketSymbolService;
+import com.stocksense.service.StockService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,45 +19,198 @@ public class StockController {
 
     private final AlphaVantageService alphaVantage;
     private final MarketSymbolService marketSymbols;
+    private final StockService        stockService;
 
     private static final String NEWS_API_KEY = "33583e3bf61647109d1671aaa4a098e6";
 
-    public StockController(AlphaVantageService alphaVantage, MarketSymbolService marketSymbols) {
+    // CoinGecko ID map — symbol → coingecko id
+    private static final Map<String, String> CRYPTO_IDS = Map.ofEntries(
+        Map.entry("BTC",  "bitcoin"),
+        Map.entry("ETH",  "ethereum"),
+        Map.entry("SOL",  "solana"),
+        Map.entry("BNB",  "binancecoin"),
+        Map.entry("AVAX", "avalanche-2"),
+        Map.entry("ADA",  "cardano"),
+        Map.entry("DOT",  "polkadot"),
+        Map.entry("MATIC","matic-network"),
+        Map.entry("DOGE", "dogecoin"),
+        Map.entry("XRP",  "ripple")
+    );
+
+    // FX symbol → Yahoo Finance format
+    private static final Map<String, String> FX_YAHOO = Map.ofEntries(
+        Map.entry("EUR/USD", "EURUSD=X"),
+        Map.entry("GBP/USD", "GBPUSD=X"),
+        Map.entry("USD/JPY", "USDJPY=X"),
+        Map.entry("AUD/USD", "AUDUSD=X"),
+        Map.entry("USD/CAD", "USDCAD=X"),
+        Map.entry("USD/CHF", "USDCHF=X"),
+        Map.entry("NZD/USD", "NZDUSD=X"),
+        Map.entry("EUR/GBP", "EURGBP=X")
+    );
+
+    public StockController(AlphaVantageService alphaVantage,
+                           MarketSymbolService marketSymbols,
+                           StockService stockService) {
         this.alphaVantage  = alphaVantage;
         this.marketSymbols = marketSymbols;
+        this.stockService  = stockService;
     }
 
+    // ── Symbol resolver ───────────────────────────────────────────────────────
     private String resolveSymbol(String symbol, String market) {
         if (symbol == null) return null;
         String s = symbol.trim().toUpperCase()
-                .replace(".BSE", "")
-                .replace(".NSE", "");
-        if ("IN".equalsIgnoreCase(market) && !s.contains(".")) {
-            return s + ".BSE";
-        }
+            .replace(".BSE", "").replace(".NSE", "");
+        if ("IN".equalsIgnoreCase(market) && !s.contains(".")) return s + ".BSE";
+        if ("FX".equalsIgnoreCase(market)) return FX_YAHOO.getOrDefault(s, s + "=X");
         return s;
     }
 
+    private boolean isCrypto(String market)  { return "CRYPTO".equalsIgnoreCase(market); }
+    private boolean isFx(String market)      { return "FX".equalsIgnoreCase(market); }
+
     // ── GET /api/stocks/{symbol} ──────────────────────────────────────────────
+    // Routes to the correct data source based on market param
     @GetMapping("/stocks/{symbol}")
     public ResponseEntity<Map<String, Object>> getQuote(
             @PathVariable String symbol,
-            @RequestParam(required = false, defaultValue = "") String market) {
-        return ResponseEntity.ok(alphaVantage.getQuote(resolveSymbol(symbol, market)));
+            @RequestParam(required = false, defaultValue = "US") String market) {
+
+        String clean = symbol.trim().toUpperCase()
+            .replace(".BSE", "").replace(".NSE", "");
+
+        if (isCrypto(market)) {
+            // CoinGecko for crypto
+            String coinId = CRYPTO_IDS.getOrDefault(clean, clean.toLowerCase());
+            Map<String, Object> quote = stockService.getCryptoQuote(coinId);
+            if (quote == null || quote.isEmpty()) return ResponseEntity.notFound().build();
+            // Normalise field names to match frontend expectations
+            Map<String, Object> result = new LinkedHashMap<>(quote);
+            result.put("symbol", clean);
+            result.put("price",  quote.get("price"));
+            result.put("changePercent", quote.get("changePct"));
+            return ResponseEntity.ok(result);
+        }
+
+        if (isFx(market)) {
+            // Yahoo Finance for FX pairs
+            String yahooSym = FX_YAHOO.getOrDefault(clean, clean + "=X");
+            Map<String, Object> quote = stockService.getQuote(yahooSym);
+            if (quote == null || quote.isEmpty()) return ResponseEntity.notFound().build();
+            Map<String, Object> result = new LinkedHashMap<>(quote);
+            result.put("symbol", clean);
+            return ResponseEntity.ok(result);
+        }
+
+        // US / IN stocks — Yahoo Finance + Alpha Vantage fallback
+        return ResponseEntity.ok(
+            stockService.getQuote(resolveSymbol(symbol, market))
+        );
+    }
+
+    // ── GET /api/stocks/{symbol}/history ─────────────────────────────────────
+    @GetMapping("/stocks/{symbol}/history")
+    public ResponseEntity<List<Map<String, Object>>> getHistory(
+            @PathVariable String symbol,
+            @RequestParam(required = false, defaultValue = "US") String market,
+            @RequestParam(defaultValue = "1M") String range) {
+        try {
+            String clean = symbol.trim().toUpperCase()
+                .replace(".BSE", "").replace(".NSE", "");
+
+            if (isCrypto(market)) {
+                // CoinGecko history
+                String coinId = CRYPTO_IDS.getOrDefault(clean, clean.toLowerCase());
+                List<Map<String, Object>> candles =
+                    stockService.getCryptoHistory(coinId, range);
+                if (candles == null || candles.isEmpty())
+                    candles = generateMockCandles(range);
+                return ResponseEntity.ok(candles);
+            }
+
+            if (isFx(market)) {
+                // Yahoo Finance history for FX
+                String yahooSym = FX_YAHOO.getOrDefault(clean, clean + "=X");
+                String[] rangeInterval = toYahooRangeInterval(range);
+                List<Map<String, Object>> candles =
+                    stockService.getHistory(yahooSym, rangeInterval[0], rangeInterval[1]);
+                if (candles == null || candles.isEmpty())
+                    candles = generateMockCandles(range);
+                return ResponseEntity.ok(normaliseHistoryTimestamps(candles));
+            }
+
+            // US / IN
+            boolean intraday = "1D".equalsIgnoreCase(range);
+            List<Map<String, Object>> candles;
+            if (intraday) {
+                candles = alphaVantage.getIntraday(resolveSymbol(symbol, market), "5min");
+            } else {
+                String[] ri = toYahooRangeInterval(range);
+                candles = stockService.getHistory(resolveSymbol(symbol, market), ri[0], ri[1]);
+                if (candles == null || candles.isEmpty())
+                    candles = alphaVantage.getDailyOHLCV(resolveSymbol(symbol, market));
+                candles = filterByRange(candles, range);
+            }
+            if (candles == null || candles.isEmpty())
+                candles = generateMockCandles(range);
+
+            return ResponseEntity.ok(normaliseHistoryTimestamps(candles));
+        } catch (Exception e) {
+            return ResponseEntity.ok(generateMockCandles(range));
+        }
     }
 
     // ── GET /api/stocks/{symbol}/overview ─────────────────────────────────────
     @GetMapping("/stocks/{symbol}/overview")
     public ResponseEntity<Map<String, Object>> getOverview(
             @PathVariable String symbol,
-            @RequestParam(required = false, defaultValue = "") String market) {
+            @RequestParam(required = false, defaultValue = "US") String market) {
+
+        String clean = symbol.trim().toUpperCase()
+            .replace(".BSE", "").replace(".NSE", "");
+
+        if (isCrypto(market)) {
+            String coinId = CRYPTO_IDS.getOrDefault(clean, clean.toLowerCase());
+            Map<String, Object> quote = stockService.getCryptoQuote(coinId);
+            Map<String, Object> overview = new LinkedHashMap<>();
+            overview.put("symbol",      clean);
+            overview.put("name",        coinId.substring(0,1).toUpperCase() + coinId.substring(1));
+            overview.put("exchange",    "CoinGecko");
+            overview.put("sector",      "Cryptocurrency");
+            overview.put("industry",    "Digital Assets");
+            overview.put("description", "A leading cryptocurrency asset traded on major global exchanges.");
+            overview.put("marketCap",   quote.getOrDefault("marketCap", 0));
+            overview.put("peRatio",     0);
+            overview.put("eps",         0);
+            overview.put("dividendYield", 0);
+            overview.put("week52High",  0);
+            overview.put("week52Low",   0);
+            return ResponseEntity.ok(overview);
+        }
+
+        if (isFx(market)) {
+            Map<String, Object> overview = new LinkedHashMap<>();
+            overview.put("symbol",      clean);
+            overview.put("name",        clean + " Exchange Rate");
+            overview.put("exchange",    "FOREX");
+            overview.put("sector",      "Foreign Exchange");
+            overview.put("industry",    "Currency Pairs");
+            overview.put("description", "A major forex currency pair traded 24/5 on the global foreign exchange market.");
+            overview.put("marketCap",   0);
+            overview.put("peRatio",     0);
+            overview.put("eps",         0);
+            overview.put("dividendYield", 0);
+            overview.put("week52High",  0);
+            overview.put("week52Low",   0);
+            return ResponseEntity.ok(overview);
+        }
 
         String resolved = resolveSymbol(symbol, market);
         Map<String, Object> raw = alphaVantage.getOverview(resolved);
 
-        if (raw == null || raw.isEmpty() || raw.containsKey("error")) {
+        if (raw == null || raw.isEmpty() || raw.containsKey("error"))
             return ResponseEntity.notFound().build();
-        }
 
         Map<String, Object> overview = new LinkedHashMap<>();
         overview.put("symbol",        resolved);
@@ -71,7 +225,6 @@ public class StockController {
         overview.put("dividendYield", parseDouble(raw.get("DividendYield")));
         overview.put("week52High",    parseDouble(raw.get("52WeekHigh")));
         overview.put("week52Low",     parseDouble(raw.get("52WeekLow")));
-
         return ResponseEntity.ok(overview);
     }
 
@@ -79,7 +232,15 @@ public class StockController {
     @GetMapping("/stocks/{symbol}/ratings")
     public ResponseEntity<Map<String, Object>> getRatings(
             @PathVariable String symbol,
-            @RequestParam(required = false, defaultValue = "") String market) {
+            @RequestParam(required = false, defaultValue = "US") String market) {
+
+        if (isCrypto(market) || isFx(market)) {
+            // No analyst ratings for crypto/FX — return neutral empty set
+            return ResponseEntity.ok(Map.of(
+                "strongBuy", 0, "buy", 0, "hold", 0,
+                "sell", 0, "strongSell", 0, "targetPrice", 0.0
+            ));
+        }
 
         int hash       = Math.abs(symbol.hashCode());
         int strongBuy  = 5  + (hash % 10);
@@ -88,54 +249,53 @@ public class StockController {
         int sell       = 1  + (hash % 4);
         int strongSell = hash % 3;
 
-        Map<String, Object> quote       = alphaVantage.getQuote(resolveSymbol(symbol, market));
+        Map<String, Object> quote      = stockService.getQuote(resolveSymbol(symbol, market));
         double currentPrice = parseDouble(quote.get("price"));
         double targetPrice  = currentPrice > 0
-                ? currentPrice * (1.05 + (hash % 20) / 100.0)
-                : 150.0;
+            ? currentPrice * (1.05 + (hash % 20) / 100.0)
+            : 150.0;
 
-        Map<String, Object> ratings = new LinkedHashMap<>();
-        ratings.put("strongBuy",   strongBuy);
-        ratings.put("buy",         buy);
-        ratings.put("hold",        hold);
-        ratings.put("sell",        sell);
-        ratings.put("strongSell",  strongSell);
-        ratings.put("targetPrice", Math.round(targetPrice * 100.0) / 100.0);
-        return ResponseEntity.ok(ratings);
+        return ResponseEntity.ok(Map.of(
+            "strongBuy",   strongBuy,
+            "buy",         buy,
+            "hold",        hold,
+            "sell",        sell,
+            "strongSell",  strongSell,
+            "targetPrice", Math.round(targetPrice * 100.0) / 100.0
+        ));
     }
 
     // ── GET /api/stocks/{symbol}/insights ─────────────────────────────────────
     @GetMapping("/stocks/{symbol}/insights")
     public ResponseEntity<List<Map<String, Object>>> getInsights(
             @PathVariable String symbol,
-            @RequestParam(required = false, defaultValue = "") String market) {
+            @RequestParam(required = false, defaultValue = "US") String market) {
 
-        String clean = symbol.replace(".BSE", "").replace(".NSE", "").toUpperCase();
+        String clean = symbol.replace(".BSE","").replace(".NSE","").toUpperCase();
         String now   = new java.util.Date().toString();
+        String type  = isCrypto(market) ? "crypto asset" : isFx(market) ? "currency pair" : "stock";
 
-        List<Map<String, Object>> insights = List.of(
+        return ResponseEntity.ok(List.of(
             Map.of("id","1","type","BULLISH",
                 "title", clean + " shows strong momentum",
-                "body",  "Technical indicators suggest bullish continuation with RSI above 60 and MACD crossover.",
+                "body",  "Technical indicators suggest bullish continuation with RSI above 60 and MACD crossover for this " + type + ".",
                 "source","StockSense AI","publishedAt", now),
             Map.of("id","2","type","NEUTRAL",
-                "title","Earnings report due next quarter",
-                "body",  "Analysts expect moderate growth. Watch for guidance revision at the upcoming earnings call.",
+                "title","Key levels to watch for " + clean,
+                "body", "Analysts expect moderate volatility. Watch for volume confirmation at key support and resistance levels.",
                 "source","StockSense AI","publishedAt", now)
-        );
-        return ResponseEntity.ok(insights);
+        ));
     }
 
     // ── GET /api/stocks/{symbol}/news ─────────────────────────────────────────
     @GetMapping("/stocks/{symbol}/news")
     public ResponseEntity<List<Map<String, Object>>> getNews(
             @PathVariable String symbol,
-            @RequestParam(required = false, defaultValue = "") String market) {
+            @RequestParam(required = false, defaultValue = "US") String market) {
 
-        String clean = symbol.replace(".BSE", "").replace(".NSE", "")
-                             .replace(".NYSE", "").replace(".NASDAQ", "").toUpperCase();
+        String clean = symbol.replace(".BSE","").replace(".NSE","")
+                             .replace(".NYSE","").replace(".NASDAQ","").toUpperCase();
 
-        // Company name hints for better NewsAPI results
         Map<String, String> nameHints = Map.ofEntries(
             Map.entry("AAPL",     "Apple"),
             Map.entry("MSFT",     "Microsoft"),
@@ -150,8 +310,11 @@ public class StockController {
             Map.entry("INFY",     "Infosys"),
             Map.entry("HDFCBANK", "HDFC Bank"),
             Map.entry("WIPRO",    "Wipro"),
-            Map.entry("SBIN",     "State Bank India"),
-            Map.entry("TATAMOTORS","Tata Motors")
+            Map.entry("BTC",      "Bitcoin cryptocurrency"),
+            Map.entry("ETH",      "Ethereum cryptocurrency"),
+            Map.entry("SOL",      "Solana cryptocurrency"),
+            Map.entry("EUR/USD",  "Euro Dollar forex"),
+            Map.entry("GBP/USD",  "Pound Dollar forex")
         );
 
         String query = nameHints.getOrDefault(clean, clean) + " stock";
@@ -159,10 +322,7 @@ public class StockController {
         try {
             String urlStr = "https://newsapi.org/v2/everything"
                 + "?q=" + java.net.URLEncoder.encode(query, StandardCharsets.UTF_8)
-                + "&sortBy=publishedAt"
-                + "&pageSize=8"
-                + "&language=en"
-                + "&apiKey=" + NEWS_API_KEY;
+                + "&sortBy=publishedAt&pageSize=8&language=en&apiKey=" + NEWS_API_KEY;
 
             HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
             conn.setRequestMethod("GET");
@@ -170,198 +330,192 @@ public class StockController {
             conn.setReadTimeout(5000);
             conn.setRequestProperty("User-Agent", "StockSense/1.0");
 
-            int status = conn.getResponseCode();
-            if (status != 200) {
+            if (conn.getResponseCode() != 200)
                 return ResponseEntity.ok(getMockNews(clean));
-            }
 
-            InputStream is  = conn.getInputStream();
-            String body     = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            InputStream is = conn.getInputStream();
+            String body    = new String(is.readAllBytes(), StandardCharsets.UTF_8);
             is.close();
 
-            // Parse JSON manually (no extra dependency needed)
             List<Map<String, Object>> articles = parseNewsResponse(body);
             return ResponseEntity.ok(articles.isEmpty() ? getMockNews(clean) : articles);
-
         } catch (Exception e) {
             return ResponseEntity.ok(getMockNews(clean));
-        }
-    }
-
-    // ── GET /api/stocks/{symbol}/history ─────────────────────────────────────
-    @GetMapping("/stocks/{symbol}/history")
-    public ResponseEntity<List<Map<String, Object>>> getHistory(
-            @PathVariable String symbol,
-            @RequestParam(required = false, defaultValue = "") String market,
-            @RequestParam(defaultValue = "1M") String range) {
-        try {
-            boolean intraday = "1D".equalsIgnoreCase(range);
-            List<Map<String, Object>> candles;
-
-            if (intraday) {
-                candles = alphaVantage.getIntraday(resolveSymbol(symbol, market), "5min");
-            } else {
-                candles = alphaVantage.getDailyOHLCV(resolveSymbol(symbol, market));
-                candles = filterByRange(candles, range);
-            }
-
-            if (candles == null || candles.isEmpty()) {
-                candles = generateMockCandles(range);
-            }
-
-            return ResponseEntity.ok(candles);
-        } catch (Exception e) {
-            return ResponseEntity.ok(generateMockCandles(range));
         }
     }
 
     // ── GET /api/stocks/search?q= ─────────────────────────────────────────────
     @GetMapping("/stocks/search")
     public ResponseEntity<List<Map<String, Object>>> search(@RequestParam String q) {
-        return ResponseEntity.ok(alphaVantage.search(q));
-    }
-
-    // ── GET /api/market/{marketId}/symbols ────────────────────────────────────
-    @GetMapping("/market/{marketId}/symbols")
-    public ResponseEntity<List<Map<String, String>>> getMarketSymbols(
-            @PathVariable String marketId) {
-        return ResponseEntity.ok(marketSymbols.getSymbolsForMarket(marketId));
+        return ResponseEntity.ok(stockService.searchSymbol(q));
     }
 
     // ── GET /api/market/{marketId}/quotes ─────────────────────────────────────
+    // Routes crypto to CoinGecko, FX to Yahoo, stocks to existing path
     @GetMapping("/market/{marketId}/quotes")
     public ResponseEntity<Map<String, Object>> getMarketQuotes(
             @PathVariable String marketId,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "10") int size) {
 
+        if (isCrypto(marketId)) {
+            List<Map<String, Object>> cryptos = stockService.getTopCrypto(50);
+            int total = cryptos.size();
+            int from  = Math.min(page * size, total);
+            int to    = Math.min(from + size, total);
+            return ResponseEntity.ok(Map.of(
+                "market",     marketId,
+                "page",       page,
+                "size",       size,
+                "total",      total,
+                "totalPages", (int) Math.ceil((double) total / size),
+                "stocks",     cryptos.subList(from, to)
+            ));
+        }
+
+        if (isFx(marketId)) {
+            List<String> fxPairs = List.of(
+                "EURUSD=X","GBPUSD=X","USDJPY=X","AUDUSD=X",
+                "USDCAD=X","USDCHF=X","NZDUSD=X","EURGBP=X"
+            );
+            List<Map<String, Object>> results = new ArrayList<>();
+            for (String pair : fxPairs) {
+                Map<String, Object> q = stockService.getQuote(pair);
+                if (q != null && !q.isEmpty()) {
+                    Map<String, Object> r = new LinkedHashMap<>(q);
+                    // Convert Yahoo symbol back to readable pair
+                    r.put("symbol", pair.replace("=X","").replaceAll("(.{3})", "$1/").replaceAll("/$",""));
+                    results.add(r);
+                }
+            }
+            int total = results.size();
+            return ResponseEntity.ok(Map.of(
+                "market", marketId, "page", page, "size", size,
+                "total", total, "totalPages", 1, "stocks", results
+            ));
+        }
+
+        // US / IN
         List<Map<String, String>> allSymbols = marketSymbols.getSymbolsForMarket(marketId);
         int total = allSymbols.size();
         int from  = Math.min(page * size, total);
         int to    = Math.min(from + size, total);
 
-        List<String> symbolStrings = allSymbols.subList(from, to)
-                .stream().map(s -> s.get("symbol")).toList();
+        List<String> syms = allSymbols.subList(from, to)
+            .stream().map(s -> s.get("symbol")).toList();
 
-        List<Map<String, Object>> quotes   = alphaVantage.getBatchQuotes(symbolStrings);
+        List<Map<String, Object>> quotes   = alphaVantage.getBatchQuotes(syms);
         List<Map<String, Object>> enriched = new ArrayList<>();
-
         for (int i = 0; i < allSymbols.subList(from, to).size(); i++) {
             Map<String, Object> merged = new LinkedHashMap<>();
             merged.putAll(allSymbols.subList(from, to).get(i));
             if (i < quotes.size()) merged.putAll(quotes.get(i));
             enriched.add(merged);
         }
-
         return ResponseEntity.ok(Map.of(
-            "market",     marketId,
-            "page",       page,
-            "size",       size,
-            "total",      total,
-            "totalPages", (int) Math.ceil((double) total / size),
-            "stocks",     enriched
+            "market", marketId, "page", page, "size", size,
+            "total", total, "totalPages", (int) Math.ceil((double) total / size),
+            "stocks", enriched
         ));
+    }
+
+    // ── GET /api/market/{marketId}/symbols ────────────────────────────────────
+    @GetMapping("/market/{marketId}/symbols")
+    public ResponseEntity<List<Map<String, String>>> getMarketSymbols(
+            @PathVariable String marketId) {
+
+        if (isCrypto(marketId)) {
+            List<Map<String, String>> symbols = List.of(
+                Map.of("symbol","BTC",  "name","Bitcoin"),
+                Map.of("symbol","ETH",  "name","Ethereum"),
+                Map.of("symbol","SOL",  "name","Solana"),
+                Map.of("symbol","BNB",  "name","BNB"),
+                Map.of("symbol","AVAX", "name","Avalanche"),
+                Map.of("symbol","ADA",  "name","Cardano"),
+                Map.of("symbol","DOT",  "name","Polkadot"),
+                Map.of("symbol","DOGE", "name","Dogecoin"),
+                Map.of("symbol","XRP",  "name","XRP"),
+                Map.of("symbol","MATIC","name","Polygon")
+            );
+            return ResponseEntity.ok(symbols);
+        }
+
+        if (isFx(marketId)) {
+            List<Map<String, String>> symbols = List.of(
+                Map.of("symbol","EUR/USD","name","Euro / US Dollar"),
+                Map.of("symbol","GBP/USD","name","British Pound / US Dollar"),
+                Map.of("symbol","USD/JPY","name","US Dollar / Japanese Yen"),
+                Map.of("symbol","AUD/USD","name","Australian Dollar / US Dollar"),
+                Map.of("symbol","USD/CAD","name","US Dollar / Canadian Dollar"),
+                Map.of("symbol","USD/CHF","name","US Dollar / Swiss Franc"),
+                Map.of("symbol","NZD/USD","name","New Zealand Dollar / US Dollar"),
+                Map.of("symbol","EUR/GBP","name","Euro / British Pound")
+            );
+            return ResponseEntity.ok(symbols);
+        }
+
+        return ResponseEntity.ok(marketSymbols.getSymbolsForMarket(marketId));
     }
 
     // ── GET /api/market/{marketId}/analytics ──────────────────────────────────
     @GetMapping("/market/{marketId}/analytics")
-    public ResponseEntity<Map<String, Object>> getAnalytics(
-            @PathVariable String marketId) {
-
+    public ResponseEntity<Map<String, Object>> getAnalytics(@PathVariable String marketId) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("market",        marketId);
-        data.put("totalValue",    switch (marketId) {
-            case "IN" -> 9331456; case "US" -> 530056; default -> 120000; });
-        data.put("changePercent", switch (marketId) {
-            case "IN" -> 6.42;   case "US" -> 4.75;   default -> 2.1; });
-        data.put("changeAmount",  switch (marketId) {
-            case "IN" -> 562100; case "US" -> 24000;  default -> 2520; });
-        data.put("riskScore",     switch (marketId) {
-            case "IN" -> 76;     case "US" -> 58;     default -> 82; });
-        data.put("allocation",    switch (marketId) {
-            case "IN" -> List.of(
-                Map.of("label","Stocks","pct",62),
-                Map.of("label","Funds","pct",28),
-                Map.of("label","Other","pct",10));
-            case "US" -> List.of(
-                Map.of("label","Stocks","pct",48),
-                Map.of("label","Crypto","pct",30),
-                Map.of("label","Funds","pct",22));
-            default -> List.of(
-                Map.of("label","Crypto","pct",70),
-                Map.of("label","Stablecoins","pct",20),
-                Map.of("label","DeFi","pct",10));
+        data.put("totalValue",    switch (marketId.toUpperCase()) {
+            case "IN"     -> 9331456;
+            case "US"     -> 530056;
+            case "CRYPTO" -> 280000;
+            case "FX"     -> 487200;
+            default       -> 120000;
+        });
+        data.put("changePercent", switch (marketId.toUpperCase()) {
+            case "IN"     -> 6.42;
+            case "US"     -> 4.75;
+            case "CRYPTO" -> 8.20;
+            case "FX"     -> 1.40;
+            default       -> 2.1;
+        });
+        data.put("riskScore", switch (marketId.toUpperCase()) {
+            case "IN"     -> 76;
+            case "US"     -> 58;
+            case "CRYPTO" -> 91;
+            case "FX"     -> 45;
+            default       -> 60;
         });
         return ResponseEntity.ok(data);
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private String[] toYahooRangeInterval(String range) {
+        return switch (range.toUpperCase()) {
+            case "1D"  -> new String[]{"1d",  "5m"};
+            case "1W"  -> new String[]{"5d",  "15m"};
+            case "1M"  -> new String[]{"1mo", "1d"};
+            case "1Y"  -> new String[]{"1y",  "1wk"};
+            case "ALL" -> new String[]{"5y",  "1mo"};
+            default    -> new String[]{"1mo", "1d"};
+        };
+    }
 
     /**
-     * Minimal JSON parser for NewsAPI response.
-     * Avoids adding Jackson dependency — reads articles array manually.
+     * Normalise history candles — Yahoo returns `timestamp` (ms), LWC needs `time` (seconds).
      */
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> parseNewsResponse(String json) {
+    private List<Map<String, Object>> normaliseHistoryTimestamps(List<Map<String, Object>> candles) {
+        if (candles == null) return Collections.emptyList();
         List<Map<String, Object>> result = new ArrayList<>();
-        try {
-            // Use Spring's built-in Jackson if available via ObjectMapper
-            com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
-            Map<String, Object> root = mapper.readValue(json, Map.class);
-            List<Map<String, Object>> articles =
-                (List<Map<String, Object>>) root.get("articles");
-
-            if (articles == null) return result;
-
-            for (Map<String, Object> a : articles) {
-                String title       = str(a, "title", "");
-                String description = str(a, "description", "");
-                String url         = str(a, "url", "");
-                String publishedAt = str(a, "publishedAt", "");
-                String urlToImage  = str(a, "urlToImage", "");
-
-                Object sourceObj = a.get("source");
-                String sourceName = "";
-                if (sourceObj instanceof Map) {
-                    sourceName = str((Map<String, Object>) sourceObj, "name", "");
-                }
-
-                if (title.isEmpty() || title.equals("[Removed]")) continue;
-
-                Map<String, Object> article = new LinkedHashMap<>();
-                article.put("title",       title);
-                article.put("description", description);
-                article.put("url",         url);
-                article.put("source",      sourceName);
-                article.put("publishedAt", publishedAt);
-                article.put("urlToImage",  urlToImage);
-                result.add(article);
+        for (Map<String, Object> c : candles) {
+            Map<String, Object> n = new LinkedHashMap<>(c);
+            if (c.containsKey("timestamp") && !c.containsKey("time")) {
+                long ts = ((Number) c.get("timestamp")).longValue();
+                // Yahoo returns ms — convert to seconds for LightweightCharts
+                n.put("time", ts > 1_000_000_000_000L ? ts / 1000L : ts);
+                n.remove("timestamp");
             }
-        } catch (Exception e) {
-            // Return empty — caller falls back to mock
+            result.add(n);
         }
         return result;
-    }
-
-    private String str(Map<String, Object> map, String key, String def) {
-        Object v = map.get(key);
-        return (v != null && !v.toString().equals("null")) ? v.toString() : def;
-    }
-
-    private List<Map<String, Object>> getMockNews(String symbol) {
-        String now = java.time.Instant.now().toString();
-        return List.of(
-            Map.of("title", symbol + " shows resilience amid market volatility",
-                   "description", "Analysts remain cautiously optimistic as the stock holds key support levels.",
-                   "url", "#", "source", "StockSense", "publishedAt", now, "urlToImage", ""),
-            Map.of("title", "Institutional investors increase stake in " + symbol,
-                   "description", "Recent filings show major funds have added to their positions this quarter.",
-                   "url", "#", "source", "StockSense", "publishedAt", now, "urlToImage", ""),
-            Map.of("title", symbol + " technical analysis: key levels to watch",
-                   "description", "RSI divergence and volume patterns suggest a potential breakout in the near term.",
-                   "url", "#", "source", "StockSense", "publishedAt", now, "urlToImage", "")
-        );
     }
 
     private List<Map<String, Object>> filterByRange(
@@ -376,8 +530,8 @@ public class StockController {
         };
         final long cut = cutoffSec;
         return all.stream()
-                .filter(c -> ((Number) c.getOrDefault("time", 0L)).longValue() >= cut)
-                .toList();
+            .filter(c -> ((Number) c.getOrDefault("time", 0L)).longValue() >= cut)
+            .toList();
     }
 
     private List<Map<String, Object>> generateMockCandles(String range) {
@@ -408,6 +562,55 @@ public class StockController {
             candles.add(c);
         }
         return candles;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> parseNewsResponse(String json) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper =
+                new com.fasterxml.jackson.databind.ObjectMapper();
+            Map<String, Object> root     = mapper.readValue(json, Map.class);
+            List<Map<String, Object>> articles =
+                (List<Map<String, Object>>) root.get("articles");
+            if (articles == null) return result;
+            for (Map<String, Object> a : articles) {
+                String title = str(a, "title", "");
+                if (title.isEmpty() || title.equals("[Removed]")) continue;
+                Object sourceObj  = a.get("source");
+                String sourceName = sourceObj instanceof Map
+                    ? str((Map<String, Object>) sourceObj, "name", "") : "";
+                Map<String, Object> article = new LinkedHashMap<>();
+                article.put("title",       title);
+                article.put("description", str(a, "description", ""));
+                article.put("url",         str(a, "url", ""));
+                article.put("source",      sourceName);
+                article.put("publishedAt", str(a, "publishedAt", ""));
+                article.put("urlToImage",  str(a, "urlToImage", ""));
+                result.add(article);
+            }
+        } catch (Exception ignored) {}
+        return result;
+    }
+
+    private String str(Map<String, Object> map, String key, String def) {
+        Object v = map.get(key);
+        return (v != null && !v.toString().equals("null")) ? v.toString() : def;
+    }
+
+    private List<Map<String, Object>> getMockNews(String symbol) {
+        String now = java.time.Instant.now().toString();
+        return List.of(
+            Map.of("title", symbol + " shows resilience amid market volatility",
+                   "description", "Analysts remain cautiously optimistic as the asset holds key support levels.",
+                   "url","#","source","StockSense","publishedAt",now,"urlToImage",""),
+            Map.of("title", "Institutional investors increase stake in " + symbol,
+                   "description", "Recent filings show major funds have added to their positions this quarter.",
+                   "url","#","source","StockSense","publishedAt",now,"urlToImage",""),
+            Map.of("title", symbol + " technical analysis: key levels to watch",
+                   "description", "RSI divergence and volume patterns suggest a potential breakout in the near term.",
+                   "url","#","source","StockSense","publishedAt",now,"urlToImage","")
+        );
     }
 
     private double parseDouble(Object val) {
