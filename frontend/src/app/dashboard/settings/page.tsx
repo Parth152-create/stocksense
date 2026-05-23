@@ -140,6 +140,8 @@ export default function SettingsPage() {
   const [twoFA,              setTwoFA]              = useState(false);
   const [savingProfile,      setSavingProfile]      = useState(false);
   const [showDeleteConfirm,  setShowDeleteConfirm]  = useState(false);
+  const [deletePassword,     setDeletePassword]     = useState("");
+  const [deleteLoading,      setDeleteLoading]      = useState(false);
 
   useEffect(() => {
     fetchWithAuth("/api/users/me")
@@ -152,6 +154,17 @@ export default function SettingsPage() {
       })
       .catch(() => {})
       .finally(() => setLoadingMe(false));
+  }, []);
+
+  useEffect(() => {
+    fetchWithAuth("/api/notifications/preferences")
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        setPriceAlerts(data.prefPriceAlerts ?? true);
+        setTxEmails(data.prefTransactionEmails ?? true);
+        setNewsDigest(data.prefMentMessages ?? false);
+      })
+      .catch(() => {});
   }, []);
 
   const handleSaveProfile = async () => {
@@ -203,6 +216,51 @@ export default function SettingsPage() {
       toast("Network error", "error");
     } finally {
       setPwLoading(false);
+    }
+  };
+
+  const toggleAndSave = async (
+    setter: React.Dispatch<React.SetStateAction<boolean>>,
+    current: boolean,
+    key: string
+  ) => {
+    const next = !current;
+    setter(next);
+    try {
+      await fetchWithAuth("/api/notifications/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prefPriceAlerts:       key === "priceAlerts"  ? next : priceAlerts,
+          prefTransactionEmails: key === "txEmails"     ? next : txEmails,
+          prefMentMessages:      key === "newsDigest"   ? next : newsDigest,
+        }),
+      });
+      toast("Preferences updated", "success");
+    } catch { toast("Failed to save", "error"); }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) { toast("Enter your password to confirm", "error"); return; }
+    setDeleteLoading(true);
+    try {
+      const res = await fetchWithAuth("/api/users/me", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: deletePassword }),
+      });
+      if (res.ok) {
+        toast("Account deleted", "info");
+        sessionStorage.removeItem("access_token");
+        window.location.href = "/login";
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast((err as any).error || "Incorrect password", "error");
+      }
+    } catch {
+      toast("Network error", "error");
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -263,9 +321,9 @@ export default function SettingsPage() {
 
             <SectionCard>
               <SectionTitle icon={<Bell size={15} />} label="Notification Preferences" />
-              <NotifRow icon={<Bell size={15} />}          label="Price Alerts"       checked={priceAlerts}   onChange={() => setPriceAlerts(!priceAlerts)} />
-              <NotifRow icon={<Mail size={15} />}          label="Transaction Emails" checked={txEmails}      onChange={() => setTxEmails(!txEmails)} />
-              <NotifRow icon={<MessageSquare size={15} />} label="News Digest"        checked={newsDigest}    onChange={() => setNewsDigest(!newsDigest)} />
+              <NotifRow icon={<Bell size={15} />}          label="Price Alerts"       checked={priceAlerts}   onChange={() => toggleAndSave(setPriceAlerts, priceAlerts, "priceAlerts")} />
+              <NotifRow icon={<Mail size={15} />}          label="Transaction Emails" checked={txEmails}      onChange={() => toggleAndSave(setTxEmails, txEmails, "txEmails")} />
+              <NotifRow icon={<MessageSquare size={15} />} label="News Digest"        checked={newsDigest}    onChange={() => toggleAndSave(setNewsDigest, newsDigest, "newsDigest")} />
               <NotifRow icon={<CreditCard size={15} />}    label="Market Summary"     checked={marketSummary} onChange={() => setMarketSummary(!marketSummary)} last />
             </SectionCard>
           </div>
@@ -354,18 +412,19 @@ export default function SettingsPage() {
               ) : (
                 <div>
                   <p style={{ color: "#ef4444", fontSize: 12, fontWeight: 600, marginBottom: 10 }}>
-                    Are you sure? This will permanently delete everything.
+                    Enter your password to confirm deletion:
                   </p>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      onClick={() => setShowDeleteConfirm(false)}
+                  <InputField
+                    label="Password" value={deletePassword} onChange={setDeletePassword}
+                    type="password" placeholder="Your current password" />
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button onClick={() => { setShowDeleteConfirm(false); setDeletePassword(""); }}
                       style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
                       Cancel
                     </button>
-                    <button
-                      onClick={() => toast("Account deletion is disabled in demo mode", "warning")}
-                      style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "#ef4444", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>
-                      Yes, Delete
+                    <button onClick={handleDeleteAccount} disabled={deleteLoading}
+                      style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "#ef4444", color: "#fff", cursor: deleteLoading ? "not-allowed" : "pointer", fontWeight: 700, fontSize: 13, opacity: deleteLoading ? 0.7 : 1 }}>
+                      {deleteLoading ? "Deleting…" : "Yes, Delete"}
                     </button>
                   </div>
                 </div>

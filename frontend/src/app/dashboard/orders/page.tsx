@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMarket } from "@/hooks/useMarket";
+import { useToast } from "@/components/ToastContext";
 import { Download, RefreshCw, Search, Clock, CheckCircle2, XCircle } from "lucide-react";
 import { fetchWithAuth } from "@/lib/auth";
 import { exportOrdersCsv } from "@/lib/csv-export";
@@ -96,6 +97,7 @@ const cardV   = { hidden: { opacity: 0, y: 18, scale: 0.97 }, visible: { opacity
 
 export default function OrdersPage() {
   const { market } = useMarket();
+  const { toast } = useToast();
   const currency = market.currency || "$";
 
   const [orders,       setOrders]       = useState<OrderRow[]>([]);
@@ -139,6 +141,22 @@ export default function OrdersPage() {
       }
     } catch { /* non-fatal */ } finally { setLoadingMore(false); }
   }, [loadingMore, hasMore, currentPage]);
+
+  const cancelOrder = useCallback(async (orderId: string) => {
+    try {
+      const res = await fetchWithAuth(`/api/orders/${orderId}`, { method: "DELETE" });
+      if (res.ok) {
+        toast("Order cancelled successfully", "success");
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: "CANCELLED" } : o));
+        setTotalOrders(prev => prev);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast((err as any).message || "Failed to cancel order", "error");
+      }
+    } catch {
+      toast("Network error", "error");
+    }
+  }, [toast]);
 
   useEffect(() => { loadInitial(); }, [loadInitial]);
 
@@ -257,8 +275,8 @@ export default function OrdersPage() {
       {/* Table */}
       <motion.div variants={fadeUp}
         style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, overflow: "hidden", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1.6fr 72px 80px 108px 1fr 1fr 1fr 130px", padding: "11px 20px", borderBottom: `1px solid ${C.line}`, background: "var(--color-surface-hover)" }}>
-          {["Symbol", "Type", "Kind", "Status", "Qty", "Price", "Total", "Date"].map(h => (
+        <div style={{ display: "grid", gridTemplateColumns: "1.6fr 72px 80px 108px 1fr 1fr 1fr 130px 80px", padding: "11px 20px", borderBottom: `1px solid ${C.line}`, background: "var(--color-surface-hover)" }}>
+          {["Symbol", "Type", "Kind", "Status", "Qty", "Price", "Total", "Date", "Action"].map(h => (
             <span key={h} style={{ color: C.muted, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>{h}</span>
           ))}
         </div>
@@ -288,7 +306,7 @@ export default function OrdersPage() {
                     transition={{ delay: Math.min(i * 0.025, 0.35), duration: 0.32, ease: APPLE }}
                     whileHover={{ backgroundColor: "var(--color-surface-hover)", transition: { duration: 0.12 } }}
                     style={{
-                      display: "grid", gridTemplateColumns: "1.6fr 72px 80px 108px 1fr 1fr 1fr 130px",
+                      display: "grid", gridTemplateColumns: "1.6fr 72px 80px 108px 1fr 1fr 1fr 130px 80px",
                       padding: "13px 20px",
                       borderBottom: i < filtered.length - 1 ? `1px solid ${C.line}` : "none",
                       alignItems: "center",
@@ -330,6 +348,21 @@ export default function OrdersPage() {
                     <span style={{ color: C.muted,    fontSize: 13 }}>{currency}{(order.price ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
                     <span style={{ color: isDimmed ? C.muted : C.primary, fontWeight: 600, fontSize: 13 }}>{currency}{(order.total ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
                     <span style={{ color: C.muted, fontSize: 11 }}>{formatDate(order.createdAt)}</span>
+
+                    <div>
+                      {isPending && (
+                        <motion.button
+                          whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.92 }}
+                          onClick={() => cancelOrder(order.id)}
+                          style={{
+                            padding: "4px 10px", borderRadius: 7, border: "1px solid rgba(239,68,68,0.35)",
+                            background: "rgba(239,68,68,0.08)", color: "#ef4444",
+                            cursor: "pointer", fontSize: 11, fontWeight: 700,
+                          }}>
+                          Cancel
+                        </motion.button>
+                      )}
+                    </div>
                   </motion.div>
                 );
               })}

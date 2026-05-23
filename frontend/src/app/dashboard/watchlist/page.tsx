@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useMarket } from "@/hooks/useMarket";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
@@ -177,8 +177,39 @@ export default function WatchlistPage() {
   const [livePrices,  setLivePrices]  = useState<Record<string, number>>({});
   const wsRef = useRef<WebSocket | null>(null);
 
+  // ── WebSocket live prices ─────────────────────────────────────────────────
+  const subscribeWs = useCallback((symbols: string[]) => {
+    if (symbols.length === 0) return;
+    if (wsRef.current) wsRef.current.close();
+
+    const ws = new WebSocket("ws://localhost:8081/ws/prices");
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ subscribe: symbols }));
+    };
+
+    ws.onmessage = (e) => {
+      try {
+        const raw = JSON.parse(e.data);
+        if (Array.isArray(raw)) {
+          const mapped: Record<string, number> = {};
+          raw.forEach((tick: { symbol: string; price: number }) => {
+            if (tick.symbol && tick.price != null)
+              mapped[tick.symbol] = tick.price;
+          });
+          setLivePrices(prev => ({ ...prev, ...mapped }));
+        } else if (typeof raw === "object") {
+          setLivePrices(prev => ({ ...prev, ...raw }));
+        }
+      } catch { /* ignore malformed */ }
+    };
+
+    ws.onerror = () => ws.close();
+  }, []);
+
   // ── Fetch watchlist from backend ──────────────────────────────────────────
-  const loadWatchlist = async () => {
+  const loadWatchlist = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetchWithAuth("/api/watchlist");
@@ -210,35 +241,15 @@ export default function WatchlistPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [subscribeWs]);
 
   useEffect(() => {
-    loadWatchlist();
-    return () => wsRef.current?.close();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── WebSocket live prices ─────────────────────────────────────────────────
-  const subscribeWs = (symbols: string[]) => {
-    if (symbols.length === 0) return;
-    if (wsRef.current) wsRef.current.close();
-
-    const ws = new WebSocket("ws://localhost:8081/ws/prices");
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ subscribe: symbols }));
+    const timeout = window.setTimeout(() => { void loadWatchlist(); }, 0);
+    return () => {
+      window.clearTimeout(timeout);
+      wsRef.current?.close();
     };
-
-    ws.onmessage = (e) => {
-      try {
-        const prices: Record<string, number> = JSON.parse(e.data);
-        setLivePrices(prev => ({ ...prev, ...prices }));
-      } catch { /* ignore malformed */ }
-    };
-
-    ws.onerror = () => ws.close();
-  };
+  }, [loadWatchlist]);
 
   // Merge live prices into display items
   const displayItems: DisplayItem[] = items.map(item => {
@@ -280,11 +291,26 @@ export default function WatchlistPage() {
 
   // ── Set alert ─────────────────────────────────────────────────────────────
   const handleSetAlert = async (symbol: string, price: number) => {
-    setItems(prev => prev.map(i =>
-      i.symbol === symbol ? { ...i, alertPrice: price } : i
-    ));
+    // optimistic update
+    setItems(prev => prev.map(i => i.symbol === symbol ? { ...i, alertPrice: price } : i));
     const clean = symbol.replace(/\.(BSE|NSE)$/i, "");
-    toast(`Alert set for ${clean} at ${currency}${price}`, "warning");
+    try {
+      const res = await fetchWithAuth(`/api/watchlist/${symbol}/alert`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alertPrice: price }),
+      });
+      if (res.ok) {
+        toast(`Alert set for ${clean} at ${currency}${price}`, "warning");
+      } else {
+        // rollback
+        setItems(prev => prev.map(i => i.symbol === symbol ? { ...i, alertPrice: null } : i));
+        toast("Failed to set alert", "error");
+      }
+    } catch {
+      setItems(prev => prev.map(i => i.symbol === symbol ? { ...i, alertPrice: null } : i));
+      toast("Network error", "error");
+    }
   };
 
   const filtered = displayItems.filter(i =>
@@ -297,7 +323,7 @@ export default function WatchlistPage() {
   const losers  = displayItems.filter(i => i.changePct < 0).length;
 
   return (
-    <div style={{ padding: "24px 32px", maxWidth: 1100, margin: "0 auto", fontFamily: "'Geist','Inter',sans-serif", background: C.page, minHeight: "100vh" }}>
+    <div style={{ padding: "24px 32px", maxWidth: 1100, margin: "0 auto", fontFamily: "var(--font-gantari,'Gantari',system-ui,sans-serif)", background: C.page, minHeight: "100vh" }}>
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>

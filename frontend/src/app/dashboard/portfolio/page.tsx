@@ -19,9 +19,25 @@ interface HoldingRow {
   avgPrice: number; currentPrice: number;
   marketValue: number; pnl: number; pnlPct: number;
 }
+interface PortfolioHoldingApiRow extends HoldingRow {
+  quantity?: number;
+}
 interface PortfolioSummary {
   totalValue: number; totalCost: number;
   totalPnl: number; totalPnlPct: number;
+  allocation?: { label: string; pct: number }[];
+}
+interface PortfolioSummaryApiResponse {
+  totalValue?: number;
+  totalInvested?: number;
+  totalCost?: number;
+  totalPnl?: number;
+  totalPnlPct?: number;
+  allocation?: { label: string; pct: number }[];
+}
+interface PortfolioHistoryApiPoint {
+  date: string;
+  value: number;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -148,29 +164,50 @@ export default function PortfolioPage() {
 
   const [holdings, setHoldings] = useState<HoldingRow[]>([]);
   const [summary,  setSummary]  = useState<PortfolioSummary | null>(null);
+  const [portfolioHistory, setPortfolioHistory] = useState<{ t: string; v: number }[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [sortBy,   setSortBy]   = useState<"value" | "pnl" | "pnlpct">("value");
 
   const loadPortfolio = useCallback(async () => {
     setLoading(true);
     try {
-      const [holdingsRes, summaryRes] = await Promise.all([
-        fetchWithAuth("/api/portfolio"),
-        fetchWithAuth("/api/portfolio/summary"),
+      const [holdingsRes, summaryRes, historyRes] = await Promise.all([
+        fetchWithAuth(`/api/portfolio?market=${market.id}`),
+        fetchWithAuth(`/api/portfolio/summary?market=${market.id}`),
+        fetchWithAuth("/api/portfolio/history?range=1Y"),
       ]);
       if (holdingsRes.ok) {
-        const data: HoldingRow[] = await holdingsRes.json();
-        setHoldings(Array.isArray(data) ? data : []);
+        const data = await holdingsRes.json() as PortfolioHoldingApiRow[] | { holdings?: PortfolioHoldingApiRow[] };
+        const rows = Array.isArray(data) ? data : (data.holdings ?? []);
+        setHoldings(rows.map((h) => ({
+          ...h,
+          qty: h.qty ?? h.quantity ?? 0,
+        })));
       }
       if (summaryRes.ok) {
-        const data: PortfolioSummary = await summaryRes.json();
-        setSummary(data);
+        const data = await summaryRes.json() as PortfolioSummaryApiResponse;
+        setSummary({
+          totalValue: data.totalValue ?? 0,
+          totalCost: data.totalInvested ?? data.totalCost ?? 0,
+          totalPnl: data.totalPnl ?? 0,
+          totalPnlPct: data.totalPnlPct ?? 0,
+          allocation: data.allocation,
+        });
+      }
+      if (historyRes.ok) {
+        const data = await historyRes.json() as PortfolioHistoryApiPoint[];
+        if (Array.isArray(data) && data.length >= 2) {
+          setPortfolioHistory(data.map((p) => ({ t: p.date, v: p.value })));
+        }
       }
     } catch { /* auth redirect handled upstream */ }
     finally { setLoading(false); }
-  }, []);
+  }, [market.id]);
 
-  useEffect(() => { loadPortfolio(); }, [loadPortfolio]);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => { void loadPortfolio(); }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadPortfolio]);
 
   // Derived values
   const totalValue  = summary?.totalValue  ?? holdings.reduce((s, h) => s + h.marketValue, 0);
@@ -184,15 +221,35 @@ export default function PortfolioPage() {
   const countedPnl   = useCountUp(Math.floor(Math.abs(totalPnl)));
 
   // Sector allocation
-  const sectorTotals: Record<string, number> = {};
-  holdings.forEach(h => {
-    const sym    = h.symbol.replace(/\.(BSE|NSE)$/i, "");
-    const sector = SECTOR_MAP[sym] ?? "Other";
-    sectorTotals[sector] = (sectorTotals[sector] ?? 0) + h.marketValue;
-  });
-  const sectorData = Object.entries(sectorTotals).map(([name, value], i) => ({
-    name, value, color: SECTOR_COLORS[i % SECTOR_COLORS.length],
-  }));
+  const sectorData = (() => {
+    const realAlloc = summary?.allocation;
+    if (Array.isArray(realAlloc) && realAlloc.length > 0) {
+      return realAlloc.map((a, i) => ({
+        name: a.label,
+        value: totalValue > 0 ? (a.pct / 100) * totalValue : 0,
+        color: SECTOR_COLORS[i % SECTOR_COLORS.length],
+      }));
+    }
+
+    const totals: Record<string, number> = {};
+    holdings.forEach(h => {
+      const sym    = h.symbol.replace(/\.(BSE|NSE)$/i, "");
+      const sector = SECTOR_MAP[sym] ?? "Other";
+      totals[sector] = (totals[sector] ?? 0) + h.marketValue;
+    });
+    return Object.entries(totals).map(([name, value], i) => ({
+      name, value, color: SECTOR_COLORS[i % SECTOR_COLORS.length],
+    }));
+  })();
+
+  const allTimePctLabel = portfolioHistory.length >= 2
+    ? (() => {
+        const first = portfolioHistory[0].v;
+        const last  = portfolioHistory[portfolioHistory.length - 1].v;
+        const pct   = first > 0 ? ((last - first) / first) * 100 : 0;
+        return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% all time`;
+      })()
+    : "+29.6% all time";
 
   const sorted = [...holdings].sort((a, b) =>
     sortBy === "value"  ? b.marketValue - a.marketValue
@@ -334,11 +391,11 @@ export default function PortfolioPage() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <p style={{ color: C.primary, fontWeight: 600, fontSize: 13, margin: 0 }}>Portfolio Performance</p>
             <span style={{ color: "#22c55e", fontSize: 12, fontWeight: 600 }}>
-              +{(((93314 - 72000) / 72000) * 100).toFixed(1)}% all time
+              {allTimePctLabel}
             </span>
           </div>
           <ResponsiveContainer width="100%" height={160}>
-            <AreaChart data={PORTFOLIO_HISTORY} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <AreaChart data={portfolioHistory.length >= 2 ? portfolioHistory : PORTFOLIO_HISTORY} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor="#8FFFD6" stopOpacity={0.2} />
@@ -352,8 +409,8 @@ export default function PortfolioPage() {
                 contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-line)", borderRadius: 8, fontSize: 11 }}
                 itemStyle={{ color: "#8FFFD6" }}
                 labelStyle={{ color: "var(--color-muted)" }}
-                formatter={(v: any) => {
-                  if (typeof v === 'number') {
+                formatter={(v: unknown) => {
+                  if (typeof v === "number") {
                     return [`${currency}${v.toLocaleString()}`, "Value"];
                   }
                   return ["", "Value"];
@@ -389,7 +446,7 @@ export default function PortfolioPage() {
                 </Pie>
                 <Tooltip
                   contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-line)", borderRadius: 8, fontSize: 11 }}
-                  formatter={(v: any) => [`${currency}${(v as number)?.toLocaleString?.() ?? v}`, ""]}
+                  formatter={(v: unknown) => [`${currency}${typeof v === "number" ? v.toLocaleString() : String(v)}`, ""]}
                 />
               </PieChart>
             </ResponsiveContainer>

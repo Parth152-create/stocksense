@@ -562,16 +562,41 @@ function SignalMeter({ value, signal }: { value: number; signal: SignalType }) {
   );
 }
 
+interface MlData {
+  prediction: {
+    next_week: number;
+    next_week_change_pct: number;
+    rsi: number;
+    confidence: number;
+  };
+  signal: {
+    signal_color: string;
+    signal: string;
+    strength: number;
+  };
+}
+
 function useMlData(symbol: string | null) {
-  const [mlData, setMlData]     = useState<any>(null);
+  const [mlData, setMlData]     = useState<MlData | null>(null);
   const [mlLoading, setMlLoading] = useState(false);
   useEffect(() => {
     if (!symbol) return;
-    setMlLoading(true);
-    fetch(`http://localhost:8082/ml/full/${symbol}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d  => { setMlData(d); setMlLoading(false); })
-      .catch(() => setMlLoading(false));
+
+    const timeout = window.setTimeout(() => {
+      setMlLoading(true);
+
+      const token = sessionStorage.getItem("access_token");
+      const headers: Record<string, string> = token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+
+      fetch(`http://localhost:8082/ml/full/${symbol}`, { headers })
+        .then(r => r.ok ? r.json() : null)
+        .then(d  => { setMlData(d); setMlLoading(false); })
+        .catch(() => setMlLoading(false));
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
   }, [symbol]);
   return { mlData, mlLoading };
 }
@@ -881,7 +906,7 @@ export default function InsightsPage() {
       flexDirection: "column",
       gap: 12,
       background: "var(--color-page)",
-      fontFamily: "'Geist', 'Inter', sans-serif",
+      fontFamily: "var(--font-gantari,'Gantari',system-ui,sans-serif)",
       boxSizing: "border-box",
       width: "100%",
       overflowX: "hidden",
