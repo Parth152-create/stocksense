@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
 import { fetchWithAuth } from "@/lib/auth";
 import { useLivePrices } from "@/lib/websocket";
@@ -189,12 +189,12 @@ function StockChart({ symbol, currency, marketId }: {
 
   useEffect(() => {
     setLoading(true);
-    fetchWithAuth(`/api/stocks/${symbol}/history?range=${range}`)
+    fetchWithAuth(`/api/stocks/${symbol}/history?range=${range}&market=${marketId}`)
       .then(r => r.ok ? r.json() : [])
       .then((data: Candle[]) => setCandles(Array.isArray(data) ? data : []))
       .catch(() => setCandles([]))
       .finally(() => setLoading(false));
-  }, [symbol, range]);
+  }, [symbol, range, marketId]);
 
   useEffect(() => {
     if (!containerRef.current || loading) return;
@@ -487,6 +487,12 @@ export default function StockPage() {
 
   const { market, formatPrice } = useMarket();
 
+  // Read market from URL search params using Next.js hook
+  const searchParamsHook = useSearchParams();
+  const marketIdFromUrl  = searchParamsHook.get("market")?.toUpperCase() ?? market.id;
+  const effectiveMarketId = (["US","IN","CRYPTO","FX"].includes(marketIdFromUrl))
+    ? marketIdFromUrl : market.id;
+
   const [overview,       setOverview]       = useState<StockOverview | null>(null);
   const [ratings,        setRatings]        = useState<AnalystRating | null>(null);
   const [insights,       setInsights]       = useState<Insight[]>([]);
@@ -507,11 +513,11 @@ export default function StockPage() {
     setLoading(true); setError(null);
     try {
       const [ovRes, ratRes, insRes, wlRes, quoteRes] = await Promise.all([
-        fetchWithAuth(`/api/stocks/${symbol}/overview`),
-        fetchWithAuth(`/api/stocks/${symbol}/ratings`),
-        fetchWithAuth(`/api/stocks/${symbol}/insights`),
+        fetchWithAuth(`/api/stocks/${symbol}/overview?market=${effectiveMarketId}`),
+        fetchWithAuth(`/api/stocks/${symbol}/ratings?market=${effectiveMarketId}`),
+        fetchWithAuth(`/api/stocks/${symbol}/insights?market=${effectiveMarketId}`),
         fetchWithAuth(`/api/watchlist`),
-        fetchWithAuth(`/api/stocks/${symbol}`),
+        fetchWithAuth(`/api/stocks/${symbol}?market=${effectiveMarketId}`),
       ]);
       if (!ovRes.ok) throw new Error(`Symbol not found: ${symbol}`);
       setOverview(await ovRes.json());
@@ -533,7 +539,7 @@ export default function StockPage() {
     } finally {
       setLoading(false);
     }
-  }, [symbol]);
+  }, [symbol, effectiveMarketId]);
 
   const loadNews = useCallback(async () => {
     setNewsLoading(true);
@@ -576,7 +582,7 @@ export default function StockPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          symbol, market: market.id,
+          symbol, market: effectiveMarketId,
           type: orderForm.type, kind: orderForm.kind,
           qty:  Number(orderForm.qty), price: price ?? 0,
           ...(orderForm.kind !== "MARKET" && orderForm.limitPrice
@@ -712,7 +718,7 @@ export default function StockPage() {
             </motion.div>
 
             {/* Chart */}
-            <StockChart key={`${symbol}-${market.id}`} symbol={symbol} currency={market.currency || "$"} marketId={market.id} />
+            <StockChart key={`${symbol}-${effectiveMarketId}`} symbol={symbol} currency={market.currency || "$"} marketId={effectiveMarketId} />
 
             {/* Stats grid */}
             <motion.div

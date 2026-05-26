@@ -71,7 +71,6 @@ function MastercardLogo() {
     <svg width="24" height="16" viewBox="0 0 38 24" aria-label="Mastercard">
       <circle cx="14" cy="12" r="10" fill="#EB001B"/>
       <circle cx="24" cy="12" r="10" fill="#F79E1B"/>
-      {/* Overlap blend zone */}
       <path
         d="M19 4.87a10 10 0 0 1 0 14.26A10 10 0 0 1 19 4.87z"
         fill="#FF5F00"
@@ -80,40 +79,41 @@ function MastercardLogo() {
   );
 }
 
-// ── Card network icon picker ──────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 type CardNetwork = "visa" | "mastercard" | null;
 
 interface DashboardTransaction {
-  symbol: string;
-  name: string;
-  change: number | null;
-  amount: number;
-  color: string;
-  bg: string;
-  letter: string;
+  symbol:      string;
+  name:        string;
+  change:      number | null;
+  amount:      number;
+  color:       string;
+  bg:          string;
+  letter:      string;
   cardNetwork: CardNetwork;
-  cardLast4: string;
+  cardLast4:   string;
 }
 
 interface OrderRow {
-  symbol: string;
-  type?: string;
-  total?: number;
+  symbol:    string;
+  type?:     string;
+  total?:    number;
+  market?:   string;
   createdAt?: string;
 }
 
 interface PortfolioHoldingRow {
-  symbol: string;
+  symbol:    string;
   quantity?: number;
-  shares?: number;
+  shares?:   number;
 }
 
 interface PortfolioSummaryResponse {
-  holdings?: PortfolioHoldingRow[];
-  totalValue?: number;
+  holdings?:      PortfolioHoldingRow[];
+  totalValue?:    number;
   portfolioValue?: number;
   totalInvested?: number;
-  totalCost?: number;
+  totalCost?:     number;
 }
 
 function CardNetworkIcon({ network }: { network: CardNetwork }) {
@@ -122,9 +122,9 @@ function CardNetworkIcon({ network }: { network: CardNetwork }) {
   return null;
 }
 
-// ── MARKET_DATA (with card network + masked numbers) ──────────────────────────
+// ── MARKET_DATA — static fallback ─────────────────────────────────────────────
 const MARKET_DATA: Record<string, {
-  holdings: { symbol: string; shares: number; color: string; bg: string; letter: string }[];
+  holdings:     { symbol: string; shares: number; color: string; bg: string; letter: string }[];
   transactions: DashboardTransaction[];
   portfolioValue: string;
   portfolioGain:  string;
@@ -161,7 +161,7 @@ const MARKET_DATA: Record<string, {
     ],
     transactions: [
       { symbol: "TSLA",  name: "Tesla",      change: +3,   amount: -525,  color: "#ef4444", bg: "#ef444422", letter: "T", cardNetwork: "mastercard", cardLast4: "4641" },
-      { symbol: "AAPL",  name: "Apple",      change: -7,   amount: +120,  color: "#aaaaaa", bg: "#aaaaaa22", letter: "", cardNetwork: "visa",        cardLast4: "8941" },
+      { symbol: "AAPL",  name: "Apple",      change: -7,   amount: +120,  color: "#aaaaaa", bg: "#aaaaaa22", letter: "",  cardNetwork: "visa",        cardLast4: "8941" },
       { symbol: "AMD",   name: "AMD",        change: null, amount: +280,  color: "#ed1c24", bg: "#ed1c2422", letter: "A", cardNetwork: "mastercard", cardLast4: "4641" },
       { symbol: "SNCLD", name: "Soundcloud", change: null, amount: -90,   color: "#ff5500", bg: "#ff550022", letter: "S", cardNetwork: "visa",       cardLast4: "8941" },
       { symbol: "MCD",   name: "McDonald's", change: null, amount: -340,  color: "#ffbc0d", bg: "#ffbc0d22", letter: "M", cardNetwork: "mastercard", cardLast4: "4641" },
@@ -213,6 +213,7 @@ const MARKET_DATA: Record<string, {
   },
 };
 
+// ── Static chart data ─────────────────────────────────────────────────────────
 const ALL_BUY_SELL_DATA = [
   { date: "Sep", value: 4200, daysAgo: 240 },
   { date: "Oct", value: 3800, daysAgo: 210 },
@@ -388,11 +389,11 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
       transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
       whileHover={{ y: -2, boxShadow: "0 12px 40px rgba(0,0,0,0.15)" }}
       style={{
-        background:    "var(--color-card)",
-        border:        "1px solid var(--color-line)",
-        borderRadius:  16,
-        padding:       16,
-        backdropFilter: "blur(16px)",
+        background:           "var(--color-card)",
+        border:               "1px solid var(--color-line)",
+        borderRadius:         16,
+        padding:              16,
+        backdropFilter:       "blur(16px)",
         WebkitBackdropFilter: "blur(16px)",
         ...style,
       }}
@@ -402,24 +403,30 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
   );
 }
 
+// ── Page ──────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const router = useRouter();
   const [activeRange, setActiveRange] = useState("1M");
 
-  const [realTransactions, setRealTransactions] = useState<OrderRow[]>([]);
-  const [realHoldings,     setRealHoldings]     = useState<{ symbol: string; shares: number; color: string; bg: string; letter: string }[]>([]);
-  const [portfolioValue,   setPortfolioValue]   = useState<string | null>(null);
-  const [activityData,     setActivityData]     = useState<{date:string;value:number;daysAgo:number}[] | null>(null);
-  const [realTradingScore, setRealTradingScore] = useState<number | null>(null);
+  // ── State — declared first so derivations below can reference them ─────────
+  const [realTransactions,  setRealTransactions]  = useState<OrderRow[]>([]);
+  const [realHoldings,      setRealHoldings]      = useState<{ symbol: string; shares: number; color: string; bg: string; letter: string }[]>([]);
+  const [portfolioValue,    setPortfolioValue]    = useState<string | null>(null);
+  const [activityData,      setActivityData]      = useState<{ date: string; value: number; daysAgo: number }[] | null>(null);
+  const [realTradingScore,  setRealTradingScore]  = useState<number | null>(null);
   const [realTradingPoints, setRealTradingPoints] = useState<number | null>(null);
-  const [dataLoading,      setDataLoading]      = useState(true);
+  const [dataLoading,       setDataLoading]       = useState(true);
 
   const { market } = useMarket();
-  const rawKey = market.id as string;
-  const key    = (["IN","US","FX","CRYPTO"].includes(rawKey)) ? rawKey : "US";
-  const md       = MARKET_DATA[key];
+  const rawKey  = market.id as string;
+  const key     = (["IN", "US", "FX", "CRYPTO"].includes(rawKey)) ? rawKey : "US";
+  const md      = MARKET_DATA[key];
   const currency = market.currency || "$";
-  const pins     = EVENT_PINS[key] ?? EVENT_PINS["US"];
+  const pins    = EVENT_PINS[key] ?? EVENT_PINS["US"];
+
+  // ── Derive display data BEFORE useLivePrices so txSymbols uses real data ───
+  const displayHoldings      = realHoldings.length > 0 ? realHoldings : md.holdings;
+  const displayPortfolioValue = portfolioValue ?? md.portfolioValue;
 
   const displayTransactions: DashboardTransaction[] = realTransactions.length > 0
     ? realTransactions.slice(0, 5).map((o) => ({
@@ -435,78 +442,107 @@ export default function DashboardPage() {
       }))
     : md.transactions;
 
+  // txSymbols now correctly reflects real transactions when loaded
   const txSymbols  = displayTransactions.map(t => resolveSymbol(t.symbol, key));
   const livePrices = useLivePrices(txSymbols);
 
-  const tradingPointsTarget = realTradingPoints ?? md.tradingPoints;
-  const tradingScoreNumeric = realTradingScore ?? parseInt(md.tradingScore.replace(/[^\d]/g, ""), 10);
+  const tradingPointsTarget  = realTradingPoints ?? md.tradingPoints;
+  const tradingScoreNumeric  = realTradingScore  ?? parseInt(md.tradingScore.replace(/[^\d]/g, ""), 10);
   const countedTradingPoints = useCountUp(tradingPointsTarget);
   const countedTradingScore  = useCountUp(tradingScoreNumeric);
 
+  // ── Effect 1: portfolio + recent orders — reruns on market switch ──────────
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setDataLoading(true);
-      Promise.all([
-        fetchWithAuth(`/api/portfolio/summary`),
-        fetchWithAuth(`/api/orders/paginated?page=0&size=5`),
-      ])
-        .then(async ([portfolioRes, ordersRes]) => {
-          if (portfolioRes.ok) {
-            const data = await portfolioRes.json() as PortfolioSummaryResponse;
-            // holdings
-            setRealHoldings((data.holdings ?? []).map((h) => ({
-              symbol: h.symbol,
-              shares: h.quantity ?? h.shares ?? 0,
-              color:  "#8FFFD6",
-              bg:     "rgba(143,255,214,0.1)",
-              letter: (h.symbol ?? "?")[0],
-            })));
-            // portfolio value
-            const val = data.totalValue ?? data.portfolioValue ?? null;
-            if (val != null) setPortfolioValue(`${currency}${Number(val).toLocaleString("en-US", { minimumFractionDigits: 2 })}`);
-            const totalCost = data.totalInvested ?? data.totalCost ?? 0;
-            const pts = Math.floor(totalCost / 10);
-            if (totalCost > 0) {
-              setRealTradingScore(Math.floor(totalCost));
-              setRealTradingPoints(pts);
-            }
-          }
-          if (ordersRes.ok) {
-            const data = await ordersRes.json() as { orders?: OrderRow[] };
-            setRealTransactions(data.orders ?? []);
-          }
-        })
-        .catch(() => { /* non-fatal, fall back to static */ })
-        .finally(() => setDataLoading(false));
-    }, 0);
+    // Reset immediately so previous market's data doesn't persist during load
+    setRealTransactions([]);
+    setRealHoldings([]);
+    setPortfolioValue(null);
+    setRealTradingScore(null);
+    setRealTradingPoints(null);
+    setDataLoading(true);
 
-    return () => window.clearTimeout(timeout);
-  }, [key, currency]);
+    Promise.all([
+      fetchWithAuth(`/api/portfolio/summary?market=${key}`),
+      fetchWithAuth(`/api/orders/paginated?page=0&size=5`),
+    ])
+      .then(async ([portfolioRes, ordersRes]) => {
+        if (portfolioRes.ok) {
+          const data = await portfolioRes.json() as PortfolioSummaryResponse;
 
+          setRealHoldings((data.holdings ?? []).map((h) => ({
+            symbol: h.symbol,
+            shares: h.quantity ?? h.shares ?? 0,
+            color:  "#8FFFD6",
+            bg:     "rgba(143,255,214,0.1)",
+            letter: (h.symbol ?? "?")[0],
+          })));
+
+          const val = data.totalValue ?? data.portfolioValue ?? null;
+          if (val != null) {
+            setPortfolioValue(
+              `${currency}${Number(val).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+            );
+          }
+
+          const totalCost = data.totalInvested ?? data.totalCost ?? 0;
+          if (totalCost > 0) {
+            setRealTradingScore(Math.floor(totalCost));
+            setRealTradingPoints(Math.floor(totalCost / 10));
+          }
+        }
+
+        if (ordersRes.ok) {
+          const data = await ordersRes.json() as { orders?: OrderRow[] };
+          const allOrders = data.orders ?? [];
+
+          // Filter by current market — prefer orders tagged with market field,
+          // fall back to showing all if none are tagged (older orders)
+          const marketOrders = allOrders.filter(
+            o => o.market && o.market.toUpperCase() === key
+          );
+          setRealTransactions(marketOrders.length > 0 ? marketOrders : allOrders);
+        }
+      })
+      .catch(() => { /* non-fatal — static fallback already in place */ })
+      .finally(() => setDataLoading(false));
+
+  }, [key, currency]); // key change = market switch = full reset + refetch
+
+  // ── Effect 2: activity chart — reruns on market switch ────────────────────
   useEffect(() => {
+    // Reset chart to static while loading
+    setActivityData(null);
+
     fetchWithAuth(`/api/orders`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then((orders: OrderRow[]) => {
-        // group by month, sum totals
+        // Filter by current market first
+        const marketOrders = orders.filter(
+          o => o.market && o.market.toUpperCase() === key
+        );
+        const source = marketOrders.length > 0 ? marketOrders : orders;
+
         const grouped: Record<string, number> = {};
-        orders.forEach((o) => {
-          const d = new Date(o.createdAt);
+        source.forEach((o) => {
+          const d     = new Date(o.createdAt ?? "");
           const label = d.toLocaleString("en-US", { month: "short" });
           grouped[label] = (grouped[label] ?? 0) + Math.abs(o.total ?? 0);
         });
+
         const result = Object.entries(grouped).map(([date, value]) => ({
           date,
-          value: Math.round(value),
+          value:   Math.round(value),
           daysAgo: 0,
         }));
+
         if (result.length >= 2) setActivityData(result);
+        else setActivityData(null); // not enough data → fall back to static
       })
-      .catch(() => { /* keep static fallback */ });
-  }, [key]);
+      .catch(() => setActivityData(null));
 
-  const displayHoldings = realHoldings.length > 0 ? realHoldings : md.holdings;
-  const displayPortfolioValue = portfolioValue ?? md.portfolioValue;
+  }, [key]); // reruns whenever market changes
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div style={{
       minHeight: "100vh", padding: 16,
@@ -550,8 +586,8 @@ export default function DashboardPage() {
                 <button key={r} onClick={() => setActiveRange(r)} style={{
                   padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600,
                   background: activeRange === r ? "var(--color-primary)" : "transparent",
-                  color: activeRange === r ? "var(--color-page)" : "var(--color-muted)",
-                  border: activeRange === r ? "none" : "1px solid var(--color-line)",
+                  color:      activeRange === r ? "var(--color-page)"    : "var(--color-muted)",
+                  border:     activeRange === r ? "none" : "1px solid var(--color-line)",
                   cursor: "pointer", transition: "all 0.15s",
                 }}>
                   {r}
@@ -598,7 +634,10 @@ export default function DashboardPage() {
               })}
             </div>
             <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={activityData ?? filterDashboardData(activeRange)} margin={{ top: 28, right: 8, bottom: 0, left: -20 }}>
+              <AreaChart
+                data={activityData ?? filterDashboardData(activeRange)}
+                margin={{ top: 28, right: 8, bottom: 0, left: -20 }}
+              >
                 <defs>
                   <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor="#8FFFD6" stopOpacity={0.18}/>
@@ -693,7 +732,7 @@ export default function DashboardPage() {
                         {h.shares} {h.shares > 999 ? "u" : "Sh"}
                       </p>
                       <p style={{ color: "var(--color-muted)", fontSize: 9, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 60 }}>
-                        {h.symbol.replace(".BSE","")}
+                        {h.symbol.replace(".BSE", "")}
                       </p>
                     </div>
                   </motion.button>
@@ -777,7 +816,9 @@ export default function DashboardPage() {
             <p style={{ color: "var(--color-primary)", fontWeight: 800, fontSize: 26, lineHeight: 1.1, letterSpacing: "-0.03em", margin: "0 0 4px" }}>
               {displayPortfolioValue}
             </p>
-            <p style={{ color: "#22c55e", fontSize: 12, fontWeight: 600, margin: "0 0 12px" }}>{md.portfolioGain}</p>
+            <p style={{ color: "#22c55e", fontSize: 12, fontWeight: 600, margin: "0 0 12px" }}>
+              {md.portfolioGain}
+            </p>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
               {PORTFOLIO_CATEGORIES.map((cat, i) => (
                 <div key={cat.label}>
@@ -806,7 +847,6 @@ export default function DashboardPage() {
         {/* ── RIGHT: Transactions ── */}
         <motion.div variants={fadeUp}>
           <Card style={{ minWidth: 0, height: "100%" }}>
-            {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>Transactions</span>
@@ -822,33 +862,31 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Sub-header */}
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-              <span style={{ color: "var(--color-muted)", fontSize: 11 }}>Today</span>
-              <span style={{ color: "var(--color-muted)", fontSize: 11 }}>5 Transactions</span>
+              <span style={{ color: "var(--color-muted)", fontSize: 11 }}>Recent</span>
+              <span style={{ color: "var(--color-muted)", fontSize: 11 }}>{displayTransactions.length} Transactions</span>
             </div>
 
-            {/* Transaction rows */}
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               {dataLoading ? (
                 [1,2,3,4,5].map(i => (
-                  <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 6px" }}>
-                    <div style={{ width:30, height:30, borderRadius:"50%", background:"var(--color-line)", flexShrink:0, opacity:0.4 }} />
-                    <div style={{ flex:1 }}>
-                      <div style={{ width:60, height:10, borderRadius:4, background:"var(--color-line)", opacity:0.4, marginBottom:4 }} />
-                      <div style={{ width:40, height:8,  borderRadius:4, background:"var(--color-line)", opacity:0.3 }} />
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 6px" }}>
+                    <div style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--color-line)", flexShrink: 0, opacity: 0.4 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ width: 60, height: 10, borderRadius: 4, background: "var(--color-line)", opacity: 0.4, marginBottom: 4 }} />
+                      <div style={{ width: 40, height: 8,  borderRadius: 4, background: "var(--color-line)", opacity: 0.3 }} />
                     </div>
                   </div>
                 ))
               ) : displayTransactions.map((tx, i) => {
-                const resolvedSym   = resolveSymbol(tx.symbol, key);
-                const live          = livePrices[resolvedSym];
-                const liveChange    = live?.changePct ?? null;
+                const resolvedSym  = resolveSymbol(tx.symbol, key);
+                const live         = livePrices[resolvedSym];
+                const liveChange   = live?.changePct ?? null;
                 const displayChange = live?.live ? liveChange : tx.change;
                 const isPos = displayChange !== null && displayChange > 0;
 
                 return (
-                  <motion.button key={tx.symbol}
+                  <motion.button key={`${tx.symbol}-${i}`}
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0  }}
                     transition={{ delay: 0.3 + i * 0.07, duration: 0.35 }}
@@ -860,19 +898,15 @@ export default function DashboardPage() {
                       background: "transparent", border: "none", cursor: "pointer",
                     }}>
 
-                    {/* Stock avatar */}
                     <StockAvatar symbol={tx.symbol} color={tx.color} bg={tx.bg} letter={tx.letter} px={30} />
 
-                    {/* Name + card info */}
                     <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
                       <p style={{
                         color: "var(--color-primary)", fontSize: 11, fontWeight: 600,
                         margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                       }}>
-                        {tx.symbol.replace(".BSE","")}
+                        {tx.symbol.replace(/\.(BSE|NSE)$/i, "")}
                       </p>
-
-                      {/* Card network logo + masked number */}
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                         <CardNetworkIcon network={tx.cardNetwork} />
                         <span style={{ color: "var(--color-muted)", fontSize: 10, letterSpacing: "0.05em" }}>
@@ -881,22 +915,20 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {/* Change badge */}
                     {displayChange !== null && (
                       <span style={{
                         fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 99, flexShrink: 0,
                         background: isPos ? "#22c55e22" : "#ef444422",
-                        color: isPos ? "#22c55e" : "#ef4444",
+                        color:      isPos ? "#22c55e"   : "#ef4444",
                       }}>
                         {isPos ? "+" : ""}{live?.live ? `${liveChange?.toFixed(1)}%` : displayChange}
                       </span>
                     )}
 
-                    {/* Amount badge */}
                     <span style={{
                       fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 8, flexShrink: 0,
                       background: tx.amount < 0 ? "#ef444422" : "#22c55e22",
-                      color: tx.amount < 0 ? "#ef4444" : "#22c55e",
+                      color:      tx.amount < 0 ? "#ef4444"   : "#22c55e",
                     }}>
                       {tx.amount < 0 ? "-" : "+"}{currency}{Math.abs(tx.amount)}
                     </span>

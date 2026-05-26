@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, X, TrendingUp, Loader2 } from "lucide-react";
+import { useMarket } from "@/lib/MarketContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -12,6 +13,13 @@ interface SearchResult {
   type: string;
   region: string;
   currency: string;
+  exchange?: string;
+}
+
+interface QuickPick {
+  symbol: string;
+  name: string;
+  market: string;
 }
 
 // ─── Logo domains ─────────────────────────────────────────────────────────────
@@ -30,9 +38,46 @@ const AVATAR_COLORS = [
   ["#f472b6", "#ec4899"], ["#34d399", "#10b981"], ["#60a5fa", "#3b82f6"],
 ];
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Strip all Yahoo/BSE/NSE suffixes and return a clean bare symbol */
+function cleanSymbol(symbol: string): string {
+  return symbol
+    .replace(/\.NS$/i, "")
+    .replace(/\.BO$/i, "")
+    .replace(/\.BSE$/i, "")
+    .replace(/\.NSE$/i, "")
+    .replace(/=X$/i, "")
+    .trim()
+    .toUpperCase();
+}
+
+/**
+ * Derive the market ID from a search result's region / type / exchange.
+ * Falls back to the provided fallback (current context market).
+ */
+function marketFromResult(result: SearchResult, fallback: string): string {
+  const type   = (result.type     ?? "").toUpperCase();
+  const region = (result.region   ?? "").toLowerCase();
+  const exch   = (result.exchange ?? "").toUpperCase();
+
+  if (type === "CRYPTOCURRENCY") return "CRYPTO";
+  if (type === "CURRENCY")       return "FX";
+
+  // Yahoo returns "India" in region for BSE/NSE stocks
+  if (region.includes("india"))          return "IN";
+  if (exch === "BSE" || exch === "NSE")  return "IN";
+  if (result.symbol.endsWith(".NS") || result.symbol.endsWith(".BO")) return "IN";
+
+  if (region.includes("united states") || region.includes("us")) return "US";
+  if (exch === "NASDAQ" || exch === "NYSE" || exch === "NYQ" || exch === "NMS") return "US";
+
+  return fallback;
+}
+
 function ResultAvatar({ symbol }: { symbol: string }) {
   const [err, setErr] = useState(false);
-  const clean = symbol.replace(".BSE", "").replace(".NSE", "").split(".")[0];
+  const clean  = cleanSymbol(symbol);
   const domain = LOGO_DOMAINS[clean];
   const [from, to] = AVATAR_COLORS[clean.charCodeAt(0) % AVATAR_COLORS.length];
 
@@ -71,25 +116,29 @@ function ResultAvatar({ symbol }: { symbol: string }) {
 
 // ─── Quick picks ──────────────────────────────────────────────────────────────
 
-const QUICK_PICKS = [
-  { symbol: "RELIANCE.BSE", name: "Reliance Industries" },
-  { symbol: "TCS.BSE",      name: "Tata Consultancy"   },
-  { symbol: "AAPL",         name: "Apple Inc."         },
-  { symbol: "NVDA",         name: "NVIDIA"             },
-  { symbol: "INFY.BSE",     name: "Infosys"            },
-  { symbol: "MSFT",         name: "Microsoft"          },
+const QUICK_PICKS: QuickPick[] = [
+  { symbol: "RELIANCE", name: "Reliance Industries", market: "IN"     },
+  { symbol: "TCS",      name: "Tata Consultancy",    market: "IN"     },
+  { symbol: "AAPL",     name: "Apple Inc.",           market: "US"     },
+  { symbol: "NVDA",     name: "NVIDIA",               market: "US"     },
+  { symbol: "INFY",     name: "Infosys",              market: "IN"     },
+  { symbol: "MSFT",     name: "Microsoft",            market: "US"     },
+  { symbol: "BTC",      name: "Bitcoin",              market: "CRYPTO" },
+  { symbol: "ETH",      name: "Ethereum",             market: "CRYPTO" },
 ];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function StockSearch() {
-  const router = useRouter();
-  const [query, setQuery]         = useState("");
-  const [results, setResults]     = useState<SearchResult[]>([]);
-  const [loading, setLoading]     = useState(false);
-  const [open, setOpen]           = useState(false);
+  const router         = useRouter();
+  const { market }     = useMarket();
+
+  const [query,     setQuery]     = useState("");
+  const [results,   setResults]   = useState<SearchResult[]>([]);
+  const [loading,   setLoading]   = useState(false);
+  const [open,      setOpen]      = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
-  const [error, setError]         = useState(false);
+  const [error,     setError]     = useState(false);
 
   const inputRef     = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -123,7 +172,7 @@ export default function StockSearch() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // ── Fetch directly from Spring Boot (search endpoint is public) ───────────
+  // ── Fetch from Spring Boot ────────────────────────────────────────────────
   const search = useCallback(async (q: string) => {
     if (!q.trim()) { setResults([]); setLoading(false); return; }
     setLoading(true);
@@ -152,6 +201,15 @@ export default function StockSearch() {
     debounceRef.current = setTimeout(() => search(val), 400);
   };
 
+  // ── Unified navigation — always clean symbol, always pass market ──────────
+  const navigateTo = useCallback((rawSymbol: string, resolvedMarket: string) => {
+    setOpen(false);
+    setQuery("");
+    setResults([]);
+    const sym = cleanSymbol(rawSymbol);
+    router.push(`/dashboard/stock/${sym}?market=${resolvedMarket}`);
+  }, [router]);
+
   // ── Keyboard navigation ───────────────────────────────────────────────────
   const displayList = query ? results : QUICK_PICKS;
 
@@ -159,27 +217,35 @@ export default function StockSearch() {
     if (!open) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIdx((i) => Math.min(i + 1, displayList.length - 1));
+      setActiveIdx(i => Math.min(i + 1, displayList.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setActiveIdx((i) => Math.max(i - 1, -1));
+      setActiveIdx(i => Math.max(i - 1, -1));
     } else if (e.key === "Enter" && activeIdx >= 0) {
       e.preventDefault();
-      navigateTo(displayList[activeIdx].symbol);
+      const item = displayList[activeIdx];
+      if ("market" in item) {
+        // QuickPick
+        navigateTo(item.symbol, (item as QuickPick).market);
+      } else {
+        // SearchResult
+        navigateTo(item.symbol, marketFromResult(item as SearchResult, market.id));
+      }
     }
   };
 
-  const navigateTo = (symbol: string) => {
-    setOpen(false);
-    setQuery("");
-    setResults([]);
-    router.push(`/dashboard/stock/${symbol}`);
-  };
-
-  const regionBadge = (r: string) => {
-    if (r?.includes("India")) return { label: "BSE", color: "#f59e0b" };
-    if (r?.includes("United States")) return { label: "NYSE", color: "#8FFFD6" };
-    return { label: r?.slice(0, 3) ?? "—", color: "#888" };
+  const regionBadge = (result: SearchResult) => {
+    const m = marketFromResult(result, market.id);
+    switch (m) {
+      case "IN":     return { label: "BSE",    color: "#f59e0b" };
+      case "US":     return { label: "NASDAQ", color: "#8FFFD6" };
+      case "CRYPTO": return { label: "CRYPTO", color: "#f7931a" };
+      case "FX":     return { label: "FX",     color: "#818cf8" };
+      default: {
+        const exch = (result.exchange ?? "").toUpperCase();
+        return { label: exch || "—", color: "#888" };
+      }
+    }
   };
 
   return (
@@ -202,7 +268,7 @@ export default function StockSearch() {
         <input
           ref={inputRef}
           value={query}
-          onChange={(e) => handleInput(e.target.value)}
+          onChange={e => handleInput(e.target.value)}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder="Search any stock, ETF, crypto…"
@@ -212,8 +278,10 @@ export default function StockSearch() {
           }}
         />
         {query && (
-          <button onClick={(e) => { e.stopPropagation(); setQuery(""); setResults([]); }}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "#555", padding: 0, display: "flex" }}>
+          <button
+            onClick={e => { e.stopPropagation(); setQuery(""); setResults([]); }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#555", padding: 0, display: "flex" }}
+          >
             <X size={13} />
           </button>
         )}
@@ -242,7 +310,7 @@ export default function StockSearch() {
               {query ? `Results for "${query}"` : "Quick picks"}
             </span>
             {!query && (
-              <span style={{ fontSize: 10, color: "#333" }}>↑↓ to navigate · Enter to open</span>
+              <span style={{ fontSize: 10, color: "#333" }}>↑↓ navigate · Enter open</span>
             )}
           </div>
 
@@ -259,12 +327,31 @@ export default function StockSearch() {
           )}
 
           {displayList.map((item, i) => {
-            const badge = "region" in item ? regionBadge((item as SearchResult).region) : null;
-            const isActive = i === activeIdx;
+            const isQuickPick = "market" in item;
+            const rawSym      = item.symbol;
+            const displaySym  = cleanSymbol(rawSym);
+            const isActive    = i === activeIdx;
+
+            // Resolve market for navigation and badge
+            const resolvedMarket = isQuickPick
+              ? (item as QuickPick).market
+              : marketFromResult(item as SearchResult, market.id);
+
+            const badge = isQuickPick
+              ? (() => {
+                  switch ((item as QuickPick).market) {
+                    case "IN":     return { label: "BSE",    color: "#f59e0b" };
+                    case "US":     return { label: "NASDAQ", color: "#8FFFD6" };
+                    case "CRYPTO": return { label: "CRYPTO", color: "#f7931a" };
+                    default:       return { label: "FX",     color: "#818cf8" };
+                  }
+                })()
+              : regionBadge(item as SearchResult);
+
             return (
               <button
-                key={item.symbol + i}
-                onClick={() => navigateTo(item.symbol)}
+                key={rawSym + i}
+                onClick={() => navigateTo(rawSym, resolvedMarket)}
                 onMouseEnter={() => setActiveIdx(i)}
                 style={{
                   width: "100%", display: "flex", alignItems: "center", gap: 12,
@@ -273,10 +360,12 @@ export default function StockSearch() {
                   transition: "background 0.1s",
                 }}
               >
-                <ResultAvatar symbol={item.symbol} />
+                <ResultAvatar symbol={rawSym} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{item.symbol}</span>
+                    <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>
+                      {displaySym}
+                    </span>
                     {badge && (
                       <span style={{
                         fontSize: 9, padding: "1px 5px", borderRadius: 4, fontWeight: 700,
@@ -287,7 +376,10 @@ export default function StockSearch() {
                       </span>
                     )}
                   </div>
-                  <div style={{ color: "#555", fontSize: 11, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{
+                    color: "#555", fontSize: 11, marginTop: 1,
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}>
                     {item.name}
                   </div>
                 </div>

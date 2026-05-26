@@ -1,33 +1,44 @@
 /**
  * lib/websocket.ts
  *
- * Raw WebSocket client for live price updates.
+ * WebSocket client for live price updates.
  * Connects to ws://localhost:8081/ws/prices
  *
- * Backend sends array of price updates every 15s:
- * [
- *   { "symbol": "RELIANCE", "price": 2940.50, "changePct": 0.42, "live": true },
- *   { "symbol": "TCS",      "price": 3921.00, "changePct": -0.18, "live": true }
- * ]
+ * ACTUAL backend protocol:
+ *   Client → Server (subscribe):
+ *     { "action": "subscribe", "symbols": ["AAPL", "TSLA"] }
+ *
+ *   Client → Server (unsubscribe):
+ *     { "action": "unsubscribe", "symbols": ["AAPL"] }
+ *
+ *   Server → Client (one object per symbol, NOT an array):
+ *     { "symbol": "AAPL", "price": 189.42, "change": 1.23,
+ *       "changePct": 0.65, "timestamp": 1714900000000 }
+ *
+ *   Server → Client (on error):
+ *     { "type": "error", "symbol": "X", "message": "Price unavailable" }
  */
 
-import { useEffect, useState } from "react";
-import { getToken } from "@/lib/auth";
+import { useEffect, useState, useRef } from "react";
 
 export interface PriceUpdate {
   symbol:    string;
   price:     number;
   changePct: number;
+  change:    number;
   live:      boolean;
-  // aliases used by different parts of the app
-  changePct_?: number;
 }
 
 type PriceMap = Record<string, PriceUpdate>;
 
-const WS_URL         = "ws://localhost:8081/ws/prices";
-const MAX_RECONNECT  = 5;
+const WS_URL          = "ws://localhost:8081/ws/prices";
+const MAX_RECONNECT   = 5;
 const RECONNECT_DELAY = 3000;
+
+// ── Strip exchange suffix — backend only knows raw symbols ────────────────────
+function stripSuffix(symbol: string): string {
+  return symbol.replace(/\.(BSE|NSE|NYSE|NASDAQ)$/i, "");
+}
 
 // ── Singleton WebSocket manager ───────────────────────────────────────────────
 
@@ -38,7 +49,7 @@ class StockWebSocket {
   private listeners        = new Set<(prices: PriceMap) => void>();
   private prices:          PriceMap = {};
   private closed           = false;
-  private subscribedSymbols = new Set<string>();
+  private subscribedSymbols = new Set<string>(); // raw symbols only
 
   connect() {
     if (typeof window === "undefined") return;
@@ -58,12 +69,11 @@ class StockWebSocket {
     }
 
     this.ws.onopen = () => {
-      console.log("[WS] Connected");
+      console.log("[WS] Connected to", WS_URL);
       this.reconnects = 0;
       this.closed     = false;
       this.clearReconnectTimer();
-
-      // Re-subscribe to all symbols after reconnect
+      // Re-subscribe to all known symbols after reconnect
       if (this.subscribedSymbols.size > 0) {
         this.sendSubscribe([...this.subscribedSymbols]);
       }
@@ -73,53 +83,50 @@ class StockWebSocket {
       try {
         const data = JSON.parse(event.data);
 
-        // Handle array format: [{ symbol, price, changePct, live }, ...]
-        const updates: Array<{ symbol: string; price: number; changePct: number; live: boolean }> =
-          Array.isArray(data) ? data : [data];
-
-        let changed = false;
-
-        for (const item of updates) {
-          if (!item.symbol || typeof item.price !== "number") continue;
-
-          const update: PriceUpdate = {
-            symbol:    item.symbol,
-            price:     item.price,
-            changePct: item.changePct ?? 0,
-            live:      item.live ?? false,
-          };
-
-          // Store under plain symbol and exchange-suffixed variants
-          this.prices[item.symbol]           = update;
-          this.prices[`${item.symbol}.BSE`] = update;
-          this.prices[`${item.symbol}.NSE`] = update;
-          changed = true;
+        // Backend sends one object at a time — not an array
+        // Skip error messages
+        if (data.type === "error" || !data.symbol || typeof data.price !== "number") {
+          return;
         }
 
-        if (changed) {
-          const snapshot = { ...this.prices };
-          this.listeners.forEach(fn => fn(snapshot));
-        }
+        const raw = stripSuffix(data.symbol); // normalise just in case
+
+        const update: PriceUpdate = {
+          symbol:    raw,
+          price:     data.price,
+          changePct: data.changePct ?? 0,
+          change:    data.change    ?? 0,
+          live:      true, // if we received it, it's live
+        };
+
+        // Store under raw + both exchange suffixes so any lookup hits
+        this.prices[raw]           = update;
+        this.prices[`${raw}.BSE`] = update;
+        this.prices[`${raw}.NSE`] = update;
+
+        const snapshot = { ...this.prices };
+        this.listeners.forEach(fn => fn(snapshot));
+
       } catch {
         // ignore malformed messages
       }
     };
 
-    this.ws.onerror = () => {
-      // error fires before close — let onclose handle reconnect
+    this.ws.onerror = (e) => {
+      console.warn("[WS] Error:", e);
     };
 
     this.ws.onclose = () => {
       this.ws = null;
       if (this.closed) return;
-      console.warn("[WS] Disconnected");
+      console.warn("[WS] Disconnected — scheduling reconnect");
       this.scheduleReconnect();
     };
   }
 
   subscribe(fn: (prices: PriceMap) => void) {
     this.listeners.add(fn);
-    // Immediately emit current prices
+    // Immediately emit current prices so UI doesn't wait for next 15s push
     if (Object.keys(this.prices).length > 0) fn({ ...this.prices });
     return () => {
       this.listeners.delete(fn);
@@ -127,17 +134,42 @@ class StockWebSocket {
     };
   }
 
+  /** Add new symbols — skips already-subscribed ones */
   addSymbols(symbols: string[]) {
-    const newSymbols = symbols.filter(s => !this.subscribedSymbols.has(s));
+    const raw        = symbols.map(stripSuffix).filter(Boolean);
+    const newSymbols = raw.filter(s => !this.subscribedSymbols.has(s));
     if (newSymbols.length === 0) return;
     newSymbols.forEach(s => this.subscribedSymbols.add(s));
     this.sendSubscribe(newSymbols);
   }
 
+  /** Force-resubscribe — used on market switch even if symbols already tracked */
+  resubscribe(symbols: string[]) {
+    const raw = symbols.map(stripSuffix).filter(Boolean);
+    if (raw.length === 0) return;
+    raw.forEach(s => this.subscribedSymbols.add(s));
+    this.sendSubscribe(raw);
+  }
+
+  unsubscribe(symbols: string[]) {
+    const raw = symbols.map(stripSuffix).filter(Boolean);
+    raw.forEach(s => this.subscribedSymbols.delete(s));
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ action: "unsubscribe", symbols: raw }));
+    }
+  }
+
+  /**
+   * Send subscription using the CORRECT backend format:
+   * { "action": "subscribe", "symbols": [...] }
+   */
   private sendSubscribe(symbols: string[]) {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ subscribe: symbols }));
+      const msg = JSON.stringify({ action: "subscribe", symbols });
+      console.log("[WS] Subscribing:", msg);
+      this.ws.send(msg);
     }
+    // If not open yet, onopen will resubscribe all subscribedSymbols on connect
   }
 
   private scheduleReconnect() {
@@ -168,40 +200,65 @@ class StockWebSocket {
     this.ws = null;
   }
 
-  getPrices(): PriceMap { return this.prices; }
+  getPrices(): PriceMap { return { ...this.prices }; }
 }
 
-// Single shared instance
+// Single shared instance across the whole app
 const wsManager = new StockWebSocket();
 
 // ── React hook ────────────────────────────────────────────────────────────────
 
 /**
  * useLivePrices(symbols)
- * Returns a map of symbol → PriceUpdate for the given symbols.
+ *
+ * Pass ANY symbol format (raw or with suffix).
+ * Internally strips suffixes before subscribing since backend uses raw symbols.
+ * Returns a PriceMap keyed by the ORIGINAL symbols you passed in.
  */
 export function useLivePrices(symbols: string[]): PriceMap {
-  const [prices, setPrices] = useState<PriceMap>({});
-  const symbolsKey = symbols.slice().sort().join(",");
+  const [prices, setPrices] = useState<PriceMap>(() => wsManager.getPrices());
+
+  // Stable key using raw symbols — order-independent
+  const symbolsKey = symbols
+    .map(stripSuffix)
+    .filter(Boolean)
+    .sort()
+    .join(",");
+
+  const prevKeyRef = useRef<string>("");
 
   useEffect(() => {
-    const symbolList = symbolsKey ? symbolsKey.split(",") : [];
-    if (symbolList.length === 0) return;
+    const rawList = symbolsKey ? symbolsKey.split(",") : [];
+    if (rawList.length === 0) return;
 
-    // Connect and subscribe
     wsManager.connect();
-    wsManager.addSymbols(symbolList);
+
+    const isNewSymbols = symbolsKey !== prevKeyRef.current;
+    prevKeyRef.current = symbolsKey;
+
+    if (isNewSymbols) {
+      // Market switched or first load — force resubscribe
+      wsManager.resubscribe(rawList);
+    } else {
+      wsManager.addSymbols(rawList);
+    }
 
     const unsub = wsManager.subscribe((all) => {
       const relevant: PriceMap = {};
       let changed = false;
 
-      for (const sym of symbolList) {
-        const update = all[sym]
-          ?? all[sym.replace(".BSE", "").replace(".NSE", "")]
-          ?? null;
+      for (const sym of symbols) {
+        const raw    = stripSuffix(sym);
+        // Try original, then raw, then with suffixes
+        const update =
+          all[sym] ??
+          all[raw] ??
+          all[`${raw}.BSE`] ??
+          all[`${raw}.NSE`] ??
+          null;
+
         if (update) {
-          relevant[sym] = update;
+          relevant[sym] = { ...update, symbol: sym };
           changed = true;
         }
       }
@@ -210,6 +267,7 @@ export function useLivePrices(symbols: string[]): PriceMap {
     });
 
     return unsub;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbolsKey]);
 
   return prices;
