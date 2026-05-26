@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { motion } from "framer-motion";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -52,8 +52,30 @@ const BULL   = "#22c55e";
 const BEAR   = "#ef4444";
 const ACCENT = "#8FFFD6";
 
-// ── easing ────────────────────────────────────────────────────────────────────
 const APPLE = [0.22, 1, 0.36, 1] as const;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Strip all exchange suffixes — used everywhere symbol goes into an API call */
+function cleanSymbol(raw: string): string {
+  return raw
+    .replace(/\.NS$/i,  "")
+    .replace(/\.BO$/i,  "")
+    .replace(/\.BSE$/i, "")
+    .replace(/\.NSE$/i, "")
+    .replace(/=X$/i,    "")
+    .trim()
+    .toUpperCase();
+}
+
+const VALID_MARKETS = ["US", "IN", "CRYPTO", "FX"] as const;
+type MarketId = typeof VALID_MARKETS[number];
+
+function isValidMarket(m: string): m is MarketId {
+  return (VALID_MARKETS as readonly string[]).includes(m);
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function Skeleton({ w, h = 16 }: { w: string | number; h?: number }) {
   return (
@@ -169,7 +191,8 @@ function NewsCard({ article }: { article: NewsArticle }) {
   );
 }
 
-// ── StockChart — light mode fix ───────────────────────────────────────────────
+// ── StockChart ────────────────────────────────────────────────────────────────
+
 function StockChart({ symbol, currency, marketId }: {
   symbol: string; currency: string; marketId: string;
 }) {
@@ -203,8 +226,6 @@ function StockChart({ symbol, currency, marketId }: {
       const LWC = (window as any).LightweightCharts;
       if (!LWC) return;
 
-      // ── theme tokens ────────────────────────────────────────────────────────
-      // Key fix: derive ALL colours from isDark so light mode is always clean white
       const bgColor    = isDark ? "#0d0d0d"  : "#ffffff";
       const gridColor  = isDark ? "#1c1c1c"  : "#f3f4f6";
       const textColor  = isDark ? "#6b7280"  : "#9ca3af";
@@ -237,7 +258,6 @@ function StockChart({ symbol, currency, marketId }: {
         rightPriceScale: {
           borderColor: borderCol,
           scaleMargins: { top: 0.1, bottom: 0.22 },
-          // Fix: make price scale background match chart background
           entireTextOnly: false,
         },
         timeScale: {
@@ -356,17 +376,15 @@ function StockChart({ symbol, currency, marketId }: {
 
   return (
     <div style={{
-      // Fix: explicit background so it always matches theme — no bleed-through
       background: isDark ? "#0d0d0d" : "#ffffff",
       border: `1px solid var(--color-line)`,
       borderRadius: 12, overflow: "hidden", marginBottom: 20,
     }}>
-      {/* Header */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "14px 18px",
         borderBottom: "1px solid var(--color-line)",
-        background: "var(--color-card)",           // header stays on card bg
+        background: "var(--color-card)",
       }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
           {hoverInfo ? (
@@ -388,7 +406,6 @@ function StockChart({ symbol, currency, marketId }: {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* Chart type toggle */}
           <div style={{
             display: "flex", background: "var(--color-page)",
             border: "1px solid var(--color-line)", borderRadius: 8, padding: 3, gap: 2,
@@ -409,7 +426,6 @@ function StockChart({ symbol, currency, marketId }: {
             ))}
           </div>
 
-          {/* Range toggle */}
           <div style={{
             display: "flex", background: "var(--color-page)",
             border: "1px solid var(--color-line)", borderRadius: 8, padding: 3, gap: 2,
@@ -429,12 +445,10 @@ function StockChart({ symbol, currency, marketId }: {
         </div>
       </div>
 
-      {/* Chart canvas — explicit bg, no backdrop-filter bleed */}
       <div style={{ position: "relative" }}>
         {loading && (
           <div style={{
             position: "absolute", inset: 0, zIndex: 10,
-            // Fix: match the chart bg exactly so the spinner doesn't flicker
             background: isDark ? "#0d0d0d" : "#ffffff",
             display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", gap: 12,
@@ -448,21 +462,16 @@ function StockChart({ symbol, currency, marketId }: {
             <span style={{ color: "var(--color-muted)", fontSize: 12 }}>Loading chart…</span>
           </div>
         )}
-        {/* Fix: div gets explicit background so LWC canvas doesn't inherit transparency */}
         <div
           ref={containerRef}
-          style={{
-            height: 340, width: "100%",
-            background: isDark ? "#0d0d0d" : "#ffffff",
-          }}
+          style={{ height: 340, width: "100%", background: isDark ? "#0d0d0d" : "#ffffff" }}
         />
       </div>
 
-      {/* Footer */}
       <div style={{
         padding: "8px 18px",
         borderTop: "1px solid var(--color-line)",
-        background: "var(--color-card)",          // footer stays on card bg
+        background: "var(--color-card)",
         display: "flex", justifyContent: "space-between",
       }}>
         <span style={{ fontSize: 10, color: "var(--color-muted)" }}>
@@ -476,22 +485,22 @@ function StockChart({ symbol, currency, marketId }: {
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-export default function StockPage() {
+// ── Inner page — uses useSearchParams() so must be inside Suspense ────────────
+
+function StockPageInner() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
 
-  const rawSymbol = ((params?.symbol as string) ?? "").toUpperCase();
-  const symbol    = rawSymbol.replace(/\.(BSE|NSE)$/i, "");
+  // ── Symbol — cleaned once here, used everywhere ───────────────────────────
+  const symbol = cleanSymbol((params?.symbol as string) ?? "");
 
   const { market, formatPrice } = useMarket();
 
-  // Read market from URL search params using Next.js hook
-  const searchParamsHook = useSearchParams();
-  const marketIdFromUrl  = searchParamsHook.get("market")?.toUpperCase() ?? market.id;
-  const effectiveMarketId = (["US","IN","CRYPTO","FX"].includes(marketIdFromUrl))
-    ? marketIdFromUrl : market.id;
+  // ── Market from URL — SSR-safe via useSearchParams() ─────────────────────
+  const searchParams      = useSearchParams();
+  const marketFromUrl     = (searchParams.get("market") ?? "").toUpperCase();
+  const effectiveMarketId = isValidMarket(marketFromUrl) ? marketFromUrl : market.id;
 
   const [overview,       setOverview]       = useState<StockOverview | null>(null);
   const [ratings,        setRatings]        = useState<AnalystRating | null>(null);
@@ -527,11 +536,14 @@ export default function StockPage() {
         const q = await quoteRes.json();
         if (q.price > 0)                  setFallbackPrice(q.price);
         if (q.changePercent !== undefined) setFallbackChange(q.changePercent);
+        // Also accept changePct (our backend key)
+        if (q.changePct !== undefined)     setFallbackChange(q.changePct);
       }
       if (wlRes.ok) {
         const wl: { symbol: string }[] = await wlRes.json();
         setWatchlisted(wl.some(w =>
-          w.symbol === symbol || w.symbol.replace(/\.(BSE|NSE)$/i, "") === symbol
+          w.symbol === symbol ||
+          cleanSymbol(w.symbol) === symbol
         ));
       }
     } catch (e: unknown) {
@@ -582,9 +594,12 @@ export default function StockPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          symbol, market: effectiveMarketId,
-          type: orderForm.type, kind: orderForm.kind,
-          qty:  Number(orderForm.qty), price: price ?? 0,
+          symbol,
+          market: effectiveMarketId,
+          type:   orderForm.type,
+          kind:   orderForm.kind,
+          qty:    Number(orderForm.qty),
+          price:  price ?? 0,
           ...(orderForm.kind !== "MARKET" && orderForm.limitPrice
             ? { limitPrice: Number(orderForm.limitPrice) } : {}),
         }),
@@ -621,10 +636,10 @@ export default function StockPage() {
   };
 
   const cardStyle: React.CSSProperties = {
-    background: "var(--color-card)",
-    border: "1px solid var(--color-line)",
-    backdropFilter: "blur(16px)",
-    WebkitBackdropFilter: "blur(16px)",
+    background:          "var(--color-card)",
+    border:              "1px solid var(--color-line)",
+    backdropFilter:      "blur(16px)",
+    WebkitBackdropFilter:"blur(16px)",
     borderRadius: 12,
     padding: "18px 20px",
     marginBottom: 20,
@@ -718,7 +733,12 @@ export default function StockPage() {
             </motion.div>
 
             {/* Chart */}
-            <StockChart key={`${symbol}-${effectiveMarketId}`} symbol={symbol} currency={market.currency || "$"} marketId={effectiveMarketId} />
+            <StockChart
+              key={`${symbol}-${effectiveMarketId}`}
+              symbol={symbol}
+              currency={market.currency || "$"}
+              marketId={effectiveMarketId}
+            />
 
             {/* Stats grid */}
             <motion.div
@@ -873,7 +893,6 @@ export default function StockPage() {
             >
               <h3 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 700 }}>Place Order</h3>
 
-              {/* BUY / SELL */}
               <div style={{ display: "flex", gap: 4, background: "var(--color-line)", borderRadius: 8, padding: 3, marginBottom: 10 }}>
                 {(["BUY", "SELL"] as const).map(t => (
                   <button key={t} className="order-tab" onClick={() => setOrderForm(f => ({ ...f, type: t }))}
@@ -883,7 +902,6 @@ export default function StockPage() {
                 ))}
               </div>
 
-              {/* MARKET / LIMIT / STOP */}
               <div style={{ display: "flex", gap: 4, background: "var(--color-line)", borderRadius: 8, padding: 3, marginBottom: 14 }}>
                 {(["MARKET", "LIMIT", "STOP_LOSS"] as const).map(k => (
                   <button key={k} className="kind-tab" onClick={() => setOrderForm(f => ({ ...f, kind: k, limitPrice: "" }))}
@@ -893,13 +911,11 @@ export default function StockPage() {
                 ))}
               </div>
 
-              {/* Market price */}
               <div style={{ padding: "10px 12px", borderRadius: 8, marginBottom: 14, background: "var(--color-page)", border: "1px solid var(--color-line)", display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <span style={{ color: "var(--color-muted)" }}>Market Price</span>
                 <strong>{price !== null ? formatPrice(price) : "—"}</strong>
               </div>
 
-              {/* Limit/Stop price */}
               {orderForm.kind !== "MARKET" && (
                 <>
                   <label style={{ fontSize: 12, color: "var(--color-muted)", display: "block", marginBottom: 6 }}>
@@ -956,5 +972,25 @@ export default function StockPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Default export — wraps inner component in Suspense ────────────────────────
+// Required by Next.js App Router: useSearchParams() must be inside <Suspense>
+export default function StockPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ padding: "32px 28px", display: "flex", alignItems: "center", justifyContent: "center", height: "60vh" }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: "50%",
+          border: "2px solid #1f1f1f",
+          borderTop: "2px solid #8FFFD6",
+          animation: "spin 0.8s linear infinite",
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    }>
+      <StockPageInner />
+    </Suspense>
   );
 }

@@ -27,9 +27,38 @@ public class StockService {
 
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
+            .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
             .build();
 
     private final ObjectMapper mapper = new ObjectMapper();
+
+    // ─── Yahoo Finance headers — fixes geo-blocking / 401 / 429 ────────────
+    // These mirror a real browser session well enough to pass Yahoo's gate.
+    private static final String YF_USER_AGENT =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+        "AppleWebKit/537.36 (KHTML, like Gecko) " +
+        "Chrome/124.0.0.0 Safari/537.36";
+
+    private static final String YF_ACCEPT =
+        "text/html,application/xhtml+xml,application/xml;q=0.9," +
+        "application/json,*/*;q=0.8";
+
+    private static final String YF_ACCEPT_LANGUAGE = "en-US,en;q=0.9";
+
+    /** Build a Yahoo Finance HTTP request with all anti-block headers set. */
+    private HttpRequest.Builder yahooRequest(String url) {
+        return HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("User-Agent",       YF_USER_AGENT)
+                .header("Accept",           YF_ACCEPT)
+                .header("Accept-Language",  YF_ACCEPT_LANGUAGE)
+                .header("Accept-Encoding",  "identity")   // no gzip — keeps body readable
+                .header("Cache-Control",    "no-cache")
+                .header("Pragma",           "no-cache")
+                .header("Origin",           "https://finance.yahoo.com")
+                .header("Referer",          "https://finance.yahoo.com/")
+                .GET();
+    }
 
     // ─── Caches ─────────────────────────────────────────────────────────────
     private final Cache<String, Map<String, Object>> quoteCache = Caffeine.newBuilder()
@@ -53,16 +82,6 @@ public class StockService {
             .build();
 
     // ─── BSE suffix helper ───────────────────────────────────────────────────
-    /**
-     * Ensures Indian stock symbols have the .BSE suffix required by Yahoo Finance
-     * and Alpha Vantage.  Pass market="IN" from the controller; all other markets
-     * pass through unchanged.
-     *
-     * Examples:
-     *   resolveSymbol("RELIANCE", "IN")  →  "RELIANCE.BSE"
-     *   resolveSymbol("RELIANCE.BSE", "IN") →  "RELIANCE.BSE"  (idempotent)
-     *   resolveSymbol("AAPL", "US")      →  "AAPL"
-     */
     public static String resolveSymbol(String symbol, String market) {
         if (symbol == null) return null;
         String s = symbol.trim().toUpperCase();
@@ -98,36 +117,37 @@ public class StockService {
             String url = "https://query1.finance.yahoo.com/v8/finance/chart/" + symbol
                     + "?interval=1d&range=1d&includePrePost=false";
 
-            HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("User-Agent", "Mozilla/5.0")
-                    .header("Accept", "application/json")
-                    .GET()
+            HttpRequest req = yahooRequest(url)
                     .timeout(Duration.ofSeconds(8))
                     .build();
 
             HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() != 200) return null;
+            if (resp.statusCode() != 200) {
+                log.warn("Yahoo quote HTTP {} for symbol {}", resp.statusCode(), symbol);
+                return null;
+            }
 
             JsonNode root = mapper.readTree(resp.body());
-            JsonNode meta = root.path("chart").path("result").get(0).path("meta");
+            JsonNode result0 = root.path("chart").path("result");
+            if (!result0.isArray() || result0.size() == 0) return null;
+            JsonNode meta = result0.get(0).path("meta");
 
             Map<String, Object> quote = new LinkedHashMap<>();
-            quote.put("symbol",       symbol.toUpperCase());
-            quote.put("name",         meta.path("longName").asText(symbol));
-            quote.put("price",        meta.path("regularMarketPrice").asDouble());
-            quote.put("previousClose",meta.path("previousClose").asDouble());
-            quote.put("open",         meta.path("regularMarketOpen").asDouble());
-            quote.put("high",         meta.path("regularMarketDayHigh").asDouble());
-            quote.put("low",          meta.path("regularMarketDayLow").asDouble());
-            quote.put("volume",       meta.path("regularMarketVolume").asLong());
-            quote.put("marketCap",    meta.path("marketCap").asLong());
-            quote.put("currency",     meta.path("currency").asText("USD"));
-            quote.put("exchange",     meta.path("exchangeName").asText());
+            quote.put("symbol",        symbol.toUpperCase());
+            quote.put("name",          meta.path("longName").asText(symbol));
+            quote.put("price",         meta.path("regularMarketPrice").asDouble());
+            quote.put("previousClose", meta.path("previousClose").asDouble());
+            quote.put("open",          meta.path("regularMarketOpen").asDouble());
+            quote.put("high",          meta.path("regularMarketDayHigh").asDouble());
+            quote.put("low",           meta.path("regularMarketDayLow").asDouble());
+            quote.put("volume",        meta.path("regularMarketVolume").asLong());
+            quote.put("marketCap",     meta.path("marketCap").asLong());
+            quote.put("currency",      meta.path("currency").asText("USD"));
+            quote.put("exchange",      meta.path("exchangeName").asText());
 
-            double price    = meta.path("regularMarketPrice").asDouble();
+            double price     = meta.path("regularMarketPrice").asDouble();
             double prevClose = meta.path("previousClose").asDouble();
-            double change   = price - prevClose;
+            double change    = price - prevClose;
             double changePct = prevClose > 0 ? (change / prevClose) * 100 : 0;
             quote.put("change",    Math.round(change    * 100.0) / 100.0);
             quote.put("changePct", Math.round(changePct * 100.0) / 100.0);
@@ -155,18 +175,18 @@ public class StockService {
             JsonNode root = mapper.readTree(resp.body());
             JsonNode q    = root.path("Global Quote");
 
-            if (q.isMissingNode()) return null;
+            if (q.isMissingNode() || q.isEmpty()) return null;
 
             Map<String, Object> quote = new LinkedHashMap<>();
-            quote.put("symbol",       q.path("01. symbol").asText());
-            quote.put("price",        Double.parseDouble(q.path("05. price").asText("0")));
-            quote.put("previousClose",Double.parseDouble(q.path("08. previous close").asText("0")));
-            quote.put("open",         Double.parseDouble(q.path("02. open").asText("0")));
-            quote.put("high",         Double.parseDouble(q.path("03. high").asText("0")));
-            quote.put("low",          Double.parseDouble(q.path("04. low").asText("0")));
-            quote.put("volume",       Long.parseLong(q.path("06. volume").asText("0")));
-            quote.put("change",       Double.parseDouble(q.path("09. change").asText("0")));
-            quote.put("changePct",    Double.parseDouble(
+            quote.put("symbol",        q.path("01. symbol").asText());
+            quote.put("price",         Double.parseDouble(q.path("05. price").asText("0")));
+            quote.put("previousClose", Double.parseDouble(q.path("08. previous close").asText("0")));
+            quote.put("open",          Double.parseDouble(q.path("02. open").asText("0")));
+            quote.put("high",          Double.parseDouble(q.path("03. high").asText("0")));
+            quote.put("low",           Double.parseDouble(q.path("04. low").asText("0")));
+            quote.put("volume",        Long.parseLong(q.path("06. volume").asText("0")));
+            quote.put("change",        Double.parseDouble(q.path("09. change").asText("0")));
+            quote.put("changePct",     Double.parseDouble(
                     q.path("10. change percent").asText("0%").replace("%", "").trim()));
             quote.put("source", "alphavantage");
             return quote;
@@ -184,7 +204,7 @@ public class StockService {
         return priceObj instanceof Number ? ((Number) priceObj).doubleValue() : 0;
     }
 
-    // ─── Historical Data (Yahoo Finance OHLCV) ───────────────────────────────
+    // ─── Historical Data ──────────────────────────────────────────────────────
     public List<Map<String, Object>> getHistory(String symbol, String range, String interval) {
         String cacheKey = symbol + ":" + range + ":" + interval;
         List<Map<String, Object>> cached = historyCache.getIfPresent(cacheKey);
@@ -209,36 +229,44 @@ public class StockService {
             String url = "https://query1.finance.yahoo.com/v8/finance/chart/" + symbol
                     + "?interval=" + interval + "&range=" + range + "&includePrePost=false";
 
-            HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("User-Agent", "Mozilla/5.0")
-                    .GET()
+            HttpRequest req = yahooRequest(url)
                     .timeout(Duration.ofSeconds(12))
                     .build();
 
             HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() != 200) return null;
+            if (resp.statusCode() != 200) {
+                log.warn("Yahoo history HTTP {} for symbol {}", resp.statusCode(), symbol);
+                return null;
+            }
 
-            JsonNode root   = mapper.readTree(resp.body());
-            JsonNode result = root.path("chart").path("result").get(0);
-            if (result == null) return null;
+            JsonNode root    = mapper.readTree(resp.body());
+            JsonNode result0 = root.path("chart").path("result");
+            if (!result0.isArray() || result0.size() == 0) return null;
+            JsonNode result  = result0.get(0);
 
             JsonNode timestamps = result.path("timestamp");
             JsonNode ohlcv      = result.path("indicators").path("quote").get(0);
+            if (ohlcv == null) return null;
 
             List<Map<String, Object>> candles = new ArrayList<>();
             for (int i = 0; i < timestamps.size(); i++) {
                 try {
-                    double open   = ohlcv.path("open").get(i).asDouble();
+                    JsonNode openNode   = ohlcv.path("open").get(i);
+                    JsonNode closeNode  = ohlcv.path("close").get(i);
+                    if (openNode  == null || openNode.isNull())  continue;
+                    if (closeNode == null || closeNode.isNull()) continue;
+
+                    double open   = openNode.asDouble();
                     double high   = ohlcv.path("high").get(i).asDouble();
                     double low    = ohlcv.path("low").get(i).asDouble();
-                    double close  = ohlcv.path("close").get(i).asDouble();
+                    double close  = closeNode.asDouble();
                     long   volume = ohlcv.path("volume").get(i).asLong();
 
                     if (open == 0 && close == 0) continue;
 
                     Map<String, Object> candle = new LinkedHashMap<>();
-                    candle.put("timestamp", timestamps.get(i).asLong() * 1000L);
+                    // Store as seconds — LightweightCharts expects Unix seconds
+                    candle.put("timestamp", timestamps.get(i).asLong());
                     candle.put("open",   Math.round(open  * 100.0) / 100.0);
                     candle.put("high",   Math.round(high  * 100.0) / 100.0);
                     candle.put("low",    Math.round(low   * 100.0) / 100.0);
@@ -297,7 +325,6 @@ public class StockService {
         List<Map<String, Object>> cached = marketCache.getIfPresent(cacheKey);
         if (cached != null) return cached;
 
-        // NOTE: Indian symbols already include .BSE suffix here
         List<String> symbols = switch (market.toUpperCase()) {
             case "US" -> List.of("AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "AMD");
             case "IN" -> List.of("RELIANCE.BSE", "TCS.BSE", "INFY.BSE", "HDFCBANK.BSE", "ICICIBANK.BSE");
@@ -339,7 +366,7 @@ public class StockService {
 
             HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
             if (resp.statusCode() == 429) { log.warn("CoinGecko rate limit hit"); return getMockCrypto(); }
-            if (resp.statusCode() != 200) return getMockCrypto();
+            if (resp.statusCode() != 200)  return getMockCrypto();
 
             JsonNode arr = mapper.readTree(resp.body());
             List<Map<String, Object>> results = new ArrayList<>();
@@ -400,16 +427,6 @@ public class StockService {
         }
     }
 
-    /**
-     * CoinGecko market chart — returns OHLCV candles for a given range.
-     * Maps to LightweightCharts format: { time (seconds), open, high, low, close, volume }
-     *
-     * CoinGecko /coins/{id}/ohlc endpoint:
-     *   days=1  → hourly candles
-     *   days=7  → hourly candles
-     *   days=30 → daily candles
-     *   days=365→ weekly candles (approximated as daily)
-     */
     public List<Map<String, Object>> getCryptoHistory(String coinId, String range) {
         String cacheKey = "crypto:history:" + coinId + ":" + range;
         List<Map<String, Object>> cached = cryptoCache.getIfPresent(cacheKey);
@@ -421,7 +438,7 @@ public class StockService {
                 case "1W"  -> 7;
                 case "1M"  -> 30;
                 case "1Y"  -> 365;
-                case "ALL" -> 1825; // 5 years
+                case "ALL" -> 1825;
                 default    -> 30;
             };
 
@@ -443,20 +460,18 @@ public class StockService {
             }
             if (resp.statusCode() != 200) return Collections.emptyList();
 
-            // CoinGecko OHLC response: [[timestamp_ms, open, high, low, close], ...]
             JsonNode arr = mapper.readTree(resp.body());
             List<Map<String, Object>> candles = new ArrayList<>();
 
             for (JsonNode row : arr) {
                 if (row.size() < 5) continue;
                 Map<String, Object> candle = new LinkedHashMap<>();
-                // Convert ms → seconds for LightweightCharts
                 candle.put("time",   row.get(0).asLong() / 1000L);
                 candle.put("open",   Math.round(row.get(1).asDouble() * 100.0) / 100.0);
                 candle.put("high",   Math.round(row.get(2).asDouble() * 100.0) / 100.0);
                 candle.put("low",    Math.round(row.get(3).asDouble() * 100.0) / 100.0);
                 candle.put("close",  Math.round(row.get(4).asDouble() * 100.0) / 100.0);
-                candle.put("volume", 0L); // CoinGecko OHLC doesn't include volume
+                candle.put("volume", 0L);
                 candles.add(candle);
             }
 
@@ -469,35 +484,65 @@ public class StockService {
         }
     }
 
-    // ─── Search ──────────────────────────────────────────────────────────────
+    // ─── Search — full Yahoo Finance headers to fix geo-blocking ─────────────
     public List<Map<String, Object>> searchSymbol(String query) {
         try {
             String url = "https://query1.finance.yahoo.com/v1/finance/search?q="
-                    + query + "&quotesCount=8&newsCount=0";
+                    + java.net.URLEncoder.encode(query, java.nio.charset.StandardCharsets.UTF_8)
+                    + "&quotesCount=10&newsCount=0&listsCount=0&enableFuzzyQuery=false"
+                    + "&enableCb=false&enableNavLinks=false&enableEnhancedTrivialQuery=true";
 
-            HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("User-Agent", "Mozilla/5.0")
-                    .GET()
+            HttpRequest req = yahooRequest(url)
                     .timeout(Duration.ofSeconds(8))
                     .build();
 
             HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                log.warn("Yahoo search HTTP {} for query '{}'", resp.statusCode(), query);
+                return Collections.emptyList();
+            }
+
             JsonNode root   = mapper.readTree(resp.body());
             JsonNode quotes = root.path("quotes");
 
             List<Map<String, Object>> results = new ArrayList<>();
             for (JsonNode q : quotes) {
+                String quoteType = q.path("quoteType").asText();
+                // Normalise to our type vocabulary
+                String type = switch (quoteType.toUpperCase()) {
+                    case "EQUITY"       -> "EQUITY";
+                    case "ETF"          -> "ETF";
+                    case "CRYPTOCURRENCY" -> "CRYPTOCURRENCY";
+                    case "CURRENCY"     -> "CURRENCY";
+                    case "MUTUALFUND"   -> "MUTUALFUND";
+                    case "INDEX"        -> "INDEX";
+                    case "FUTURE"       -> "FUTURE";
+                    case "OPTION"       -> "OPTION";
+                    default             -> quoteType.toUpperCase();
+                };
+
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("symbol",   q.path("symbol").asText());
                 item.put("name",     q.path("longname").asText(q.path("shortname").asText()));
                 item.put("exchange", q.path("exchange").asText());
-                item.put("type",     q.path("quoteType").asText());
+                item.put("type",     type);
+                // Derive region from exchange for Indian stocks
+                String exch = q.path("exchange").asText().toUpperCase();
+                String region;
+                if (exch.equals("BSE") || exch.equals("NSE") || exch.equals("BOM") || exch.equals("NSI")) {
+                    region = "India";
+                } else if (exch.equals("NMS") || exch.equals("NYQ") || exch.equals("NGM") || exch.equals("PCX")) {
+                    region = "United States";
+                } else {
+                    region = q.path("region").asText("");
+                }
+                item.put("region",   region);
+                item.put("currency", q.path("currency").asText("USD"));
                 results.add(item);
             }
             return results;
         } catch (Exception e) {
-            log.error("Symbol search error for {}: {}", query, e.getMessage());
+            log.error("Symbol search error for '{}': {}", query, e.getMessage());
             return Collections.emptyList();
         }
     }
@@ -519,9 +564,9 @@ public class StockService {
     // ─── Fallbacks ───────────────────────────────────────────────────────────
     private List<Map<String, Object>> getMockCrypto() {
         return List.of(
-                Map.of("symbol", "BTC", "name", "Bitcoin",  "price", 67420.0, "changePct",  2.45, "source", "mock"),
-                Map.of("symbol", "ETH", "name", "Ethereum", "price",  3580.0, "changePct",  1.87, "source", "mock"),
-                Map.of("symbol", "SOL", "name", "Solana",   "price",   185.0, "changePct", -0.93, "source", "mock")
+                Map.of("symbol","BTC","name","Bitcoin",  "price",67420.0,"changePct", 2.45,"source","mock"),
+                Map.of("symbol","ETH","name","Ethereum", "price", 3580.0,"changePct", 1.87,"source","mock"),
+                Map.of("symbol","SOL","name","Solana",   "price",  185.0,"changePct",-0.93,"source","mock")
         );
     }
 }
