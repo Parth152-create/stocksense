@@ -86,7 +86,7 @@ public class StockService {
         if (symbol == null) return null;
         String s = symbol.trim().toUpperCase();
         if ("IN".equalsIgnoreCase(market) && !s.contains(".")) {
-            return s + ".BSE";
+            return s + ".NS";
         }
         return s;
     }
@@ -327,7 +327,7 @@ public class StockService {
 
         List<String> symbols = switch (market.toUpperCase()) {
             case "US" -> List.of("AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "AMD");
-            case "IN" -> List.of("RELIANCE.BSE", "TCS.BSE", "INFY.BSE", "HDFCBANK.BSE", "ICICIBANK.BSE");
+            case "IN" -> List.of("RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS");
             case "FX" -> List.of("EURUSD=X", "GBPUSD=X", "USDJPY=X", "USDCHF=X", "AUDUSD=X");
             default   -> List.of("AAPL", "MSFT", "GOOGL", "NVDA");
         };

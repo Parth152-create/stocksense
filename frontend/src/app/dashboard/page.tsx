@@ -114,6 +114,7 @@ interface PortfolioSummaryResponse {
   portfolioValue?: number;
   totalInvested?: number;
   totalCost?:     number;
+  totalPnl?:      number;
 }
 
 function CardNetworkIcon({ network }: { network: CardNetwork }) {
@@ -412,6 +413,7 @@ export default function DashboardPage() {
   const [realTransactions,  setRealTransactions]  = useState<OrderRow[]>([]);
   const [realHoldings,      setRealHoldings]      = useState<{ symbol: string; shares: number; color: string; bg: string; letter: string }[]>([]);
   const [portfolioValue,    setPortfolioValue]    = useState<string | null>(null);
+  const [portfolioGain,     setPortfolioGain]     = useState<string | null>(null);
   const [activityData,      setActivityData]      = useState<{ date: string; value: number; daysAgo: number }[] | null>(null);
   const [realTradingScore,  setRealTradingScore]  = useState<number | null>(null);
   const [realTradingPoints, setRealTradingPoints] = useState<number | null>(null);
@@ -427,6 +429,7 @@ export default function DashboardPage() {
   // ── Derive display data BEFORE useLivePrices so txSymbols uses real data ───
   const displayHoldings      = realHoldings.length > 0 ? realHoldings : md.holdings;
   const displayPortfolioValue = portfolioValue ?? md.portfolioValue;
+  const displayPortfolioGain  = portfolioGain ?? md.portfolioGain;
 
   const displayTransactions: DashboardTransaction[] = realTransactions.length > 0
     ? realTransactions.slice(0, 5).map((o) => ({
@@ -483,6 +486,12 @@ export default function DashboardPage() {
               `${currency}${Number(val).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
             );
           }
+
+          const pnl = data.totalPnl ?? 0;
+          const pnlStr = pnl >= 0
+            ? `+${currency}${Math.abs(pnl).toLocaleString("en-US", { minimumFractionDigits: 2 })} this month`
+            : `-${currency}${Math.abs(pnl).toLocaleString("en-US", { minimumFractionDigits: 2 })} this month`;
+          setPortfolioGain(pnlStr);
 
           const totalCost = data.totalInvested ?? data.totalCost ?? 0;
           if (totalCost > 0) {
@@ -817,7 +826,7 @@ export default function DashboardPage() {
               {displayPortfolioValue}
             </p>
             <p style={{ color: "#22c55e", fontSize: 12, fontWeight: 600, margin: "0 0 12px" }}>
-              {md.portfolioGain}
+              {displayPortfolioGain}
             </p>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
               {PORTFOLIO_CATEGORIES.map((cat, i) => (

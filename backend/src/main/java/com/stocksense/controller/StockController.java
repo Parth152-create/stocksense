@@ -1,5 +1,3 @@
-
-
 package com.stocksense.controller;
 
 import com.stocksense.service.AlphaVantageService;
@@ -26,7 +24,6 @@ public class StockController {
 
     private static final String NEWS_API_KEY = "33583e3bf61647109d1671aaa4a098e6";
 
-    // ── CoinGecko ID map ──────────────────────────────────────────────────────
     private static final Map<String, String> CRYPTO_IDS = Map.ofEntries(
         Map.entry("BTC",  "bitcoin"),
         Map.entry("ETH",  "ethereum"),
@@ -40,7 +37,6 @@ public class StockController {
         Map.entry("XRP",  "ripple")
     );
 
-    // ── FX symbol → Yahoo Finance format ─────────────────────────────────────
     private static final Map<String, String> FX_YAHOO = Map.ofEntries(
         Map.entry("EUR/USD", "EURUSD=X"),
         Map.entry("GBP/USD", "GBPUSD=X"),
@@ -52,51 +48,46 @@ public class StockController {
         Map.entry("EUR/GBP", "EURGBP=X")
     );
 
-    // ── Well-known symbols that Yahoo search buries under mutual funds ────────
-    // Keyed by common search prefix (uppercase) → result to inject at top
     private static final Map<String, Map<String, String>> KNOWN_SYMBOLS;
     static {
         KNOWN_SYMBOLS = new LinkedHashMap<>();
-        // Indian equities
-        KNOWN_SYMBOLS.put("ICICI",      Map.of("symbol","ICICIBANK.NS","name","ICICI Bank Ltd",       "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("ICICIBANK",  Map.of("symbol","ICICIBANK.NS","name","ICICI Bank Ltd",       "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("HDFC",       Map.of("symbol","HDFCBANK.NS", "name","HDFC Bank Ltd",        "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("HDFCBANK",   Map.of("symbol","HDFCBANK.NS", "name","HDFC Bank Ltd",        "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("RELIANCE",   Map.of("symbol","RELIANCE.NS", "name","Reliance Industries",  "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("TCS",        Map.of("symbol","TCS.NS",      "name","Tata Consultancy Svcs","exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("INFY",       Map.of("symbol","INFY.NS",     "name","Infosys Ltd",          "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("INFOSYS",    Map.of("symbol","INFY.NS",     "name","Infosys Ltd",          "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("WIPRO",      Map.of("symbol","WIPRO.NS",    "name","Wipro Ltd",            "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("BAJAJ",      Map.of("symbol","BAJFINANCE.NS","name","Bajaj Finance",       "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("BAJFINANCE", Map.of("symbol","BAJFINANCE.NS","name","Bajaj Finance",       "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("TATA",       Map.of("symbol","TATAMOTORS.NS","name","Tata Motors Ltd",     "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("TATAMOTORS", Map.of("symbol","TATAMOTORS.NS","name","Tata Motors Ltd",     "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("ADANI",      Map.of("symbol","ADANIENT.NS", "name","Adani Enterprises",   "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("SBIN",       Map.of("symbol","SBIN.NS",     "name","State Bank of India",  "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("SBI",        Map.of("symbol","SBIN.NS",     "name","State Bank of India",  "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("SUNPHARMA",  Map.of("symbol","SUNPHARMA.NS","name","Sun Pharmaceutical",  "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("MARUTI",     Map.of("symbol","MARUTI.NS",   "name","Maruti Suzuki India",  "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("AXISBANK",   Map.of("symbol","AXISBANK.NS", "name","Axis Bank Ltd",        "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("AXIS",       Map.of("symbol","AXISBANK.NS", "name","Axis Bank Ltd",        "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("KOTAK",      Map.of("symbol","KOTAKBANK.NS","name","Kotak Mahindra Bank",  "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("LT",         Map.of("symbol","LT.NS",       "name","Larsen & Toubro",      "exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("NTPC",       Map.of("symbol","NTPC.NS",     "name","NTPC Ltd",             "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("ICICI",      Map.of("symbol","ICICIBANK.NS","name","ICICI Bank Ltd",        "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("ICICIBANK",  Map.of("symbol","ICICIBANK.NS","name","ICICI Bank Ltd",        "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("HDFC",       Map.of("symbol","HDFCBANK.NS", "name","HDFC Bank Ltd",         "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("HDFCBANK",   Map.of("symbol","HDFCBANK.NS", "name","HDFC Bank Ltd",         "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("RELIANCE",   Map.of("symbol","RELIANCE.NS", "name","Reliance Industries",   "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("TCS",        Map.of("symbol","TCS.NS",      "name","Tata Consultancy Svcs", "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("INFY",       Map.of("symbol","INFY.NS",     "name","Infosys Ltd",           "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("INFOSYS",    Map.of("symbol","INFY.NS",     "name","Infosys Ltd",           "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("WIPRO",      Map.of("symbol","WIPRO.NS",    "name","Wipro Ltd",             "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("BAJAJ",      Map.of("symbol","BAJFINANCE.NS","name","Bajaj Finance",        "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("BAJFINANCE", Map.of("symbol","BAJFINANCE.NS","name","Bajaj Finance",        "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("TATA",       Map.of("symbol","TATAMOTORS.NS","name","Tata Motors Ltd",      "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("TATAMOTORS", Map.of("symbol","TATAMOTORS.NS","name","Tata Motors Ltd",      "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("ADANI",      Map.of("symbol","ADANIENT.NS", "name","Adani Enterprises",    "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("SBIN",       Map.of("symbol","SBIN.NS",     "name","State Bank of India",   "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("SBI",        Map.of("symbol","SBIN.NS",     "name","State Bank of India",   "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("SUNPHARMA",  Map.of("symbol","SUNPHARMA.NS","name","Sun Pharmaceutical",   "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("MARUTI",     Map.of("symbol","MARUTI.NS",   "name","Maruti Suzuki India",   "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("AXISBANK",   Map.of("symbol","AXISBANK.NS", "name","Axis Bank Ltd",         "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("AXIS",       Map.of("symbol","AXISBANK.NS", "name","Axis Bank Ltd",         "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("KOTAK",      Map.of("symbol","KOTAKBANK.NS","name","Kotak Mahindra Bank",   "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("LT",         Map.of("symbol","LT.NS",       "name","Larsen & Toubro",       "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("NTPC",       Map.of("symbol","NTPC.NS",     "name","NTPC Ltd",              "exchange","NSE","type","EQUITY","region","India"));
         KNOWN_SYMBOLS.put("ONGC",       Map.of("symbol","ONGC.NS",     "name","Oil & Natural Gas Corp","exchange","NSE","type","EQUITY","region","India"));
-        KNOWN_SYMBOLS.put("ULTRACEMCO", Map.of("symbol","ULTRACEMCO.NS","name","UltraTech Cement",   "exchange","NSE","type","EQUITY","region","India"));
-        // US equities
-        KNOWN_SYMBOLS.put("APPLE",      Map.of("symbol","AAPL",  "name","Apple Inc.",           "exchange","NASDAQ","type","EQUITY","region","United States"));
-        KNOWN_SYMBOLS.put("MICROSOFT",  Map.of("symbol","MSFT",  "name","Microsoft Corp",       "exchange","NASDAQ","type","EQUITY","region","United States"));
-        KNOWN_SYMBOLS.put("NVIDIA",     Map.of("symbol","NVDA",  "name","NVIDIA Corp",          "exchange","NASDAQ","type","EQUITY","region","United States"));
-        KNOWN_SYMBOLS.put("TESLA",      Map.of("symbol","TSLA",  "name","Tesla Inc",            "exchange","NASDAQ","type","EQUITY","region","United States"));
-        KNOWN_SYMBOLS.put("AMAZON",     Map.of("symbol","AMZN",  "name","Amazon.com Inc",       "exchange","NASDAQ","type","EQUITY","region","United States"));
-        KNOWN_SYMBOLS.put("GOOGLE",     Map.of("symbol","GOOGL", "name","Alphabet Inc",         "exchange","NASDAQ","type","EQUITY","region","United States"));
-        KNOWN_SYMBOLS.put("ALPHABET",   Map.of("symbol","GOOGL", "name","Alphabet Inc",         "exchange","NASDAQ","type","EQUITY","region","United States"));
-        KNOWN_SYMBOLS.put("META",       Map.of("symbol","META",  "name","Meta Platforms Inc",   "exchange","NASDAQ","type","EQUITY","region","United States"));
-        KNOWN_SYMBOLS.put("FACEBOOK",   Map.of("symbol","META",  "name","Meta Platforms Inc",   "exchange","NASDAQ","type","EQUITY","region","United States"));
-        // Crypto
-        KNOWN_SYMBOLS.put("BITCOIN",    Map.of("symbol","BTC",   "name","Bitcoin",              "exchange","Crypto","type","CRYPTOCURRENCY","region","Crypto"));
-        KNOWN_SYMBOLS.put("ETHEREUM",   Map.of("symbol","ETH",   "name","Ethereum",             "exchange","Crypto","type","CRYPTOCURRENCY","region","Crypto"));
-        KNOWN_SYMBOLS.put("SOLANA",     Map.of("symbol","SOL",   "name","Solana",               "exchange","Crypto","type","CRYPTOCURRENCY","region","Crypto"));
+        KNOWN_SYMBOLS.put("ULTRACEMCO", Map.of("symbol","ULTRACEMCO.NS","name","UltraTech Cement",    "exchange","NSE","type","EQUITY","region","India"));
+        KNOWN_SYMBOLS.put("APPLE",      Map.of("symbol","AAPL",  "name","Apple Inc.",          "exchange","NASDAQ","type","EQUITY","region","United States"));
+        KNOWN_SYMBOLS.put("MICROSOFT",  Map.of("symbol","MSFT",  "name","Microsoft Corp",      "exchange","NASDAQ","type","EQUITY","region","United States"));
+        KNOWN_SYMBOLS.put("NVIDIA",     Map.of("symbol","NVDA",  "name","NVIDIA Corp",         "exchange","NASDAQ","type","EQUITY","region","United States"));
+        KNOWN_SYMBOLS.put("TESLA",      Map.of("symbol","TSLA",  "name","Tesla Inc",           "exchange","NASDAQ","type","EQUITY","region","United States"));
+        KNOWN_SYMBOLS.put("AMAZON",     Map.of("symbol","AMZN",  "name","Amazon.com Inc",      "exchange","NASDAQ","type","EQUITY","region","United States"));
+        KNOWN_SYMBOLS.put("GOOGLE",     Map.of("symbol","GOOGL", "name","Alphabet Inc",        "exchange","NASDAQ","type","EQUITY","region","United States"));
+        KNOWN_SYMBOLS.put("ALPHABET",   Map.of("symbol","GOOGL", "name","Alphabet Inc",        "exchange","NASDAQ","type","EQUITY","region","United States"));
+        KNOWN_SYMBOLS.put("META",       Map.of("symbol","META",  "name","Meta Platforms Inc",  "exchange","NASDAQ","type","EQUITY","region","United States"));
+        KNOWN_SYMBOLS.put("FACEBOOK",   Map.of("symbol","META",  "name","Meta Platforms Inc",  "exchange","NASDAQ","type","EQUITY","region","United States"));
+        KNOWN_SYMBOLS.put("BITCOIN",    Map.of("symbol","BTC",   "name","Bitcoin",             "exchange","Crypto","type","CRYPTOCURRENCY","region","Crypto"));
+        KNOWN_SYMBOLS.put("ETHEREUM",   Map.of("symbol","ETH",   "name","Ethereum",            "exchange","Crypto","type","CRYPTOCURRENCY","region","Crypto"));
+        KNOWN_SYMBOLS.put("SOLANA",     Map.of("symbol","SOL",   "name","Solana",              "exchange","Crypto","type","CRYPTOCURRENCY","region","Crypto"));
     }
 
     public StockController(AlphaVantageService alphaVantage,
@@ -107,18 +98,17 @@ public class StockController {
         this.stockService  = stockService;
     }
 
-    // ── Symbol resolver ───────────────────────────────────────────────────────
     private String resolveSymbol(String symbol, String market) {
         if (symbol == null) return null;
         String s = symbol.trim().toUpperCase()
-            .replace(".BSE", "").replace(".NSE", "").replace(".NS", "").replace(".BO", "");
-        if ("IN".equalsIgnoreCase(market) && !s.contains(".")) return s + ".BSE";
+            .replace(".BSE","").replace(".NSE","").replace(".NS","").replace(".BO","");
+        if ("IN".equalsIgnoreCase(market) && !s.contains(".")) return s + ".NS";
         if ("FX".equalsIgnoreCase(market)) return FX_YAHOO.getOrDefault(s, s + "=X");
         return s;
     }
 
-    private boolean isCrypto(String market)  { return "CRYPTO".equalsIgnoreCase(market); }
-    private boolean isFx(String market)      { return "FX".equalsIgnoreCase(market); }
+    private boolean isCrypto(String market) { return "CRYPTO".equalsIgnoreCase(market); }
+    private boolean isFx(String market)     { return "FX".equalsIgnoreCase(market); }
 
     // ── GET /api/stocks/{symbol} ──────────────────────────────────────────────
     @GetMapping("/stocks/{symbol}")
@@ -127,7 +117,7 @@ public class StockController {
             @RequestParam(required = false, defaultValue = "US") String market) {
 
         String clean = symbol.trim().toUpperCase()
-            .replace(".BSE", "").replace(".NSE", "").replace(".NS", "").replace(".BO", "");
+            .replace(".BSE","").replace(".NSE","").replace(".NS","").replace(".BO","");
 
         if (isCrypto(market)) {
             String coinId = CRYPTO_IDS.getOrDefault(clean, clean.toLowerCase());
@@ -149,12 +139,10 @@ public class StockController {
             return ResponseEntity.ok(result);
         }
 
-        return ResponseEntity.ok(
-            stockService.getQuote(resolveSymbol(symbol, market))
-        );
+        return ResponseEntity.ok(stockService.getQuote(resolveSymbol(symbol, market)));
     }
 
-    // ── GET /api/stocks/{symbol}/history ─────────────────────────────────────
+    // ── GET /api/stocks/{symbol}/history ──────────────────────────────────────
     @GetMapping("/stocks/{symbol}/history")
     public ResponseEntity<List<Map<String, Object>>> getHistory(
             @PathVariable String symbol,
@@ -162,7 +150,7 @@ public class StockController {
             @RequestParam(defaultValue = "1M") String range) {
         try {
             String clean = symbol.trim().toUpperCase()
-                .replace(".BSE", "").replace(".NSE", "").replace(".NS","").replace(".BO","");
+                .replace(".BSE","").replace(".NSE","").replace(".NS","").replace(".BO","");
 
             if (isCrypto(market)) {
                 String coinId = CRYPTO_IDS.getOrDefault(clean, clean.toLowerCase());
@@ -173,9 +161,8 @@ public class StockController {
 
             if (isFx(market)) {
                 String yahooSym = FX_YAHOO.getOrDefault(clean, clean + "=X");
-                String[] rangeInterval = toYahooRangeInterval(range);
-                List<Map<String, Object>> candles =
-                    stockService.getHistory(yahooSym, rangeInterval[0], rangeInterval[1]);
+                String[] ri = toYahooRangeInterval(range);
+                List<Map<String, Object>> candles = stockService.getHistory(yahooSym, ri[0], ri[1]);
                 if (candles == null || candles.isEmpty()) candles = generateMockCandles(range);
                 return ResponseEntity.ok(normaliseHistoryTimestamps(candles));
             }
@@ -205,77 +192,63 @@ public class StockController {
             @RequestParam(required = false, defaultValue = "US") String market) {
 
         String clean = symbol.trim().toUpperCase()
-            .replace(".BSE", "").replace(".NSE", "").replace(".NS","").replace(".BO","");
+            .replace(".BSE","").replace(".NSE","").replace(".NS","").replace(".BO","");
 
         if (isCrypto(market)) {
             String coinId = CRYPTO_IDS.getOrDefault(clean, clean.toLowerCase());
             Map<String, Object> quote = stockService.getCryptoQuote(coinId);
             Map<String, Object> overview = new LinkedHashMap<>();
-            overview.put("symbol",      clean);
-            overview.put("name",        coinId.substring(0,1).toUpperCase() + coinId.substring(1));
-            overview.put("exchange",    "CoinGecko");
-            overview.put("sector",      "Cryptocurrency");
-            overview.put("industry",    "Digital Assets");
-            overview.put("description", "A leading cryptocurrency asset traded on major global exchanges.");
-            overview.put("marketCap",   quote.getOrDefault("marketCap", 0));
-            overview.put("peRatio",     0);
-            overview.put("eps",         0);
+            overview.put("symbol",        clean);
+            overview.put("name",          coinId.substring(0,1).toUpperCase() + coinId.substring(1));
+            overview.put("exchange",      "CoinGecko");
+            overview.put("sector",        "Cryptocurrency");
+            overview.put("industry",      "Digital Assets");
+            overview.put("description",   "A leading cryptocurrency asset traded on major global exchanges.");
+            overview.put("marketCap",     quote.getOrDefault("marketCap", 0));
+            overview.put("peRatio",       0);
+            overview.put("eps",           0);
             overview.put("dividendYield", 0);
-            overview.put("week52High",  0);
-            overview.put("week52Low",   0);
+            overview.put("week52High",    0);
+            overview.put("week52Low",     0);
             return ResponseEntity.ok(overview);
         }
 
         if (isFx(market)) {
             Map<String, Object> overview = new LinkedHashMap<>();
-            overview.put("symbol",      clean);
-            overview.put("name",        clean + " Exchange Rate");
-            overview.put("exchange",    "FOREX");
-            overview.put("sector",      "Foreign Exchange");
-            overview.put("industry",    "Currency Pairs");
-            overview.put("description", "A major forex currency pair traded 24/5 on the global foreign exchange market.");
-            overview.put("marketCap",   0);
-            overview.put("peRatio",     0);
-            overview.put("eps",         0);
+            overview.put("symbol",        clean);
+            overview.put("name",          clean + " Exchange Rate");
+            overview.put("exchange",      "FOREX");
+            overview.put("sector",        "Foreign Exchange");
+            overview.put("industry",      "Currency Pairs");
+            overview.put("description",   "A major forex currency pair traded 24/5 on the global foreign exchange market.");
+            overview.put("marketCap",     0);
+            overview.put("peRatio",       0);
+            overview.put("eps",           0);
             overview.put("dividendYield", 0);
-            overview.put("week52High",  0);
-            overview.put("week52Low",   0);
+            overview.put("week52High",    0);
+            overview.put("week52Low",     0);
             return ResponseEntity.ok(overview);
         }
 
-        String resolved = resolveSymbol(symbol, market);
-
-        // Try Yahoo Finance first — real data for BSE/US stocks
+        String resolved    = resolveSymbol(symbol, market);
         Map<String, Object> yahooQuote = stockService.getQuote(resolved);
+        Map<String, Object> raw        = alphaVantage.getOverview(resolved);
 
-        // Try Alpha Vantage for fundamentals (PE, EPS, description etc.)
-        Map<String, Object> raw = alphaVantage.getOverview(resolved);
-
-        // Merge: Alpha Vantage fundamentals + Yahoo quote data as fallback
         Map<String, Object> overview = new LinkedHashMap<>();
-        overview.put("symbol",   resolved);
-        overview.put("name",     getFirst(raw, "Name",
-                                 yahooQuote.getOrDefault("name", resolved)));
-        overview.put("exchange", getFirst(raw, "Exchange",
-                                 yahooQuote.getOrDefault("exchange", "—")));
-        overview.put("sector",   getFirst(raw, "Sector",
-                                 yahooQuote.getOrDefault("sector", "—")));
-        overview.put("industry", getFirst(raw, "Industry",
-                                 yahooQuote.getOrDefault("industry", "—")));
-        overview.put("description", raw.getOrDefault("Description", ""));
-
-        // Market cap — prefer Yahoo (more accurate, in actual currency)
+        overview.put("symbol",        resolved);
+        overview.put("name",          getFirst(raw, "Name",     yahooQuote.getOrDefault("name",     resolved)));
+        overview.put("exchange",      getFirst(raw, "Exchange", yahooQuote.getOrDefault("exchange", "—")));
+        overview.put("sector",        getFirst(raw, "Sector",   yahooQuote.getOrDefault("sector",   "—")));
+        overview.put("industry",      getFirst(raw, "Industry", yahooQuote.getOrDefault("industry", "—")));
+        overview.put("description",   raw.getOrDefault("Description", ""));
         double yahooMktCap = parseDouble(yahooQuote.get("marketCap"));
         double avMktCap    = parseDouble(raw.get("MarketCapitalization"));
         overview.put("marketCap",     yahooMktCap > 0 ? yahooMktCap : avMktCap);
         overview.put("peRatio",       parseDouble(raw.get("PERatio")));
         overview.put("eps",           parseDouble(raw.get("EPS")));
         overview.put("dividendYield", parseDouble(raw.get("DividendYield")));
-
-        // 52-week range — prefer Alpha Vantage (Yahoo 1d range isn't 52w)
-        overview.put("week52High", parseDouble(raw.get("52WeekHigh")));
-        overview.put("week52Low",  parseDouble(raw.get("52WeekLow")));
-
+        overview.put("week52High",    parseDouble(raw.get("52WeekHigh")));
+        overview.put("week52Low",     parseDouble(raw.get("52WeekLow")));
         return ResponseEntity.ok(overview);
     }
 
@@ -299,19 +272,16 @@ public class StockController {
         int sell       = 1  + (hash % 4);
         int strongSell = hash % 3;
 
-        Map<String, Object> quote      = stockService.getQuote(resolveSymbol(symbol, market));
+        Map<String, Object> quote  = stockService.getQuote(resolveSymbol(symbol, market));
         double currentPrice = parseDouble(quote.get("price"));
         double targetPrice  = currentPrice > 0
-            ? currentPrice * (1.05 + (hash % 20) / 100.0)
-            : 150.0;
+            ? currentPrice * (1.05 + (hash % 20) / 100.0) : 150.0;
 
         return ResponseEntity.ok(Map.of(
-            "strongBuy",   strongBuy,
-            "buy",         buy,
-            "hold",        hold,
-            "sell",        sell,
-            "strongSell",  strongSell,
-            "targetPrice", Math.round(targetPrice * 100.0) / 100.0
+            "strongBuy",  strongBuy,  "buy",        buy,
+            "hold",       hold,       "sell",       sell,
+            "strongSell", strongSell, "targetPrice",
+            Math.round(targetPrice * 100.0) / 100.0
         ));
     }
 
@@ -328,13 +298,13 @@ public class StockController {
 
         return ResponseEntity.ok(List.of(
             Map.of("id","1","type","BULLISH",
-                "title", clean + " shows strong momentum",
-                "body",  "Technical indicators suggest bullish continuation with RSI above 60 and MACD crossover for this " + type + ".",
-                "source","StockSense AI","publishedAt", now),
+                "title",  clean + " shows strong momentum",
+                "body",   "Technical indicators suggest bullish continuation with RSI above 60 and MACD crossover for this " + type + ".",
+                "source", "StockSense AI", "publishedAt", now),
             Map.of("id","2","type","NEUTRAL",
-                "title","Key levels to watch for " + clean,
-                "body", "Analysts expect moderate volatility. Watch for volume confirmation at key support and resistance levels.",
-                "source","StockSense AI","publishedAt", now)
+                "title",  "Key levels to watch for " + clean,
+                "body",   "Analysts expect moderate volatility. Watch for volume confirmation at key support and resistance levels.",
+                "source", "StockSense AI", "publishedAt", now)
         ));
     }
 
@@ -349,25 +319,25 @@ public class StockController {
                              .replace(".NYSE","").replace(".NASDAQ","").toUpperCase();
 
         Map<String, String> nameHints = Map.ofEntries(
-            Map.entry("AAPL",     "Apple"),
-            Map.entry("MSFT",     "Microsoft"),
-            Map.entry("NVDA",     "NVIDIA"),
-            Map.entry("TSLA",     "Tesla"),
-            Map.entry("GOOGL",    "Google Alphabet"),
-            Map.entry("AMZN",     "Amazon"),
-            Map.entry("META",     "Meta Facebook"),
-            Map.entry("AMD",      "AMD semiconductor"),
-            Map.entry("RELIANCE", "Reliance Industries"),
-            Map.entry("TCS",      "Tata Consultancy"),
-            Map.entry("INFY",     "Infosys"),
-            Map.entry("HDFCBANK", "HDFC Bank"),
-            Map.entry("ICICIBANK","ICICI Bank"),
-            Map.entry("WIPRO",    "Wipro"),
-            Map.entry("BTC",      "Bitcoin cryptocurrency"),
-            Map.entry("ETH",      "Ethereum cryptocurrency"),
-            Map.entry("SOL",      "Solana cryptocurrency"),
-            Map.entry("EUR/USD",  "Euro Dollar forex"),
-            Map.entry("GBP/USD",  "Pound Dollar forex")
+            Map.entry("AAPL",      "Apple"),
+            Map.entry("MSFT",      "Microsoft"),
+            Map.entry("NVDA",      "NVIDIA"),
+            Map.entry("TSLA",      "Tesla"),
+            Map.entry("GOOGL",     "Google Alphabet"),
+            Map.entry("AMZN",      "Amazon"),
+            Map.entry("META",      "Meta Facebook"),
+            Map.entry("AMD",       "AMD semiconductor"),
+            Map.entry("RELIANCE",  "Reliance Industries"),
+            Map.entry("TCS",       "Tata Consultancy"),
+            Map.entry("INFY",      "Infosys"),
+            Map.entry("HDFCBANK",  "HDFC Bank"),
+            Map.entry("ICICIBANK", "ICICI Bank"),
+            Map.entry("WIPRO",     "Wipro"),
+            Map.entry("BTC",       "Bitcoin cryptocurrency"),
+            Map.entry("ETH",       "Ethereum cryptocurrency"),
+            Map.entry("SOL",       "Solana cryptocurrency"),
+            Map.entry("EUR/USD",   "Euro Dollar forex"),
+            Map.entry("GBP/USD",   "Pound Dollar forex")
         );
 
         String query = nameHints.getOrDefault(clean, clean) + " stock";
@@ -403,37 +373,29 @@ public class StockController {
         String upper = q.trim().toUpperCase();
         List<Map<String, Object>> results = new ArrayList<>();
 
-        // 1. Inject known symbols that match the query prefix
         KNOWN_SYMBOLS.forEach((key, val) -> {
             if (key.startsWith(upper) || upper.startsWith(key)
                     || key.contains(upper) || upper.contains(key)) {
-                // Avoid duplicates
                 String sym = val.get("symbol");
-                boolean already = results.stream()
-                    .anyMatch(r -> sym.equals(r.get("symbol")));
+                boolean already = results.stream().anyMatch(r -> sym.equals(r.get("symbol")));
                 if (!already) results.add(new LinkedHashMap<>(val));
             }
         });
 
-        // 2. Yahoo Finance search — filter to EQUITY/CRYPTO/ETF only
         try {
             List<Map<String, Object>> yahooResults = stockService.searchSymbol(q);
             if (yahooResults != null) {
                 for (Map<String, Object> r : yahooResults) {
                     String type = String.valueOf(r.getOrDefault("type", ""));
-                    // Skip mutual funds, indices, futures, options
                     if (type.equals("MUTUALFUND") || type.equals("INDEX")
                             || type.equals("FUTURE") || type.equals("OPTION")) continue;
-                    // Skip if already in results
                     String sym = String.valueOf(r.get("symbol"));
-                    boolean already = results.stream()
-                        .anyMatch(x -> sym.equals(x.get("symbol")));
+                    boolean already = results.stream().anyMatch(x -> sym.equals(x.get("symbol")));
                     if (!already) results.add(r);
                 }
             }
         } catch (Exception ignored) {}
 
-        // 3. Alpha Vantage fallback if still empty
         if (results.isEmpty()) {
             try {
                 List<Map<String, Object>> avResults = alphaVantage.search(q);
@@ -444,144 +406,11 @@ public class StockController {
         return ResponseEntity.ok(results.stream().limit(8).collect(Collectors.toList()));
     }
 
-    // ── GET /api/market/{marketId}/quotes ─────────────────────────────────────
-    @GetMapping("/market/{marketId}/quotes")
-    public ResponseEntity<Map<String, Object>> getMarketQuotes(
-            @PathVariable String marketId,
-            @RequestParam(defaultValue = "0")  int page,
-            @RequestParam(defaultValue = "10") int size) {
-
-        if (isCrypto(marketId)) {
-            List<Map<String, Object>> cryptos = stockService.getTopCrypto(50);
-            int total = cryptos.size();
-            int from  = Math.min(page * size, total);
-            int to    = Math.min(from + size, total);
-            return ResponseEntity.ok(Map.of(
-                "market",     marketId, "page", page, "size", size,
-                "total",      total,
-                "totalPages", (int) Math.ceil((double) total / size),
-                "stocks",     cryptos.subList(from, to)
-            ));
-        }
-
-        if (isFx(marketId)) {
-            List<String> fxPairs = List.of(
-                "EURUSD=X","GBPUSD=X","USDJPY=X","AUDUSD=X",
-                "USDCAD=X","USDCHF=X","NZDUSD=X","EURGBP=X"
-            );
-            List<Map<String, Object>> fxResults = new ArrayList<>();
-            for (String pair : fxPairs) {
-                Map<String, Object> qt = stockService.getQuote(pair);
-                if (qt != null && !qt.isEmpty()) {
-                    Map<String, Object> r = new LinkedHashMap<>(qt);
-                    r.put("symbol", pair.replace("=X","")
-                        .replaceAll("(.{3})(.{3})", "$1/$2"));
-                    fxResults.add(r);
-                }
-            }
-            int total = fxResults.size();
-            return ResponseEntity.ok(Map.of(
-                "market","FX","page",page,"size",size,
-                "total",total,"totalPages",1,"stocks",fxResults
-            ));
-        }
-
-        // US / IN
-        List<Map<String, String>> allSymbols = marketSymbols.getSymbolsForMarket(marketId);
-        int total = allSymbols.size();
-        int from  = Math.min(page * size, total);
-        int to    = Math.min(from + size, total);
-
-        List<String> syms = allSymbols.subList(from, to)
-            .stream().map(s -> s.get("symbol")).toList();
-
-        List<Map<String, Object>> quotes   = alphaVantage.getBatchQuotes(syms);
-        List<Map<String, Object>> enriched = new ArrayList<>();
-        for (int i = 0; i < allSymbols.subList(from, to).size(); i++) {
-            Map<String, Object> merged = new LinkedHashMap<>();
-            merged.putAll(allSymbols.subList(from, to).get(i));
-            if (i < quotes.size()) merged.putAll(quotes.get(i));
-            enriched.add(merged);
-        }
-        return ResponseEntity.ok(Map.of(
-            "market", marketId, "page", page, "size", size,
-            "total", total, "totalPages", (int) Math.ceil((double) total / size),
-            "stocks", enriched
-        ));
-    }
-
-    // ── GET /api/market/{marketId}/symbols ────────────────────────────────────
-    @GetMapping("/market/{marketId}/symbols")
-    public ResponseEntity<List<Map<String, String>>> getMarketSymbols(
-            @PathVariable String marketId) {
-
-        if (isCrypto(marketId)) {
-            return ResponseEntity.ok(List.of(
-                Map.of("symbol","BTC",  "name","Bitcoin"),
-                Map.of("symbol","ETH",  "name","Ethereum"),
-                Map.of("symbol","SOL",  "name","Solana"),
-                Map.of("symbol","BNB",  "name","BNB"),
-                Map.of("symbol","AVAX", "name","Avalanche"),
-                Map.of("symbol","ADA",  "name","Cardano"),
-                Map.of("symbol","DOT",  "name","Polkadot"),
-                Map.of("symbol","DOGE", "name","Dogecoin"),
-                Map.of("symbol","XRP",  "name","XRP"),
-                Map.of("symbol","MATIC","name","Polygon")
-            ));
-        }
-
-        if (isFx(marketId)) {
-            return ResponseEntity.ok(List.of(
-                Map.of("symbol","EUR/USD","name","Euro / US Dollar"),
-                Map.of("symbol","GBP/USD","name","British Pound / US Dollar"),
-                Map.of("symbol","USD/JPY","name","US Dollar / Japanese Yen"),
-                Map.of("symbol","AUD/USD","name","Australian Dollar / US Dollar"),
-                Map.of("symbol","USD/CAD","name","US Dollar / Canadian Dollar"),
-                Map.of("symbol","USD/CHF","name","US Dollar / Swiss Franc"),
-                Map.of("symbol","NZD/USD","name","New Zealand Dollar / US Dollar"),
-                Map.of("symbol","EUR/GBP","name","Euro / British Pound")
-            ));
-        }
-
-        return ResponseEntity.ok(marketSymbols.getSymbolsForMarket(marketId));
-    }
-
-    // ── GET /api/market/{marketId}/analytics ──────────────────────────────────
-    @GetMapping("/market/{marketId}/analytics")
-    public ResponseEntity<Map<String, Object>> getAnalytics(@PathVariable String marketId) {
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("market",        marketId);
-        data.put("totalValue",    switch (marketId.toUpperCase()) {
-            case "IN"     -> 9331456;
-            case "US"     -> 530056;
-            case "CRYPTO" -> 280000;
-            case "FX"     -> 487200;
-            default       -> 120000;
-        });
-        data.put("changePercent", switch (marketId.toUpperCase()) {
-            case "IN"     -> 6.42;
-            case "US"     -> 4.75;
-            case "CRYPTO" -> 8.20;
-            case "FX"     -> 1.40;
-            default       -> 2.1;
-        });
-        data.put("riskScore", switch (marketId.toUpperCase()) {
-            case "IN"     -> 76;
-            case "US"     -> 58;
-            case "CRYPTO" -> 91;
-            case "FX"     -> 45;
-            default       -> 60;
-        });
-        return ResponseEntity.ok(data);
-    }
-
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /** Return first non-blank, non-null value from map, else fallback */
     private Object getFirst(Map<String, Object> map, String key, Object fallback) {
         Object v = map.get(key);
-        if (v != null && !v.toString().isBlank() && !v.toString().equals("None"))
-            return v;
+        if (v != null && !v.toString().isBlank() && !v.toString().equals("None")) return v;
         return fallback;
     }
 
@@ -596,8 +425,7 @@ public class StockController {
         };
     }
 
-    private List<Map<String, Object>> normaliseHistoryTimestamps(
-            List<Map<String, Object>> candles) {
+    private List<Map<String, Object>> normaliseHistoryTimestamps(List<Map<String, Object>> candles) {
         if (candles == null) return Collections.emptyList();
         List<Map<String, Object>> result = new ArrayList<>();
         for (Map<String, Object> c : candles) {
@@ -612,15 +440,14 @@ public class StockController {
         return result;
     }
 
-    private List<Map<String, Object>> filterByRange(
-            List<Map<String, Object>> all, String range) {
+    private List<Map<String, Object>> filterByRange(List<Map<String, Object>> all, String range) {
         if (all == null || all.isEmpty()) return Collections.emptyList();
         long nowSec    = System.currentTimeMillis() / 1000L;
         long cutoffSec = switch (range.toUpperCase()) {
-            case "1W"  -> nowSec - 7L   * 86400;
-            case "1M"  -> nowSec - 30L  * 86400;
-            case "1Y"  -> nowSec - 365L * 86400;
-            default    -> 0L;
+            case "1W" -> nowSec - 7L   * 86400;
+            case "1M" -> nowSec - 30L  * 86400;
+            case "1Y" -> nowSec - 365L * 86400;
+            default   -> 0L;
         };
         final long cut = cutoffSec;
         return all.stream()
@@ -664,9 +491,8 @@ public class StockController {
         try {
             com.fasterxml.jackson.databind.ObjectMapper mapper =
                 new com.fasterxml.jackson.databind.ObjectMapper();
-            Map<String, Object> root     = mapper.readValue(json, Map.class);
-            List<Map<String, Object>> articles =
-                (List<Map<String, Object>>) root.get("articles");
+            Map<String, Object> root = mapper.readValue(json, Map.class);
+            List<Map<String, Object>> articles = (List<Map<String, Object>>) root.get("articles");
             if (articles == null) return result;
             for (Map<String, Object> a : articles) {
                 String title = str(a, "title", "");
@@ -695,15 +521,15 @@ public class StockController {
     private List<Map<String, Object>> getMockNews(String symbol) {
         String now = java.time.Instant.now().toString();
         return List.of(
-            Map.of("title", symbol + " shows resilience amid market volatility",
+            Map.of("title",       symbol + " shows resilience amid market volatility",
                    "description", "Analysts remain cautiously optimistic as the asset holds key support levels.",
-                   "url","#","source","StockSense","publishedAt",now,"urlToImage",""),
-            Map.of("title", "Institutional investors increase stake in " + symbol,
+                   "url", "#", "source", "StockSense", "publishedAt", now, "urlToImage", ""),
+            Map.of("title",       "Institutional investors increase stake in " + symbol,
                    "description", "Recent filings show major funds have added to their positions this quarter.",
-                   "url","#","source","StockSense","publishedAt",now,"urlToImage",""),
-            Map.of("title", symbol + " technical analysis: key levels to watch",
+                   "url", "#", "source", "StockSense", "publishedAt", now, "urlToImage", ""),
+            Map.of("title",       symbol + " technical analysis: key levels to watch",
                    "description", "RSI divergence and volume patterns suggest a potential breakout in the near term.",
-                   "url","#","source","StockSense","publishedAt",now,"urlToImage","")
+                   "url", "#", "source", "StockSense", "publishedAt", now, "urlToImage", "")
         );
     }
 

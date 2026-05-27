@@ -36,20 +36,18 @@ services:
       JWT_EXPIRATION:             604800000
       ALPHAVANTAGE_API_KEY:       ${ALPHAVANTAGE_API_KEY:-demo}
       NEWS_API_KEY:               ${NEWS_API_KEY:-}
-      # Email (SMTP) — required for price alerts
       SPRING_MAIL_HOST:           ${MAIL_HOST:-smtp.gmail.com}
       SPRING_MAIL_PORT:           ${MAIL_PORT:-587}
       SPRING_MAIL_USERNAME:       ${MAIL_USERNAME:-}
       SPRING_MAIL_PASSWORD:       ${MAIL_PASSWORD:-}
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:            true
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: true
-      # Memory tuning for Alpine JRE in container
       JAVA_OPTS: "-XX:MaxRAMPercentage=75.0 -XX:+UseContainerSupport"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 8081 || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 8
@@ -85,20 +83,16 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # HOSTNAME required for Next.js standalone to bind on all interfaces
       HOSTNAME:                         "0.0.0.0"
-      # Server-side API calls (container-to-container)
       NEXT_PUBLIC_API_URL:              http://backend:8081
       NEXT_PUBLIC_ML_URL:               http://ml-service:8082
-      # Internal URLs used by Next.js server actions / route handlers
       INTERNAL_API_URL:                 http://backend:8081
       INTERNAL_ML_URL:                  http://ml-service:8082
       NEXT_PUBLIC_GOOGLE_CLIENT_ID:     ${GOOGLE_CLIENT_ID:-}
     depends_on:
       backend:
         condition: service_healthy
-      ml-service:
-        condition: service_healthy
+      # ml-service removed from depends_on — it's optional, frontend works without it
 
 volumes:
   postgres_data:

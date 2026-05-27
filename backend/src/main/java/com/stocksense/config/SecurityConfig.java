@@ -31,13 +31,11 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // Public endpoints — no token needed
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/stocks/search").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/stocks/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/market/**").permitAll()
                 .requestMatchers("/ws/**").permitAll()
-                // Everything else requires JWT
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -49,12 +47,21 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
-            "http://localhost:3000",   // Next.js dev
-            "http://localhost:8081"    // Spring itself (for OAuth redirects)
+            "http://localhost:3000",
+            "http://localhost:8081"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(true); // needed for httpOnly cookies + Authorization header
+        config.setAllowedHeaders(List.of(
+            "Authorization",
+            "Content-Type",
+            "Accept",
+            "Origin",
+            "X-Requested-With",
+            "Access-Control-Request-Method",
+            "Access-Control-Request-Headers"
+        ));
+        config.setExposedHeaders(List.of("Authorization"));
+        config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

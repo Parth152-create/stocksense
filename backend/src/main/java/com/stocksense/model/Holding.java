@@ -1,7 +1,6 @@
 package com.stocksense.model;
 
 import jakarta.persistence.*;
-
 import java.util.UUID;
 
 @Entity
@@ -18,7 +17,7 @@ public class Holding {
     private double quantity;
     private double buyPrice;
 
-    @Column(nullable = false, columnDefinition = "VARCHAR(20) DEFAULT 'US'")
+    @Column(nullable = false)
     private String market = "US";
 
     // getters

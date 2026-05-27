@@ -19,7 +19,6 @@ public class UserService {
     private final PortfolioRepository         portfolioRepository;
     private final BCryptPasswordEncoder       passwordEncoder;
 
-    // ── Repos needed for cascade delete ──────────────────────────────────────
     private final HoldingRepository           holdingRepository;
     private final OrderRepository             orderRepository;
     private final WatchlistRepository         watchlistRepository;
@@ -127,21 +126,20 @@ public class UserService {
 
     // ── deleteUser — full cascade delete ─────────────────────────────────────
     //
-    // Deletes everything owned by the user in the correct order
-    // to avoid FK constraint violations:
+    // Delete order:
     //   1. refresh_tokens
     //   2. notifications
     //   3. wallet_transactions
     //   4. wallet_balances
     //   5. watchlist_items
     //   6. orders
-    //   7. holdings
+    //   7. holdings (via portfolioId)
     //   8. portfolio
     //   9. user
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional
     public void deleteUser(User user) {
-        UUID   userId   = user.getId();
+        UUID   userId    = user.getId();
         String userIdStr = userId.toString();
 
         // 1. Refresh tokens
@@ -159,11 +157,13 @@ public class UserService {
         // 5. Watchlist
         watchlistRepository.deleteByUserId(userId);
 
-        // 6. Orders
+        // 6. Orders — Order.userId is String
         orderRepository.deleteByUserId(userIdStr);
 
-        // 7. Holdings
-        holdingRepository.deleteByUserId(userIdStr);
+        // 7. Holdings — Holding has no userId, linked via portfolioId
+        if (user.getPortfolioId() != null) {
+            holdingRepository.deleteByPortfolioId(user.getPortfolioId());
+        }
 
         // 8. Portfolio
         if (user.getPortfolioId() != null) {

@@ -7,4 +7,5 @@ import java.util.UUID;
 
 public interface WalletBalanceRepository extends JpaRepository<WalletBalance, UUID> {
     Optional<WalletBalance> findByUserId(UUID userId);
+    void deleteByUserId(UUID userId);
 }
