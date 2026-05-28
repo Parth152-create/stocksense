@@ -13,7 +13,6 @@ import { useLivePrices } from "@/lib/websocket";
 import { fetchWithAuth } from "@/lib/auth";
 import { Search, SlidersHorizontal } from "lucide-react";
 
-// ── Animation variants ────────────────────────────────────────────────────────
 const fadeUp = {
   hidden:  { opacity: 0, y: 16 },
   visible: { opacity: 1, y: 0  },
@@ -28,7 +27,6 @@ const cardVariant = {
   visible: { opacity: 1, y: 0,  scale: 1    },
 };
 
-// ── useCountUp ────────────────────────────────────────────────────────────────
 const useCountUp = (target: number, duration: number = 1500) => {
   const [count, setCount] = useState(0);
   const animationRef = useRef<NodeJS.Timeout | null>(null);
@@ -47,21 +45,11 @@ const useCountUp = (target: number, duration: number = 1500) => {
   return count;
 };
 
-// ── Card network logos ────────────────────────────────────────────────────────
 function VisaLogo() {
   return (
     <svg width="26" height="16" viewBox="0 0 50 16" aria-label="Visa">
-      <text
-        x="0" y="13"
-        fontFamily="Arial, sans-serif"
-        fontWeight="900"
-        fontSize="15"
-        fill="#1a1f71"
-        letterSpacing="-0.5"
-        fontStyle="italic"
-      >
-        VISA
-      </text>
+      <text x="0" y="13" fontFamily="Arial, sans-serif" fontWeight="900"
+        fontSize="15" fill="#1a1f71" letterSpacing="-0.5" fontStyle="italic">VISA</text>
     </svg>
   );
 }
@@ -71,15 +59,11 @@ function MastercardLogo() {
     <svg width="24" height="16" viewBox="0 0 38 24" aria-label="Mastercard">
       <circle cx="14" cy="12" r="10" fill="#EB001B"/>
       <circle cx="24" cy="12" r="10" fill="#F79E1B"/>
-      <path
-        d="M19 4.87a10 10 0 0 1 0 14.26A10 10 0 0 1 19 4.87z"
-        fill="#FF5F00"
-      />
+      <path d="M19 4.87a10 10 0 0 1 0 14.26A10 10 0 0 1 19 4.87z" fill="#FF5F00"/>
     </svg>
   );
 }
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 type CardNetwork = "visa" | "mastercard" | null;
 
 interface DashboardTransaction {
@@ -95,10 +79,10 @@ interface DashboardTransaction {
 }
 
 interface OrderRow {
-  symbol:    string;
-  type?:     string;
-  total?:    number;
-  market?:   string;
+  symbol:     string;
+  type?:      string;
+  total?:     number;
+  market?:    string;
   createdAt?: string;
 }
 
@@ -109,12 +93,13 @@ interface PortfolioHoldingRow {
 }
 
 interface PortfolioSummaryResponse {
-  holdings?:      PortfolioHoldingRow[];
-  totalValue?:    number;
+  holdings?:       PortfolioHoldingRow[];
+  totalValue?:     number;
   portfolioValue?: number;
-  totalInvested?: number;
-  totalCost?:     number;
-  totalPnl?:      number;
+  totalInvested?:  number;
+  totalCost?:      number;
+  totalPnl?:       number;
+  totalPnlPct?:    number;
 }
 
 function CardNetworkIcon({ network }: { network: CardNetwork }) {
@@ -123,7 +108,6 @@ function CardNetworkIcon({ network }: { network: CardNetwork }) {
   return null;
 }
 
-// ── MARKET_DATA — static fallback ─────────────────────────────────────────────
 const MARKET_DATA: Record<string, {
   holdings:     { symbol: string; shares: number; color: string; bg: string; letter: string }[];
   transactions: DashboardTransaction[];
@@ -163,9 +147,9 @@ const MARKET_DATA: Record<string, {
     transactions: [
       { symbol: "TSLA",  name: "Tesla",      change: +3,   amount: -525,  color: "#ef4444", bg: "#ef444422", letter: "T", cardNetwork: "mastercard", cardLast4: "4641" },
       { symbol: "AAPL",  name: "Apple",      change: -7,   amount: +120,  color: "#aaaaaa", bg: "#aaaaaa22", letter: "",  cardNetwork: "visa",        cardLast4: "8941" },
-      { symbol: "AMD",   name: "AMD",        change: null, amount: +280,  color: "#ed1c24", bg: "#ed1c2422", letter: "A", cardNetwork: "mastercard", cardLast4: "4641" },
-      { symbol: "SNCLD", name: "Soundcloud", change: null, amount: -90,   color: "#ff5500", bg: "#ff550022", letter: "S", cardNetwork: "visa",       cardLast4: "8941" },
-      { symbol: "MCD",   name: "McDonald's", change: null, amount: -340,  color: "#ffbc0d", bg: "#ffbc0d22", letter: "M", cardNetwork: "mastercard", cardLast4: "4641" },
+      { symbol: "AMD",   name: "AMD",        change: null, amount: +280,  color: "#ed1c24", bg: "#ed1c2422", letter: "A", cardNetwork: "mastercard",  cardLast4: "4641" },
+      { symbol: "SNCLD", name: "Soundcloud", change: null, amount: -90,   color: "#ff5500", bg: "#ff550022", letter: "S", cardNetwork: "visa",        cardLast4: "8941" },
+      { symbol: "MCD",   name: "McDonald's", change: null, amount: -340,  color: "#ffbc0d", bg: "#ffbc0d22", letter: "M", cardNetwork: "mastercard",  cardLast4: "4641" },
     ],
     portfolioValue: "$93,314",
     portfolioGain:  "+$8,461 this month",
@@ -214,7 +198,6 @@ const MARKET_DATA: Record<string, {
   },
 };
 
-// ── Static chart data ─────────────────────────────────────────────────────────
 const ALL_BUY_SELL_DATA = [
   { date: "Sep", value: 4200, daysAgo: 240 },
   { date: "Oct", value: 3800, daysAgo: 210 },
@@ -293,9 +276,10 @@ function getLogoUrl(sym: string, domain?: string) {
     : `https://unavatar.io/clearbit/${sym.toLowerCase()}`;
 }
 
+// ── resolveSymbol uses .NS for Indian stocks ──────────────────────────────────
 function resolveSymbol(symbol: string, marketId: string) {
   if (marketId === "IN" && !symbol.includes(".") && !symbol.includes("/"))
-    return `${symbol}.BSE`;
+    return `${symbol}.NS`;
   return symbol;
 }
 
@@ -303,7 +287,7 @@ function StockAvatar({ symbol, color, bg, letter, px = 32 }: {
   symbol: string; color: string; bg: string; letter: string; px?: number;
 }) {
   const [imgError, setImgError] = useState(false);
-  const clean = symbol.replace(/\.BSE$/, "").toUpperCase();
+  const clean = symbol.replace(/\.(NS|BSE|NSE)$/, "").toUpperCase();
   const isFx  = symbol.includes("/");
   const url   = getLogoUrl(clean, LOGO_DOMAINS[clean]);
   return (
@@ -404,15 +388,14 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const router = useRouter();
   const [activeRange, setActiveRange] = useState("1M");
 
-  // ── State — declared first so derivations below can reference them ─────────
   const [realTransactions,  setRealTransactions]  = useState<OrderRow[]>([]);
   const [realHoldings,      setRealHoldings]      = useState<{ symbol: string; shares: number; color: string; bg: string; letter: string }[]>([]);
   const [portfolioValue,    setPortfolioValue]    = useState<string | null>(null);
+  // ── NEW: real portfolio gain string ──────────────────────────────────────
   const [portfolioGain,     setPortfolioGain]     = useState<string | null>(null);
   const [activityData,      setActivityData]      = useState<{ date: string; value: number; daysAgo: number }[] | null>(null);
   const [realTradingScore,  setRealTradingScore]  = useState<number | null>(null);
@@ -426,15 +409,15 @@ export default function DashboardPage() {
   const currency = market.currency || "$";
   const pins    = EVENT_PINS[key] ?? EVENT_PINS["US"];
 
-  // ── Derive display data BEFORE useLivePrices so txSymbols uses real data ───
-  const displayHoldings      = realHoldings.length > 0 ? realHoldings : md.holdings;
+  const displayHoldings       = realHoldings.length > 0 ? realHoldings : md.holdings;
   const displayPortfolioValue = portfolioValue ?? md.portfolioValue;
+  // ── Use real gain if available, fall back to static ───────────────────────
   const displayPortfolioGain  = portfolioGain ?? md.portfolioGain;
 
   const displayTransactions: DashboardTransaction[] = realTransactions.length > 0
     ? realTransactions.slice(0, 5).map((o) => ({
         symbol:      o.symbol,
-        name:        o.symbol.replace(/\.(BSE|NSE)$/i, ""),
+        name:        o.symbol.replace(/\.(BSE|NSE|NS)$/i, ""),
         change:      null,
         amount:      o.type === "BUY" ? -(o.total ?? 0) : (o.total ?? 0),
         color:       "#8FFFD6",
@@ -445,7 +428,6 @@ export default function DashboardPage() {
       }))
     : md.transactions;
 
-  // txSymbols now correctly reflects real transactions when loaded
   const txSymbols  = displayTransactions.map(t => resolveSymbol(t.symbol, key));
   const livePrices = useLivePrices(txSymbols);
 
@@ -454,12 +436,12 @@ export default function DashboardPage() {
   const countedTradingPoints = useCountUp(tradingPointsTarget);
   const countedTradingScore  = useCountUp(tradingScoreNumeric);
 
-  // ── Effect 1: portfolio + recent orders — reruns on market switch ──────────
+  // ── Effect 1: portfolio + recent orders ───────────────────────────────────
   useEffect(() => {
-    // Reset immediately so previous market's data doesn't persist during load
     setRealTransactions([]);
     setRealHoldings([]);
     setPortfolioValue(null);
+    setPortfolioGain(null);
     setRealTradingScore(null);
     setRealTradingPoints(null);
     setDataLoading(true);
@@ -487,11 +469,14 @@ export default function DashboardPage() {
             );
           }
 
-          const pnl = data.totalPnl ?? 0;
-          const pnlStr = pnl >= 0
-            ? `+${currency}${Math.abs(pnl).toLocaleString("en-US", { minimumFractionDigits: 2 })} this month`
-            : `-${currency}${Math.abs(pnl).toLocaleString("en-US", { minimumFractionDigits: 2 })} this month`;
-          setPortfolioGain(pnlStr);
+          // ── Wire real portfolio gain ──────────────────────────────────
+          const pnl    = data.totalPnl ?? 0;
+          const pnlPct = data.totalPnlPct ?? 0;
+          if (pnl !== 0) {
+            const sign   = pnl >= 0 ? "+" : "-";
+            const pnlStr = `${sign}${currency}${Math.abs(pnl).toLocaleString("en-US", { minimumFractionDigits: 2 })} (${sign}${Math.abs(pnlPct).toFixed(2)}%) this month`;
+            setPortfolioGain(pnlStr);
+          }
 
           const totalCost = data.totalInvested ?? data.totalCost ?? 0;
           if (totalCost > 0) {
@@ -503,29 +488,24 @@ export default function DashboardPage() {
         if (ordersRes.ok) {
           const data = await ordersRes.json() as { orders?: OrderRow[] };
           const allOrders = data.orders ?? [];
-
-          // Filter by current market — prefer orders tagged with market field,
-          // fall back to showing all if none are tagged (older orders)
           const marketOrders = allOrders.filter(
             o => o.market && o.market.toUpperCase() === key
           );
           setRealTransactions(marketOrders.length > 0 ? marketOrders : allOrders);
         }
       })
-      .catch(() => { /* non-fatal — static fallback already in place */ })
+      .catch(() => {})
       .finally(() => setDataLoading(false));
 
-  }, [key, currency]); // key change = market switch = full reset + refetch
+  }, [key, currency]);
 
-  // ── Effect 2: activity chart — reruns on market switch ────────────────────
+  // ── Effect 2: activity chart ──────────────────────────────────────────────
   useEffect(() => {
-    // Reset chart to static while loading
     setActivityData(null);
 
     fetchWithAuth(`/api/orders`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then((orders: OrderRow[]) => {
-        // Filter by current market first
         const marketOrders = orders.filter(
           o => o.market && o.market.toUpperCase() === key
         );
@@ -545,13 +525,12 @@ export default function DashboardPage() {
         }));
 
         if (result.length >= 2) setActivityData(result);
-        else setActivityData(null); // not enough data → fall back to static
+        else setActivityData(null);
       })
       .catch(() => setActivityData(null));
 
-  }, [key]); // reruns whenever market changes
+  }, [key]);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div style={{
       minHeight: "100vh", padding: 16,
@@ -564,7 +543,6 @@ export default function DashboardPage() {
         @keyframes ping { 0%{transform:scale(1);opacity:.75} 100%{transform:scale(2.2);opacity:0} }
       `}</style>
 
-      {/* Search */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0  }}
@@ -574,7 +552,7 @@ export default function DashboardPage() {
         <StockSearch />
       </motion.div>
 
-      {/* ── ROW 1 ── */}
+      {/* ROW 1 */}
       <motion.div
         variants={stagger}
         initial="hidden"
@@ -613,8 +591,7 @@ export default function DashboardPage() {
                 const dotBg = pin.color === "#8FFFD6" ? "#22c55e"
                   : pin.color === "#fff" ? "#555" : "#ef4444";
                 return (
-                  <motion.div
-                    key={i}
+                  <motion.div key={i}
                     initial={{ opacity: 0, scale: 0.5 }}
                     animate={{ opacity: 1, scale: 1   }}
                     transition={{ delay: 0.4 + i * 0.1, duration: 0.3, type: "spring" }}
@@ -697,7 +674,7 @@ export default function DashboardPage() {
         </Card>
       </motion.div>
 
-      {/* ── ROW 2 ── */}
+      {/* ROW 2 */}
       <motion.div
         variants={stagger}
         initial="hidden"
@@ -741,7 +718,7 @@ export default function DashboardPage() {
                         {h.shares} {h.shares > 999 ? "u" : "Sh"}
                       </p>
                       <p style={{ color: "var(--color-muted)", fontSize: 9, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 60 }}>
-                        {h.symbol.replace(".BSE", "")}
+                        {h.symbol.replace(/\.(NS|BSE|NSE)$/, "")}
                       </p>
                     </div>
                   </motion.button>
@@ -750,13 +727,16 @@ export default function DashboardPage() {
             </div>
           </Card>
 
-          {/* Trading Activity */}
+          {/* Trading Activity — wired to real order count */}
           <Card>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <p style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13, margin: "0 0 4px" }}>Trading Activity</p>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                  <span style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 22 }}>48</span>
+                  {/* ── FIXED: real order count instead of hardcoded 48 ── */}
+                  <span style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 22 }}>
+                    {realTransactions.length > 0 ? realTransactions.length : 48}
+                  </span>
                   <span style={{ color: "var(--color-muted)", fontSize: 11 }}>/trades</span>
                 </div>
               </div>
@@ -825,7 +805,8 @@ export default function DashboardPage() {
             <p style={{ color: "var(--color-primary)", fontWeight: 800, fontSize: 26, lineHeight: 1.1, letterSpacing: "-0.03em", margin: "0 0 4px" }}>
               {displayPortfolioValue}
             </p>
-            <p style={{ color: "#22c55e", fontSize: 12, fontWeight: 600, margin: "0 0 12px" }}>
+            {/* ── FIXED: real portfolio gain ── */}
+            <p style={{ color: (portfolioGain ?? "").startsWith("-") ? "#ef4444" : "#22c55e", fontSize: 12, fontWeight: 600, margin: "0 0 12px" }}>
               {displayPortfolioGain}
             </p>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -853,7 +834,7 @@ export default function DashboardPage() {
           </Card>
         </motion.div>
 
-        {/* ── RIGHT: Transactions ── */}
+        {/* RIGHT: Transactions */}
         <motion.div variants={fadeUp}>
           <Card style={{ minWidth: 0, height: "100%" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -888,9 +869,9 @@ export default function DashboardPage() {
                   </div>
                 ))
               ) : displayTransactions.map((tx, i) => {
-                const resolvedSym  = resolveSymbol(tx.symbol, key);
-                const live         = livePrices[resolvedSym];
-                const liveChange   = live?.changePct ?? null;
+                const resolvedSym   = resolveSymbol(tx.symbol, key);
+                const live          = livePrices[resolvedSym];
+                const liveChange    = live?.changePct ?? null;
                 const displayChange = live?.live ? liveChange : tx.change;
                 const isPos = displayChange !== null && displayChange > 0;
 
@@ -914,7 +895,7 @@ export default function DashboardPage() {
                         color: "var(--color-primary)", fontSize: 11, fontWeight: 600,
                         margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                       }}>
-                        {tx.symbol.replace(/\.(BSE|NSE)$/i, "")}
+                        {tx.symbol.replace(/\.(BSE|NSE|NS)$/i, "")}
                       </p>
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                         <CardNetworkIcon network={tx.cardNetwork} />

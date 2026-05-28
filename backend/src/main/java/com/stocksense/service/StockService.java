@@ -32,8 +32,6 @@ public class StockService {
 
     private final ObjectMapper mapper = new ObjectMapper();
 
-    // ─── Yahoo Finance headers — fixes geo-blocking / 401 / 429 ────────────
-    // These mirror a real browser session well enough to pass Yahoo's gate.
     private static final String YF_USER_AGENT =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
         "AppleWebKit/537.36 (KHTML, like Gecko) " +
@@ -45,14 +43,13 @@ public class StockService {
 
     private static final String YF_ACCEPT_LANGUAGE = "en-US,en;q=0.9";
 
-    /** Build a Yahoo Finance HTTP request with all anti-block headers set. */
     private HttpRequest.Builder yahooRequest(String url) {
         return HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("User-Agent",       YF_USER_AGENT)
                 .header("Accept",           YF_ACCEPT)
                 .header("Accept-Language",  YF_ACCEPT_LANGUAGE)
-                .header("Accept-Encoding",  "identity")   // no gzip — keeps body readable
+                .header("Accept-Encoding",  "identity")
                 .header("Cache-Control",    "no-cache")
                 .header("Pragma",           "no-cache")
                 .header("Origin",           "https://finance.yahoo.com")
@@ -60,7 +57,6 @@ public class StockService {
                 .GET();
     }
 
-    // ─── Caches ─────────────────────────────────────────────────────────────
     private final Cache<String, Map<String, Object>> quoteCache = Caffeine.newBuilder()
             .expireAfterWrite(5, TimeUnit.MINUTES)
             .maximumSize(500)
@@ -81,7 +77,6 @@ public class StockService {
             .maximumSize(10)
             .build();
 
-    // ─── BSE suffix helper ───────────────────────────────────────────────────
     public static String resolveSymbol(String symbol, String market) {
         if (symbol == null) return null;
         String s = symbol.trim().toUpperCase();
@@ -91,7 +86,6 @@ public class StockService {
         return s;
     }
 
-    // ─── Quote (Yahoo Finance primary, Alpha Vantage fallback) ───────────────
     public Map<String, Object> getQuote(String symbol) {
         String cacheKey = symbol.toUpperCase();
         Map<String, Object> cached = quoteCache.getIfPresent(cacheKey);
@@ -114,8 +108,9 @@ public class StockService {
 
     private Map<String, Object> fetchYahooQuote(String symbol) {
         try {
+            // Use 5d range with 1d interval — gives us previous close reliably
             String url = "https://query1.finance.yahoo.com/v8/finance/chart/" + symbol
-                    + "?interval=1d&range=1d&includePrePost=false";
+                    + "?interval=1d&range=5d&includePrePost=false";
 
             HttpRequest req = yahooRequest(url)
                     .timeout(Duration.ofSeconds(8))
@@ -130,13 +125,51 @@ public class StockService {
             JsonNode root = mapper.readTree(resp.body());
             JsonNode result0 = root.path("chart").path("result");
             if (!result0.isArray() || result0.size() == 0) return null;
-            JsonNode meta = result0.get(0).path("meta");
+            JsonNode node = result0.get(0);
+            JsonNode meta = node.path("meta");
+
+            double price = meta.path("regularMarketPrice").asDouble();
+            if (price == 0) return null;
+
+            // ── Extract previousClose ─────────────────────────────────────
+            // 1. Try meta.previousClose (most reliable)
+            double prevClose = meta.path("previousClose").asDouble();
+
+            // 2. If missing, try meta.chartPreviousClose
+            if (prevClose == 0) {
+                prevClose = meta.path("chartPreviousClose").asDouble();
+            }
+
+            // 3. If still missing, get second-to-last close from indicators
+            if (prevClose == 0) {
+                JsonNode closes = node.path("indicators").path("quote").path(0).path("close");
+                if (closes.isArray() && closes.size() >= 2) {
+                    // Walk back from end to find last two non-null closes
+                    double last = 0, secondLast = 0;
+                    for (int i = closes.size() - 1; i >= 0; i--) {
+                        JsonNode c = closes.get(i);
+                        if (!c.isNull() && c.asDouble() > 0) {
+                            if (last == 0) {
+                                last = c.asDouble();
+                            } else {
+                                secondLast = c.asDouble();
+                                break;
+                            }
+                        }
+                    }
+                    if (secondLast > 0) prevClose = secondLast;
+                }
+            }
+
+            double change    = price - prevClose;
+            double changePct = prevClose > 0 ? (change / prevClose) * 100 : 0;
 
             Map<String, Object> quote = new LinkedHashMap<>();
             quote.put("symbol",        symbol.toUpperCase());
-            quote.put("name",          meta.path("longName").asText(symbol));
-            quote.put("price",         meta.path("regularMarketPrice").asDouble());
-            quote.put("previousClose", meta.path("previousClose").asDouble());
+            quote.put("name",          meta.path("longName").asText(
+                                       meta.path("shortName").asText(symbol)));
+            quote.put("price",         Math.round(price    * 100.0) / 100.0);
+            quote.put("previousClose", Math.round(prevClose * 100.0) / 100.0);
             quote.put("open",          meta.path("regularMarketOpen").asDouble());
             quote.put("high",          meta.path("regularMarketDayHigh").asDouble());
             quote.put("low",           meta.path("regularMarketDayLow").asDouble());
@@ -144,14 +177,9 @@ public class StockService {
             quote.put("marketCap",     meta.path("marketCap").asLong());
             quote.put("currency",      meta.path("currency").asText("USD"));
             quote.put("exchange",      meta.path("exchangeName").asText());
-
-            double price     = meta.path("regularMarketPrice").asDouble();
-            double prevClose = meta.path("previousClose").asDouble();
-            double change    = price - prevClose;
-            double changePct = prevClose > 0 ? (change / prevClose) * 100 : 0;
-            quote.put("change",    Math.round(change    * 100.0) / 100.0);
-            quote.put("changePct", Math.round(changePct * 100.0) / 100.0);
-            quote.put("source",    "yahoo");
+            quote.put("change",        Math.round(change    * 100.0) / 100.0);
+            quote.put("changePct",     Math.round(changePct * 100.0) / 100.0);
+            quote.put("source",        "yahoo");
 
             return quote;
         } catch (Exception e) {
@@ -196,7 +224,6 @@ public class StockService {
         }
     }
 
-    // ─── Get Live Price (convenience) ────────────────────────────────────────
     public double getLivePrice(String symbol) {
         Map<String, Object> quote = getQuote(symbol);
         if (quote == null || quote.isEmpty()) return 0;
@@ -204,7 +231,6 @@ public class StockService {
         return priceObj instanceof Number ? ((Number) priceObj).doubleValue() : 0;
     }
 
-    // ─── Historical Data ──────────────────────────────────────────────────────
     public List<Map<String, Object>> getHistory(String symbol, String range, String interval) {
         String cacheKey = symbol + ":" + range + ":" + interval;
         List<Map<String, Object>> cached = historyCache.getIfPresent(cacheKey);
@@ -265,7 +291,6 @@ public class StockService {
                     if (open == 0 && close == 0) continue;
 
                     Map<String, Object> candle = new LinkedHashMap<>();
-                    // Store as seconds — LightweightCharts expects Unix seconds
                     candle.put("timestamp", timestamps.get(i).asLong());
                     candle.put("open",   Math.round(open  * 100.0) / 100.0);
                     candle.put("high",   Math.round(high  * 100.0) / 100.0);
@@ -319,7 +344,6 @@ public class StockService {
         }
     }
 
-    // ─── Market Overview ─────────────────────────────────────────────────────
     public List<Map<String, Object>> getMarketOverview(String market) {
         String cacheKey = "market:" + market;
         List<Map<String, Object>> cached = marketCache.getIfPresent(cacheKey);
@@ -346,7 +370,6 @@ public class StockService {
         return results;
     }
 
-    // ─── Crypto (CoinGecko) ──────────────────────────────────────────────────
     public List<Map<String, Object>> getTopCrypto(int limit) {
         String cacheKey = "crypto:top:" + limit;
         List<Map<String, Object>> cached = cryptoCache.getIfPresent(cacheKey);
@@ -484,7 +507,6 @@ public class StockService {
         }
     }
 
-    // ─── Search — full Yahoo Finance headers to fix geo-blocking ─────────────
     public List<Map<String, Object>> searchSymbol(String query) {
         try {
             String url = "https://query1.finance.yahoo.com/v1/finance/search?q="
@@ -508,17 +530,16 @@ public class StockService {
             List<Map<String, Object>> results = new ArrayList<>();
             for (JsonNode q : quotes) {
                 String quoteType = q.path("quoteType").asText();
-                // Normalise to our type vocabulary
                 String type = switch (quoteType.toUpperCase()) {
-                    case "EQUITY"       -> "EQUITY";
-                    case "ETF"          -> "ETF";
+                    case "EQUITY"         -> "EQUITY";
+                    case "ETF"            -> "ETF";
                     case "CRYPTOCURRENCY" -> "CRYPTOCURRENCY";
-                    case "CURRENCY"     -> "CURRENCY";
-                    case "MUTUALFUND"   -> "MUTUALFUND";
-                    case "INDEX"        -> "INDEX";
-                    case "FUTURE"       -> "FUTURE";
-                    case "OPTION"       -> "OPTION";
-                    default             -> quoteType.toUpperCase();
+                    case "CURRENCY"       -> "CURRENCY";
+                    case "MUTUALFUND"     -> "MUTUALFUND";
+                    case "INDEX"          -> "INDEX";
+                    case "FUTURE"         -> "FUTURE";
+                    case "OPTION"         -> "OPTION";
+                    default               -> quoteType.toUpperCase();
                 };
 
                 Map<String, Object> item = new LinkedHashMap<>();
@@ -526,7 +547,6 @@ public class StockService {
                 item.put("name",     q.path("longname").asText(q.path("shortname").asText()));
                 item.put("exchange", q.path("exchange").asText());
                 item.put("type",     type);
-                // Derive region from exchange for Indian stocks
                 String exch = q.path("exchange").asText().toUpperCase();
                 String region;
                 if (exch.equals("BSE") || exch.equals("NSE") || exch.equals("BOM") || exch.equals("NSI")) {
@@ -547,7 +567,6 @@ public class StockService {
         }
     }
 
-    // ─── Cache management ────────────────────────────────────────────────────
     public void invalidateQuote(String symbol) {
         quoteCache.invalidate(symbol.toUpperCase());
     }
@@ -561,7 +580,6 @@ public class StockService {
         );
     }
 
-    // ─── Fallbacks ───────────────────────────────────────────────────────────
     private List<Map<String, Object>> getMockCrypto() {
         return List.of(
                 Map.of("symbol","BTC","name","Bitcoin",  "price",67420.0,"changePct", 2.45,"source","mock"),
