@@ -8,7 +8,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from "recharts";
-import { TrendingUp, TrendingDown, Plus, RefreshCw, ArrowUpRight, Download } from "lucide-react";
+import { TrendingUp, TrendingDown, Plus, RefreshCw, ArrowUpRight, Download, Lock, Unlock } from "lucide-react";
 import { fetchWithAuth } from "@/lib/auth";
 import { exportPortfolioCsv } from "@/lib/csv-export";
 import { useCountUp } from "@/hooks/useCountUp";
@@ -25,6 +25,8 @@ interface PortfolioHoldingApiRow extends HoldingRow {
 interface PortfolioSummary {
   totalValue: number; totalCost: number;
   totalPnl: number; totalPnlPct: number;
+  unrealizedPnl: number; unrealizedPnlPct: number;
+  realizedPnl: number; totalCombinedPnl: number;
   allocation?: { label: string; pct: number }[];
 }
 interface PortfolioSummaryApiResponse {
@@ -33,6 +35,10 @@ interface PortfolioSummaryApiResponse {
   totalCost?: number;
   totalPnl?: number;
   totalPnlPct?: number;
+  unrealizedPnl?: number;
+  unrealizedPnlPct?: number;
+  realizedPnl?: number;
+  totalCombinedPnl?: number;
   allocation?: { label: string; pct: number }[];
 }
 interface PortfolioHistoryApiPoint {
@@ -126,7 +132,7 @@ function StockAvatar({ symbol, color, bg, size = 36 }: {
   );
 }
 
-// ── Weight bar — shows holding's share of total portfolio ─────────────────────
+// ── Weight bar ────────────────────────────────────────────────────────────────
 function WeightBar({ pct, color }: { pct: number; color: string }) {
   return (
     <div style={{ width: "100%", height: 4, borderRadius: 99, background: "var(--color-line)", overflow: "hidden", marginTop: 4 }}>
@@ -140,20 +146,121 @@ function WeightBar({ pct, color }: { pct: number; color: string }) {
   );
 }
 
-// ── Custom donut center label ─────────────────────────────────────────────────
-function DonutLabel({ value, currency }: { value: number; currency: string }) {
-  return (
-    <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle">
-      <tspan x="50%" dy="-6" fontSize="11" fill="var(--color-muted)">Total</tspan>
-      <tspan x="50%" dy="18" fontSize="13" fontWeight="700" fill="var(--color-primary)">
-        {currency}{value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value.toFixed(0)}
-      </tspan>
-    </text>
-  );
-}
-
 function toNavSymbol(symbol: string) {
   return symbol.replace(/\.(BSE|NSE)$/i, "");
+}
+
+// ── P&L Breakdown Card ────────────────────────────────────────────────────────
+function PnlBreakdownCard({
+  unrealizedPnl, unrealizedPnlPct,
+  realizedPnl, totalCombinedPnl,
+  currency,
+}: {
+  unrealizedPnl: number; unrealizedPnlPct: number;
+  realizedPnl: number; totalCombinedPnl: number;
+  currency: string;
+}) {
+  const fmtAbs = (n: number) =>
+    `${n >= 0 ? "+" : "-"}${currency}${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const colorFor = (n: number) => n >= 0 ? "#22c55e" : "#ef4444";
+  const combinedUp = totalCombinedPnl >= 0;
+
+  return (
+    <motion.div variants={cardV}
+      whileHover={{ y: -2, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", transition: { duration: 0.18 } }}
+      style={{
+        background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
+        padding: "20px 22px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+        position: "relative", overflow: "hidden", gridColumn: "span 2",
+      }}>
+      {/* subtle bg glow */}
+      <div style={{
+        position: "absolute", top: 0, right: 0, bottom: 0, width: 180,
+        background: `radial-gradient(ellipse at right, ${combinedUp ? "#8FFFD6" : "#ef4444"}08 0%, transparent 70%)`,
+        pointerEvents: "none",
+      }} />
+
+      <p style={{ color: C.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 14px" }}>
+        P&amp;L Breakdown
+      </p>
+
+      {/* Two rows: unrealized + realized */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+
+        {/* Unrealized */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "10px 12px", borderRadius: 10,
+          background: unrealizedPnl >= 0 ? "rgba(34,197,94,0.06)" : "rgba(239,68,68,0.06)",
+          border: `1px solid ${unrealizedPnl >= 0 ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)"}`,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 8,
+              background: unrealizedPnl >= 0 ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Unlock size={13} color={colorFor(unrealizedPnl)} />
+            </div>
+            <div>
+              <p style={{ color: C.primary, fontSize: 12, fontWeight: 600, margin: 0 }}>Unrealized</p>
+              <p style={{ color: C.muted, fontSize: 10, margin: "1px 0 0" }}>Open positions</p>
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <p style={{ color: colorFor(unrealizedPnl), fontSize: 14, fontWeight: 700, margin: 0 }}>
+              {fmtAbs(unrealizedPnl)}
+            </p>
+            <p style={{ color: colorFor(unrealizedPnl), fontSize: 10, margin: "2px 0 0", opacity: 0.8 }}>
+              {unrealizedPnlPct >= 0 ? "+" : ""}{unrealizedPnlPct.toFixed(2)}%
+            </p>
+          </div>
+        </div>
+
+        {/* Realized */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "10px 12px", borderRadius: 10,
+          background: realizedPnl >= 0 ? "rgba(34,197,94,0.06)" : "rgba(239,68,68,0.06)",
+          border: `1px solid ${realizedPnl >= 0 ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)"}`,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 8,
+              background: realizedPnl >= 0 ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Lock size={13} color={colorFor(realizedPnl)} />
+            </div>
+            <div>
+              <p style={{ color: C.primary, fontSize: 12, fontWeight: 600, margin: 0 }}>Realized</p>
+              <p style={{ color: C.muted, fontSize: 10, margin: "1px 0 0" }}>Closed trades · FIFO</p>
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <p style={{ color: colorFor(realizedPnl), fontSize: 14, fontWeight: 700, margin: 0 }}>
+              {fmtAbs(realizedPnl)}
+            </p>
+            <p style={{ color: C.muted, fontSize: 10, margin: "2px 0 0" }}>
+              {realizedPnl === 0 ? "No closed positions" : "Locked in"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Divider + combined total */}
+      <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 12, paddingTop: 10,
+        display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ color: C.muted, fontSize: 11, fontWeight: 600 }}>Combined Total</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {combinedUp ? <TrendingUp size={13} color="#22c55e" /> : <TrendingDown size={13} color="#ef4444" />}
+          <span style={{ color: colorFor(totalCombinedPnl), fontSize: 14, fontWeight: 700 }}>
+            {fmtAbs(totalCombinedPnl)}
+          </span>
+        </div>
+      </div>
+    </motion.div>
+  );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -179,19 +286,20 @@ export default function PortfolioPage() {
       if (holdingsRes.ok) {
         const data = await holdingsRes.json() as PortfolioHoldingApiRow[] | { holdings?: PortfolioHoldingApiRow[] };
         const rows = Array.isArray(data) ? data : (data.holdings ?? []);
-        setHoldings(rows.map((h) => ({
-          ...h,
-          qty: h.qty ?? h.quantity ?? 0,
-        })));
+        setHoldings(rows.map((h) => ({ ...h, qty: h.qty ?? h.quantity ?? 0 })));
       }
       if (summaryRes.ok) {
         const data = await summaryRes.json() as PortfolioSummaryApiResponse;
         setSummary({
-          totalValue: data.totalValue ?? 0,
-          totalCost: data.totalInvested ?? data.totalCost ?? 0,
-          totalPnl: data.totalPnl ?? 0,
-          totalPnlPct: data.totalPnlPct ?? 0,
-          allocation: data.allocation,
+          totalValue:        data.totalValue        ?? 0,
+          totalCost:         data.totalInvested     ?? data.totalCost ?? 0,
+          totalPnl:          data.totalPnl          ?? 0,
+          totalPnlPct:       data.totalPnlPct       ?? 0,
+          unrealizedPnl:     data.unrealizedPnl     ?? data.totalPnl ?? 0,
+          unrealizedPnlPct:  data.unrealizedPnlPct  ?? data.totalPnlPct ?? 0,
+          realizedPnl:       data.realizedPnl       ?? 0,
+          totalCombinedPnl:  data.totalCombinedPnl  ?? (data.totalPnl ?? 0),
+          allocation:        data.allocation,
         });
       }
       if (historyRes.ok) {
@@ -210,15 +318,18 @@ export default function PortfolioPage() {
   }, [loadPortfolio]);
 
   // Derived values
-  const totalValue  = summary?.totalValue  ?? holdings.reduce((s, h) => s + h.marketValue, 0);
-  const totalCost   = summary?.totalCost   ?? holdings.reduce((s, h) => s + h.avgPrice * h.qty, 0);
-  const totalPnl    = summary?.totalPnl    ?? (totalValue - totalCost);
-  const totalPnlPct = summary?.totalPnlPct ?? (totalCost > 0 ? (totalPnl / totalCost) * 100 : 0);
-  const isUp        = totalPnl >= 0;
+  const totalValue        = summary?.totalValue        ?? holdings.reduce((s, h) => s + h.marketValue, 0);
+  const totalCost         = summary?.totalCost         ?? holdings.reduce((s, h) => s + h.avgPrice * h.qty, 0);
+  const totalPnl          = summary?.totalPnl          ?? (totalValue - totalCost);
+  const totalPnlPct       = summary?.totalPnlPct       ?? (totalCost > 0 ? (totalPnl / totalCost) * 100 : 0);
+  const unrealizedPnl     = summary?.unrealizedPnl     ?? totalPnl;
+  const unrealizedPnlPct  = summary?.unrealizedPnlPct  ?? totalPnlPct;
+  const realizedPnl       = summary?.realizedPnl       ?? 0;
+  const totalCombinedPnl  = summary?.totalCombinedPnl  ?? totalPnl;
+  const isUp              = totalCombinedPnl >= 0;
 
   const countedValue = useCountUp(Math.floor(totalValue));
   const countedCost  = useCountUp(Math.floor(totalCost));
-  const countedPnl   = useCountUp(Math.floor(Math.abs(totalPnl)));
 
   // Sector allocation
   const sectorData = (() => {
@@ -230,7 +341,6 @@ export default function PortfolioPage() {
         color: SECTOR_COLORS[i % SECTOR_COLORS.length],
       }));
     }
-
     const totals: Record<string, number> = {};
     holdings.forEach(h => {
       const sym    = h.symbol.replace(/\.(BSE|NSE)$/i, "");
@@ -273,6 +383,7 @@ export default function PortfolioPage() {
           .chart-donut-grid { grid-template-columns: 1fr !important; }
           .holdings-cols    { grid-template-columns: 2fr 1fr 1fr 80px !important; }
           .hide-md          { display: none !important; }
+          .pnl-span         { grid-column: span 1 !important; }
         }
         @media (max-width: 640px) {
           .stats-grid       { grid-template-columns: 1fr !important; }
@@ -315,6 +426,10 @@ export default function PortfolioPage() {
       </motion.div>
 
       {/* ── Stats row ── */}
+      {/*
+        Layout: [Total Value (hero)] [Total Cost] [P&L Breakdown spanning 2 cols]
+        → 4-column grid where breakdown card takes cols 3-4
+      */}
       <motion.div initial="hidden" animate="visible" variants={stagger}
         className="stats-grid"
         style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 14, marginBottom: 24 }}>
@@ -334,7 +449,7 @@ export default function PortfolioPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
             {isUp ? <TrendingUp size={13} color="#22c55e" /> : <TrendingDown size={13} color="#ef4444" />}
             <span style={{ color: isUp ? "#22c55e" : "#ef4444", fontSize: 12, fontWeight: 600 }}>
-              {isUp ? "+" : ""}{fmt(totalPnl)} ({isUp ? "+" : ""}{totalPnlPct.toFixed(2)}%)
+              {isUp ? "+" : ""}{fmt(totalCombinedPnl)} ({isUp ? "+" : ""}{unrealizedPnlPct.toFixed(2)}%)
             </span>
           </div>
         </motion.div>
@@ -352,21 +467,6 @@ export default function PortfolioPage() {
           <p style={{ color: C.muted, fontSize: 11, margin: "6px 0 0" }}>Invested capital</p>
         </motion.div>
 
-        {/* Unrealized P&L */}
-        <motion.div variants={cardV}
-          whileHover={{ y: -2, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", transition: { duration: 0.18 } }}
-          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", top: -20, right: -20, width: 80, height: 80, borderRadius: "50%", background: `radial-gradient(circle, ${isUp ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)"} 0%, transparent 70%)`, pointerEvents: "none" }} />
-          <p style={{ color: C.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 8px" }}>Unrealized P&L</p>
-          <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.4, ease: APPLE }}
-            style={{ color: isUp ? "#22c55e" : "#ef4444", fontWeight: 700, fontSize: 22, margin: 0, letterSpacing: -0.3 }}>
-            {isUp ? "+" : "-"}{currency}{countedPnl.toLocaleString("en-US")}
-          </motion.p>
-          <p style={{ color: isUp ? "#22c55e" : "#ef4444", fontSize: 11, margin: "6px 0 0", fontWeight: 600, opacity: 0.75 }}>
-            {isUp ? "+" : ""}{totalPnlPct.toFixed(2)}% overall
-          </p>
-        </motion.div>
-
         {/* Positions */}
         <motion.div variants={cardV}
           whileHover={{ y: -2, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", transition: { duration: 0.18 } }}
@@ -379,6 +479,15 @@ export default function PortfolioPage() {
           </motion.p>
           <p style={{ color: C.muted, fontSize: 11, margin: "6px 0 0" }}>Active holdings</p>
         </motion.div>
+
+        {/* P&L Breakdown — spans col 4, but is a self-contained card */}
+        <PnlBreakdownCard
+          unrealizedPnl={unrealizedPnl}
+          unrealizedPnlPct={unrealizedPnlPct}
+          realizedPnl={realizedPnl}
+          totalCombinedPnl={totalCombinedPnl}
+          currency={currency}
+        />
       </motion.div>
 
       {/* ── Chart + Donut ── */}
@@ -410,9 +519,7 @@ export default function PortfolioPage() {
                 itemStyle={{ color: "#8FFFD6" }}
                 labelStyle={{ color: "var(--color-muted)" }}
                 formatter={(v: unknown) => {
-                  if (typeof v === "number") {
-                    return [`${currency}${v.toLocaleString()}`, "Value"];
-                  }
+                  if (typeof v === "number") return [`${currency}${v.toLocaleString()}`, "Value"];
                   return ["", "Value"];
                 }}
               />
@@ -424,7 +531,7 @@ export default function PortfolioPage() {
           </ResponsiveContainer>
         </div>
 
-        {/* Allocation donut — larger with center label */}
+        {/* Allocation donut */}
         <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px" }}>
           <p style={{ color: C.primary, fontWeight: 600, fontSize: 13, margin: "0 0 4px" }}>Sector Allocation</p>
           <p style={{ color: C.muted, fontSize: 11, margin: "0 0 12px" }}>{sectorData.length} sectors</p>
@@ -436,12 +543,10 @@ export default function PortfolioPage() {
           ) : (
             <ResponsiveContainer width="100%" height={130}>
               <PieChart>
-                <Pie
-                  data={sectorData} cx="50%" cy="50%"
+                <Pie data={sectorData} cx="50%" cy="50%"
                   innerRadius={38} outerRadius={56}
                   dataKey="value" stroke="none"
-                  animationBegin={200} animationDuration={800}
-                >
+                  animationBegin={200} animationDuration={800}>
                   {sectorData.map((s, i) => <Cell key={i} fill={s.color} />)}
                 </Pie>
                 <Tooltip
@@ -452,7 +557,6 @@ export default function PortfolioPage() {
             </ResponsiveContainer>
           )}
 
-          {/* Legend */}
           <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 8 }}>
             {sectorData.map(s => {
               const pct = totalValue > 0 ? (s.value / totalValue) * 100 : 0;
@@ -470,7 +574,6 @@ export default function PortfolioPage() {
                       </span>
                     </div>
                   </div>
-                  {/* Mini allocation bar */}
                   <div style={{ height: 3, borderRadius: 99, background: "var(--color-line)", overflow: "hidden" }}>
                     <motion.div
                       initial={{ width: 0 }}
@@ -491,7 +594,6 @@ export default function PortfolioPage() {
         transition={{ delay: 0.3, duration: 0.4, ease: APPLE }}
         style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, overflow: "hidden", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
 
-        {/* Table header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `1px solid ${C.line}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <p style={{ color: C.primary, fontWeight: 600, fontSize: 13, margin: 0 }}>Holdings</p>
@@ -513,7 +615,6 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-        {/* Column headers */}
         <div className="holdings-cols"
           style={{ display: "grid", gridTemplateColumns: "2.2fr 0.8fr 1fr 1fr 1.1fr 1.1fr 90px", padding: "10px 20px", borderBottom: `1px solid ${C.line}`, background: "var(--color-surface-hover)" }}>
           {["Asset", "Weight", "Avg Price", "Current", "Market Value", "P&L", ""].map((h, i) => (
@@ -524,7 +625,6 @@ export default function PortfolioPage() {
           ))}
         </div>
 
-        {/* Rows */}
         {loading ? (
           <div style={{ padding: 48, textAlign: "center" }}>
             <div style={{ width: 28, height: 28, border: `2px solid ${C.line}`, borderTop: "2px solid #8FFFD6", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
@@ -565,7 +665,6 @@ export default function PortfolioPage() {
                     cursor: "pointer", alignItems: "center",
                   }}>
 
-                  {/* Asset */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <StockAvatar symbol={h.symbol} color={color} bg={bg} size={34} />
                     <div style={{ minWidth: 0 }}>
@@ -576,7 +675,6 @@ export default function PortfolioPage() {
                     </div>
                   </div>
 
-                  {/* Weight % + bar */}
                   <div className="hide-sm">
                     <p style={{ color: C.primary, fontSize: 12, fontWeight: 600, margin: 0 }}>
                       {weight.toFixed(1)}%
@@ -584,22 +682,18 @@ export default function PortfolioPage() {
                     <WeightBar pct={weight} color={color} />
                   </div>
 
-                  {/* Avg Price */}
                   <span className="hide-md" style={{ color: C.muted, fontSize: 13 }}>
                     {currency}{h.avgPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                   </span>
 
-                  {/* Current Price */}
                   <span className="hide-md" style={{ color: C.primary, fontSize: 13, fontWeight: 500 }}>
                     {currency}{h.currentPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                   </span>
 
-                  {/* Market Value */}
                   <span className="hide-md" style={{ color: C.primary, fontSize: 13, fontWeight: 600 }}>
                     {currency}{h.marketValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                   </span>
 
-                  {/* P&L — richer pill */}
                   <div>
                     <div style={{
                       display: "inline-flex", flexDirection: "column", alignItems: "flex-start",
@@ -616,7 +710,6 @@ export default function PortfolioPage() {
                     </div>
                   </div>
 
-                  {/* Trade button */}
                   <motion.button
                     whileHover={{ scale: 1.04, borderColor: "#8FFFD6", color: "#8FFFD6" }}
                     whileTap={{ scale: 0.96 }}
