@@ -1,10 +1,51 @@
 {
   "name": "StockSense",
   "short_name": "StockSense",
-  "description": "Smart stock tracking and portfolio management",
+  "description": "Real-time stock trading and portfolio management",
   "start_url": "/dashboard",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#0a0a0a",
-  "theme_color": "#8FFFD6",
-  "icons": []
+  "theme_color": "#0a0a0a",
+  "categories": ["finance", "business"],
+  "lang": "en",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Portfolio",
+      "short_name": "Portfolio",
+      "description": "View your portfolio",
+      "url": "/dashboard/portfolio",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Watchlist",
+      "short_name": "Watchlist",
+      "description": "View your watchlist",
+      "url": "/dashboard/watchlist",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ]
 }

@@ -1,5 +1,6 @@
 package com.stocksense.service;
 
+import com.stocksense.model.Notification;
 import com.stocksense.model.Order;
 import com.stocksense.model.WalletBalance;
 import com.stocksense.model.WalletTransaction;
@@ -26,15 +27,18 @@ public class LimitOrderScheduler {
     private final WalletBalanceRepository     walletBalanceRepository;
     private final WalletTransactionRepository walletTxRepository;
     private final AlphaVantageService         alphaVantageService;
+    private final NotificationService         notificationService;
 
     public LimitOrderScheduler(OrderRepository orderRepository,
                                WalletBalanceRepository walletBalanceRepository,
                                WalletTransactionRepository walletTxRepository,
-                               AlphaVantageService alphaVantageService) {
+                               AlphaVantageService alphaVantageService,
+                               NotificationService notificationService) {
         this.orderRepository         = orderRepository;
         this.walletBalanceRepository = walletBalanceRepository;
         this.walletTxRepository      = walletTxRepository;
         this.alphaVantageService     = alphaVantageService;
+        this.notificationService     = notificationService;
     }
 
     /**
@@ -69,25 +73,21 @@ public class LimitOrderScheduler {
 
         if (order.getKind() == Order.OrderKind.LIMIT) {
             if (order.getType() == Order.OrderType.BUY) {
-                // BUY LIMIT: execute when price drops to or below limit
                 shouldExecute = currentPrice.compareTo(limitPrice) <= 0;
             } else {
-                // SELL LIMIT: execute when price rises to or above limit
                 shouldExecute = currentPrice.compareTo(limitPrice) >= 0;
             }
         } else if (order.getKind() == Order.OrderKind.STOP_LOSS) {
             if (order.getType() == Order.OrderType.BUY) {
-                // BUY STOP: execute when price rises to or above stop
                 shouldExecute = currentPrice.compareTo(limitPrice) >= 0;
             } else {
-                // SELL STOP_LOSS: execute when price drops to or below stop
                 shouldExecute = currentPrice.compareTo(limitPrice) <= 0;
             }
         }
 
         if (!shouldExecute) return;
 
-        // Execute — update price/total to actual execution price
+        // Execute
         BigDecimal total = currentPrice.multiply(BigDecimal.valueOf(order.getQuantity()));
         order.setPrice(currentPrice);
         order.setTotal(total);
@@ -100,13 +100,11 @@ public class LimitOrderScheduler {
             .orElseGet(() -> walletBalanceRepository.save(new WalletBalance(userId)));
 
         if (order.getType() == Order.OrderType.BUY) {
-            // Wallet was already debited at order placement — no action needed
             walletTxRepository.save(new WalletTransaction(
                 userId, "withdrawal", total,
                 "LIMIT BUY executed: " + order.getQuantity() + " x " + order.getSymbol() + " @ " + currentPrice
             ));
         } else {
-            // Credit wallet on sell execution
             wallet.setBalance(wallet.getBalance().add(total));
             wallet.setUpdatedAt(LocalDateTime.now());
             walletBalanceRepository.save(wallet);
@@ -118,7 +116,37 @@ public class LimitOrderScheduler {
         }
 
         orderRepository.save(order);
+
         log.info("[LimitOrderScheduler] Executed {} {} order {} for {} @ {}",
             order.getKind(), order.getType(), order.getId(), order.getSymbol(), currentPrice);
+
+        // ── In-app notification ───────────────────────────────────────────────
+        try {
+            String direction = order.getType() == Order.OrderType.BUY ? "buy" : "sell";
+            String kindLabel = order.getKind() == Order.OrderKind.STOP_LOSS ? "Stop-loss" : "Limit";
+
+            String title = kindLabel + " order executed — " + order.getSymbol();
+            String message = String.format(
+                "Your %s %s order for %d share%s of %s was filled at $%.2f (limit: $%.2f).",
+                kindLabel.toLowerCase(),
+                direction,
+                order.getQuantity(),
+                order.getQuantity() == 1 ? "" : "s",
+                order.getSymbol(),
+                currentPrice.doubleValue(),
+                limitPrice.doubleValue()
+            );
+
+            notificationService.createNotification(
+                userId,
+                Notification.Type.ORDER_FILLED,
+                title,
+                message,
+                order.getSymbol()
+            );
+        } catch (Exception e) {
+            log.warn("[LimitOrderScheduler] Failed to create notification for order {}: {}",
+                order.getId(), e.getMessage());
+        }
     }
 }

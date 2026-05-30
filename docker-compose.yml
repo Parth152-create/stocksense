@@ -38,8 +38,8 @@ services:
       NEWS_API_KEY:               ${NEWS_API_KEY:-}
       SPRING_MAIL_HOST:           ${MAIL_HOST:-smtp.gmail.com}
       SPRING_MAIL_PORT:           ${MAIL_PORT:-587}
-      SPRING_MAIL_USERNAME:       ${MAIL_USERNAME:-}
-      SPRING_MAIL_PASSWORD:       ${MAIL_PASSWORD:-}
+      SPRING_MAIL_USERNAME: onealpha457@gmail.com
+      SPRING_MAIL_PASSWORD: jpoxrbibcbkcxtyn
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:            true
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: true
       JAVA_OPTS: "-XX:MaxRAMPercentage=75.0 -XX:+UseContainerSupport"

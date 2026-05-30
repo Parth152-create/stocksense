@@ -1,103 +1,167 @@
 /**
  * StockSense Service Worker
- * Caches the app shell for offline resilience.
- * Uses a "network-first with cache fallback" strategy for pages,
- * and "cache-first" for static assets.
+ *
+ * Strategy:
+ *   - App shell (JS/CSS/fonts) → Cache First
+ *   - API calls (/api/*) → Network First with 3s timeout, fallback to cache
+ *   - Static assets (icons, images) → Cache First
+ *   - Navigation requests → Network First, fallback to cached /dashboard
+ *
+ * Cache names are versioned — bump CACHE_VERSION to force full refresh.
  */
 
-const CACHE_VERSION = "v1";
-const SHELL_CACHE = `stocksense-shell-${CACHE_VERSION}`;
-const STATIC_CACHE = `stocksense-static-${CACHE_VERSION}`;
+const CACHE_VERSION   = 'v1';
+const SHELL_CACHE     = `stocksense-shell-${CACHE_VERSION}`;
+const API_CACHE       = `stocksense-api-${CACHE_VERSION}`;
+const STATIC_CACHE    = `stocksense-static-${CACHE_VERSION}`;
 
-// App shell — pages to pre-cache on install
 const SHELL_URLS = [
-  "/",
-  "/dashboard",
-  "/login",
-  "/register",
-  "/offline",
+  '/',
+  '/dashboard',
+  '/manifest.json',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png',
 ];
 
-// Static asset patterns to cache on first fetch
-const STATIC_PATTERNS = [
-  /\/_next\/static\//,
-  /\/icons\//,
-  /\.(?:png|jpg|jpeg|svg|ico|woff2?)$/,
-];
-
-// ── Install ───────────────────────────────────────────────────────────────────
-
-self.addEventListener("install", (event) => {
+// ── Install — pre-cache app shell ─────────────────────────────────────────────
+self.addEventListener('install', (event) => {
+  console.log('[SW] Installing StockSense service worker');
   event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_URLS))
+    caches.open(SHELL_CACHE).then((cache) => {
+      // Use individual adds so one 404 doesn't kill the whole install
+      return Promise.allSettled(
+        SHELL_URLS.map(url => cache.add(url).catch(err =>
+          console.warn(`[SW] Failed to cache ${url}:`, err)
+        ))
+      );
+    }).then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
-// ── Activate — clean up old caches ────────────────────────────────────────────
-
-self.addEventListener("activate", (event) => {
+// ── Activate — delete old caches ──────────────────────────────────────────────
+self.addEventListener('activate', (event) => {
+  console.log('[SW] Activating StockSense service worker');
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((k) => k !== SHELL_CACHE && k !== STATIC_CACHE)
-          .map((k) => caches.delete(k))
+          .filter(key => key.startsWith('stocksense-') && !key.endsWith(CACHE_VERSION))
+          .map(key => {
+            console.log('[SW] Deleting old cache:', key);
+            return caches.delete(key);
+          })
       )
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// ── Fetch ─────────────────────────────────────────────────────────────────────
-
-self.addEventListener("fetch", (event) => {
+// ── Fetch — route requests ────────────────────────────────────────────────────
+self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET, cross-origin, and API requests
-  if (
-    request.method !== "GET" ||
-    url.origin !== self.location.origin ||
-    url.pathname.startsWith("/api/") ||
-    url.pathname.startsWith("/ws/")
-  ) {
+  // Only handle same-origin + GET requests
+  if (request.method !== 'GET') return;
+  if (url.origin !== self.location.origin) return;
+
+  // API calls → Network First with timeout
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(networkFirstWithTimeout(request, API_CACHE, 3000));
     return;
   }
 
-  const isStatic = STATIC_PATTERNS.some((p) => p.test(url.pathname));
+  // Navigation (HTML pages) → Network First, fallback to /dashboard
+  if (request.mode === 'navigate') {
+    event.respondWith(navigationHandler(request));
+    return;
+  }
 
-  if (isStatic) {
-    // Cache-first for static assets
-    event.respondWith(
-      caches.match(request).then(
-        (cached) =>
-          cached ||
-          fetch(request).then((res) => {
-            if (res.ok) {
-              const clone = res.clone();
-              caches.open(STATIC_CACHE).then((c) => c.put(request, clone));
-            }
-            return res;
-          })
-      )
-    );
-  } else {
-    // Network-first for pages
-    event.respondWith(
-      fetch(request)
-        .then((res) => {
-          if (res.ok) {
-            const clone = res.clone();
-            caches.open(SHELL_CACHE).then((c) => c.put(request, clone));
-          }
-          return res;
-        })
-        .catch(() =>
-          caches
-            .match(request)
-            .then((cached) => cached || caches.match("/offline"))
-        )
+  // Static assets → Cache First
+  if (
+    url.pathname.startsWith('/icons/') ||
+    url.pathname.startsWith('/_next/static/') ||
+    url.pathname.endsWith('.png') ||
+    url.pathname.endsWith('.svg') ||
+    url.pathname.endsWith('.ico') ||
+    url.pathname === '/manifest.json'
+  ) {
+    event.respondWith(cacheFirst(request, STATIC_CACHE));
+    return;
+  }
+
+  // Everything else → Network First
+  event.respondWith(networkFirst(request, SHELL_CACHE));
+});
+
+// ── Strategies ────────────────────────────────────────────────────────────────
+
+async function cacheFirst(request, cacheName) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(cacheName);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    return new Response('Offline', { status: 503 });
+  }
+}
+
+async function networkFirst(request, cacheName) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(cacheName);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    return cached ?? new Response('Offline', { status: 503 });
+  }
+}
+
+async function networkFirstWithTimeout(request, cacheName, timeoutMs) {
+  const controller = new AbortController();
+  const timeout    = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(request, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (response.ok) {
+      const cache = await caches.open(cacheName);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    clearTimeout(timeout);
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    // Return structured offline JSON for API calls
+    return new Response(
+      JSON.stringify({ error: 'Offline', message: 'No cached data available' }),
+      { status: 503, headers: { 'Content-Type': 'application/json' } }
     );
   }
-});
+}
+
+async function navigationHandler(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(SHELL_CACHE);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    // Fallback to cached dashboard shell
+    const cached = await caches.match('/dashboard') ?? await caches.match('/');
+    return cached ?? new Response('Offline — please reconnect to use StockSense', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain' }
+    });
+  }
+}

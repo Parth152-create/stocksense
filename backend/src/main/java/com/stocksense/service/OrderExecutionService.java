@@ -1,5 +1,6 @@
 package com.stocksense.service;
 
+import com.stocksense.model.Notification;
 import com.stocksense.model.Order;
 import com.stocksense.repository.OrderRepository;
 import org.slf4j.Logger;
@@ -12,48 +13,39 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * OrderExecutionService
  *
  * Runs every 60 seconds and checks all PENDING orders against live prices.
+ * On trigger: executes the order, saves it, and creates an in-app notification.
  *
  * Execution rules:
  *   LIMIT  BUY       → trigger if livePrice ≤ limitPrice  (buy cheap)
  *   LIMIT  SELL      → trigger if livePrice ≥ limitPrice  (sell high)
  *   STOP_LOSS SELL   → trigger if livePrice ≤ limitPrice  (cut losses)
  *   STOP_LOSS BUY    → trigger if livePrice ≥ limitPrice  (breakout entry)
- *
- * On trigger:
- *   - Sets order.price       = livePrice  (actual fill price)
- *   - Sets order.total       = livePrice × quantity
- *   - Sets order.status      = "EXECUTED"
- *   - Sets order.triggeredAt = now()
- *   - Persists via OrderRepository.save()
  */
 @Service
 public class OrderExecutionService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderExecutionService.class);
 
-    private final OrderRepository     orderRepository;
-    private final AlphaVantageService alphaVantageService;
+    private final OrderRepository       orderRepository;
+    private final AlphaVantageService   alphaVantageService;
+    private final NotificationService   notificationService;
 
     public OrderExecutionService(OrderRepository orderRepository,
-                                 AlphaVantageService alphaVantageService) {
+                                 AlphaVantageService alphaVantageService,
+                                 NotificationService notificationService) {
         this.orderRepository     = orderRepository;
         this.alphaVantageService = alphaVantageService;
+        this.notificationService = notificationService;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Scheduled job — every 60 seconds
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Scheduled job — every 60 seconds ─────────────────────────────────────
 
-    /**
-     * Main execution loop. Spring calls this every 60 s after the previous
-     * run completes (fixedDelay = wall-clock gap between end of last run
-     * and start of next, so no pile-up if a run takes longer than 60 s).
-     */
     @Scheduled(fixedDelay = 60_000)
     @Transactional
     public void checkPendingOrders() {
@@ -66,9 +58,7 @@ public class OrderExecutionService {
 
         log.info("[OrderEngine] Checking {} pending order(s).", pending.size());
 
-        int executed = 0;
-        int skipped  = 0;
-        int errors   = 0;
+        int executed = 0, skipped = 0, errors = 0;
 
         for (Order order : pending) {
             try {
@@ -86,20 +76,10 @@ public class OrderExecutionService {
                 executed, skipped, errors);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Core evaluation logic
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Core evaluation ───────────────────────────────────────────────────────
 
-    /**
-     * Evaluates a single pending order against the current live price.
-     *
-     * @return true if the order was triggered and saved, false if conditions
-     *         not met yet (order stays PENDING).
-     */
     private boolean evaluate(Order order) {
         if (order.getLimitPrice() == null) {
-            // Shouldn't happen — MARKET orders are EXECUTED at creation time.
-            // Defensively skip if somehow a market order ends up here.
             log.warn("[OrderEngine] Order id={} is PENDING but has no limitPrice — skipping.", order.getId());
             return false;
         }
@@ -110,7 +90,7 @@ public class OrderExecutionService {
             return false;
         }
 
-        double limitPrice = order.getLimitPrice().doubleValue();
+        double limitPrice    = order.getLimitPrice().doubleValue();
         boolean shouldExecute = shouldTrigger(order.getKind(), order.getType(), livePrice, limitPrice);
 
         if (!shouldExecute) {
@@ -119,7 +99,7 @@ public class OrderExecutionService {
             return false;
         }
 
-        // ── Execute the order ──────────────────────────────────────────────
+        // ── Execute ───────────────────────────────────────────────────────────
         BigDecimal fillPrice = BigDecimal.valueOf(livePrice);
         BigDecimal fillTotal = fillPrice.multiply(BigDecimal.valueOf(order.getQuantity()));
 
@@ -127,44 +107,69 @@ public class OrderExecutionService {
         order.setTotal(fillTotal);
         order.setStatus("EXECUTED");
         order.setTriggeredAt(LocalDateTime.now());
-
         orderRepository.save(order);
 
         log.info("[OrderEngine] ✅ Executed order id={} | {} {} {} | limit={} | fill={}",
                 order.getId(), order.getKind(), order.getType(),
                 order.getSymbol(), limitPrice, livePrice);
 
+        // ── In-app notification ───────────────────────────────────────────────
+        try {
+            UUID userId = UUID.fromString(order.getUserId());
+
+            String direction = order.getType() == Order.OrderType.BUY ? "bought" : "sold";
+            String kindLabel = order.getKind() == Order.OrderKind.STOP_LOSS ? "Stop-Loss" : "Limit";
+
+            String title = String.format("%s order executed — %s",
+                    kindLabel, order.getSymbol());
+
+            String message = String.format(
+                    "Your %s %s order for %d share%s of %s was filled at $%.2f (limit: $%.2f).",
+                    kindLabel.toLowerCase(),
+                    direction,
+                    order.getQuantity(),
+                    order.getQuantity() == 1 ? "" : "s",
+                    order.getSymbol(),
+                    livePrice,
+                    limitPrice
+            );
+
+            notificationService.createNotification(
+                    userId,
+                    Notification.Type.ORDER_FILLED,
+                    title,
+                    message,
+                    order.getSymbol()
+            );
+        } catch (Exception e) {
+            // Never let notification failure crash the execution
+            log.warn("[OrderEngine] Failed to create notification for order id={}: {}",
+                    order.getId(), e.getMessage());
+        }
+
         return true;
     }
 
-    /**
-     * Pure trigger logic — no side effects.
-     *
-     * LIMIT  BUY       → buy when price falls to or below limit  (get a deal)
-     * LIMIT  SELL      → sell when price rises to or above limit (take profit)
-     * STOP_LOSS SELL   → sell when price falls to or below limit (cut losses)
-     * STOP_LOSS BUY    → buy  when price rises to or above limit (breakout)
-     */
+    // ── Trigger logic ─────────────────────────────────────────────────────────
+
     private boolean shouldTrigger(Order.OrderKind kind,
                                    Order.OrderType type,
                                    double livePrice,
                                    double limitPrice) {
         return switch (kind) {
             case LIMIT -> switch (type) {
-                case BUY  -> livePrice <= limitPrice;   // buy cheap
-                case SELL -> livePrice >= limitPrice;   // sell high
+                case BUY  -> livePrice <= limitPrice;
+                case SELL -> livePrice >= limitPrice;
             };
             case STOP_LOSS -> switch (type) {
-                case SELL -> livePrice <= limitPrice;   // stop out
-                case BUY  -> livePrice >= limitPrice;   // breakout entry
+                case SELL -> livePrice <= limitPrice;
+                case BUY  -> livePrice >= limitPrice;
             };
-            case MARKET -> false; // market orders never pending — skip
+            case MARKET -> false;
         };
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Live price fetch (with fallback to 0 on any failure)
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Live price fetch ──────────────────────────────────────────────────────
 
     private double fetchLivePrice(String symbol) {
         try {
