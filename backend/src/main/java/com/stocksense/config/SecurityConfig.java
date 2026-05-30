@@ -36,6 +36,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/stocks/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/market/**").permitAll()
                 .requestMatchers("/ws/**").permitAll()
+                // Stripe webhook — verified by signature, no JWT needed
+                .requestMatchers(HttpMethod.POST, "/api/payments/stripe/webhook").permitAll()
+                // All other payment endpoints require JWT
+                .requestMatchers("/api/payments/**").authenticated()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -58,7 +62,8 @@ public class SecurityConfig {
             "Origin",
             "X-Requested-With",
             "Access-Control-Request-Method",
-            "Access-Control-Request-Headers"
+            "Access-Control-Request-Headers",
+            "Stripe-Signature"
         ));
         config.setExposedHeaders(List.of("Authorization"));
         config.setAllowCredentials(true);

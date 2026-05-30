@@ -36,10 +36,15 @@ services:
       JWT_EXPIRATION:             604800000
       ALPHAVANTAGE_API_KEY:       ${ALPHAVANTAGE_API_KEY:-demo}
       NEWS_API_KEY:               ${NEWS_API_KEY:-}
-      SPRING_MAIL_HOST:           ${MAIL_HOST:-smtp.gmail.com}
-      SPRING_MAIL_PORT:           ${MAIL_PORT:-587}
-      SPRING_MAIL_USERNAME: onealpha457@gmail.com
-      SPRING_MAIL_PASSWORD: jpoxrbibcbkcxtyn
+      STRIPE_SECRET_KEY:          ${STRIPE_SECRET_KEY:-sk_test_placeholder}
+      STRIPE_PUBLISHABLE_KEY:     ${STRIPE_PUBLISHABLE_KEY:-pk_test_placeholder}
+      STRIPE_WEBHOOK_SECRET:      ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
+      RAZORPAY_KEY_ID:            ${RAZORPAY_KEY_ID:-rzp_test_placeholder}
+      RAZORPAY_KEY_SECRET:        ${RAZORPAY_KEY_SECRET:-placeholder}
+      SPRING_MAIL_HOST:           smtp.gmail.com
+      SPRING_MAIL_PORT:           587
+      SPRING_MAIL_USERNAME:       onealpha457@gmail.com
+      SPRING_MAIL_PASSWORD:       jpoxrbibcbkcxtyn
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:            true
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: true
       JAVA_OPTS: "-XX:MaxRAMPercentage=75.0 -XX:+UseContainerSupport"
@@ -89,10 +94,11 @@ services:
       INTERNAL_API_URL:                 http://backend:8081
       INTERNAL_ML_URL:                  http://ml-service:8082
       NEXT_PUBLIC_GOOGLE_CLIENT_ID:     ${GOOGLE_CLIENT_ID:-}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-pk_test_placeholder}
+      NEXT_PUBLIC_RAZORPAY_KEY_ID:        ${RAZORPAY_KEY_ID:-rzp_test_placeholder}
     depends_on:
       backend:
         condition: service_healthy
-      # ml-service removed from depends_on — it's optional, frontend works without it
 
 volumes:
   postgres_data:

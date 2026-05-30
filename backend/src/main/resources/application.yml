@@ -17,7 +17,7 @@ spring:
     host: smtp.gmail.com
     port: 587
     username: onealpha457@gmail.com
-    password: wrbxwvhdkanphmbb
+    password: jpoxrbibcbkcxtyn
     properties:
       mail:
         smtp:
@@ -33,6 +33,21 @@ alphavantage:
   api:
     key: HXW27CL9C8V78EXL
 
+# ── Stripe ────────────────────────────────────────────────────────────────────
+stripe:
+  secret:
+    key: ${STRIPE_SECRET_KEY:sk_test_placeholder}
+  publishable:
+    key: ${STRIPE_PUBLISHABLE_KEY:pk_test_placeholder}
+  webhook:
+    secret: ${STRIPE_WEBHOOK_SECRET:whsec_placeholder}
+
+# ── Razorpay ──────────────────────────────────────────────────────────────────
+razorpay:
+  key:
+    id: ${RAZORPAY_KEY_ID:rzp_test_placeholder}
+    secret: ${RAZORPAY_KEY_SECRET:placeholder}
+
 jwt:
   secret: "your-256-bit-secret-here-change-in-production-min-32-chars"
   expiration: 604800000
@@ -45,7 +60,6 @@ logging:
     com.stocksense: DEBUG
     com.stocksense.service.StockService: INFO
 
-# ── Actuator — expose /actuator/health for Docker healthcheck ─────────────────
 management:
   endpoints:
     web:
