@@ -42,13 +42,20 @@ public class PortfolioService {
     /** Portfolio summary — all markets. */
     public Map<String, Object> getSummary(UUID userId) {
         List<Map<String, Object>> holdings = getHoldings(userId);
-        return buildSummary(holdings, null);
+        List<Order> allOrders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId.toString());
+        double realizedPnl = computeRealizedPnl(allOrders);
+        return buildSummary(holdings, null, realizedPnl);
     }
 
     /** Portfolio summary — filtered by market. */
     public Map<String, Object> getSummaryByMarket(UUID userId, String market) {
         List<Map<String, Object>> holdings = getHoldingsByMarket(userId, market);
-        return buildSummary(holdings, market);
+        List<Order> marketOrders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId.toString())
+                .stream()
+                .filter(o -> market.equalsIgnoreCase(o.getMarket()))
+                .collect(Collectors.toList());
+        double realizedPnl = computeRealizedPnl(marketOrders);
+        return buildSummary(holdings, market, realizedPnl);
     }
 
     /**
@@ -56,9 +63,6 @@ public class PortfolioService {
      * range: "1M" = daily for last 30 days
      *        "1Y" = weekly for last 52 weeks
      *        "All" = monthly from first order
-     *
-     * Strategy: replay all filled orders chronologically,
-     * snapshot portfolio value at each interval boundary.
      */
     public List<Map<String, Object>> getHistory(UUID userId, String range) {
         List<Order> allOrders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId.toString())
@@ -70,18 +74,15 @@ public class PortfolioService {
 
         if (allOrders.isEmpty()) return Collections.emptyList();
 
-        // Build running cost-basis map: symbol → {qty, avgPrice}
         Map<String, double[]> positions = new LinkedHashMap<>();
         List<Map<String, Object>> result  = new ArrayList<>();
 
-        // Determine interval boundaries
         java.time.LocalDate today = java.time.LocalDate.now();
         List<java.time.LocalDate> boundaries = buildBoundaries(range, today,
                 allOrders.get(0).getCreatedAt().toLocalDate());
 
         int orderIdx = 0;
         for (java.time.LocalDate boundary : boundaries) {
-            // Consume all orders up to and including this boundary
             while (orderIdx < allOrders.size()) {
                 Order o = allOrders.get(orderIdx);
                 if (!o.getCreatedAt().toLocalDate().isAfter(boundary)) {
@@ -92,7 +93,6 @@ public class PortfolioService {
                 }
             }
 
-            // Snapshot portfolio value at this boundary
             double snap = snapshotValue(positions);
 
             Map<String, Object> point = new LinkedHashMap<>();
@@ -102,6 +102,54 @@ public class PortfolioService {
         }
 
         return result;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Realized P&L — FIFO across all SELL orders
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Walk all FILLED/EXECUTED orders chronologically per symbol.
+     * For each SELL, match it against the oldest BUY lots (FIFO)
+     * and accumulate (sellPrice - avgCostOfMatchedLots) * qty.
+     *
+     * Returns total realized gain/loss across all closed positions.
+     */
+    public double computeRealizedPnl(List<Order> orders) {
+        // Group filled orders by symbol, oldest first
+        Map<String, List<Order>> bySymbol = orders.stream()
+                .filter(o -> "FILLED".equalsIgnoreCase(o.getStatus())
+                          || "EXECUTED".equalsIgnoreCase(o.getStatus()))
+                .sorted(Comparator.comparing(Order::getCreatedAt))
+                .collect(Collectors.groupingBy(Order::getSymbol));
+
+        double totalRealized = 0;
+
+        for (List<Order> symbolOrders : bySymbol.values()) {
+            // FIFO queue of buy lots: each entry is [qty, price]
+            Deque<double[]> buyLots = new ArrayDeque<>();
+
+            for (Order o : symbolOrders) {
+                double qty   = o.getQuantity();
+                double price = o.getPrice() != null ? o.getPrice().doubleValue() : 0;
+
+                if (o.getType() == Order.OrderType.BUY) {
+                    buyLots.addLast(new double[]{qty, price});
+                } else if (o.getType() == Order.OrderType.SELL) {
+                    double remaining = qty;
+                    while (remaining > 0 && !buyLots.isEmpty()) {
+                        double[] lot = buyLots.peekFirst();
+                        double matched = Math.min(remaining, lot[0]);
+                        totalRealized += matched * (price - lot[1]);
+                        lot[0] -= matched;
+                        remaining -= matched;
+                        if (lot[0] <= 0) buyLots.pollFirst();
+                    }
+                }
+            }
+        }
+
+        return round(totalRealized);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -121,7 +169,6 @@ public class PortfolioService {
             double totalCost = 0;
             double totalQty  = 0;
 
-            // Process oldest-first for correct avg price
             List<Order> sorted = symbolOrders.stream()
                     .sorted(Comparator.comparing(Order::getCreatedAt))
                     .collect(Collectors.toList());
@@ -150,7 +197,6 @@ public class PortfolioService {
             double pnl          = marketValue - cost;
             double pnlPct       = cost > 0 ? (pnl / cost) * 100 : 0;
 
-            // Derive market from symbol suffix or order field
             String market = deriveMarket(symbol, symbolOrders);
 
             Map<String, Object> holding = new LinkedHashMap<>();
@@ -158,7 +204,7 @@ public class PortfolioService {
             holding.put("name",         resolveCompanyName(symbol));
             holding.put("market",       market);
             holding.put("qty",          totalQty);
-            holding.put("quantity",     totalQty);          // alias for frontend compat
+            holding.put("quantity",     totalQty);
             holding.put("avgPrice",     round(avgPrice));
             holding.put("currentPrice", round(currentPrice));
             holding.put("marketValue",  round(marketValue));
@@ -170,7 +216,9 @@ public class PortfolioService {
         return holdings;
     }
 
-    private Map<String, Object> buildSummary(List<Map<String, Object>> holdings, String market) {
+    private Map<String, Object> buildSummary(List<Map<String, Object>> holdings,
+                                              String market,
+                                              double realizedPnl) {
         double totalValue = holdings.stream()
                 .mapToDouble(h -> ((Number) h.get("marketValue")).doubleValue()).sum();
         double totalCost  = holdings.stream()
@@ -179,10 +227,12 @@ public class PortfolioService {
                     double avg = ((Number) h.get("avgPrice")).doubleValue();
                     return qty * avg;
                 }).sum();
-        double totalPnl    = totalValue - totalCost;
-        double totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
 
-        // Best and worst performer by pnlPct
+        // unrealizedPnl = open position mark-to-market gain/loss
+        double unrealizedPnl = totalValue - totalCost;
+        double totalPnl      = unrealizedPnl + realizedPnl;
+        double totalPnlPct   = totalCost > 0 ? (unrealizedPnl / totalCost) * 100 : 0;
+
         Map<String, Object> best  = holdings.stream()
                 .max(Comparator.comparingDouble(h -> ((Number) h.get("pnlPct")).doubleValue()))
                 .orElse(null);
@@ -193,7 +243,6 @@ public class PortfolioService {
                 .max(Comparator.comparingDouble(h -> ((Number) h.get("qty")).doubleValue()))
                 .orElse(null);
 
-        // Sector allocation by market value weight
         List<Map<String, Object>> allocation = buildAllocation(holdings, totalValue);
 
         Map<String, Object> summary = new LinkedHashMap<>();
@@ -202,7 +251,9 @@ public class PortfolioService {
         summary.put("totalInvested",  round(totalCost));
         summary.put("totalPnl",       round(totalPnl));
         summary.put("totalPnlPct",    round(totalPnlPct));
-        summary.put("changePercent",  round(totalPnlPct));  // alias for analytics page
+        summary.put("unrealizedPnl",  round(unrealizedPnl));   // ← NEW
+        summary.put("realizedPnl",    round(realizedPnl));      // ← NEW
+        summary.put("changePercent",  round(totalPnlPct));
         summary.put("allocation",     allocation);
         if (market != null) summary.put("market", market);
 
@@ -228,17 +279,14 @@ public class PortfolioService {
         return summary;
     }
 
-    /** Group holdings into sector buckets for the allocation donut. */
     private List<Map<String, Object>> buildAllocation(List<Map<String, Object>> holdings, double totalValue) {
         Map<String, Double> buckets = new LinkedHashMap<>();
-
         for (Map<String, Object> h : holdings) {
             String market = (String) h.getOrDefault("market", "OTHER");
             String label  = marketToSectorLabel(market);
             double mv     = ((Number) h.get("marketValue")).doubleValue();
             buckets.merge(label, mv, Double::sum);
         }
-
         List<Map<String, Object>> alloc = new ArrayList<>();
         for (Map.Entry<String, Double> e : buckets.entrySet()) {
             double pct = totalValue > 0 ? (e.getValue() / totalValue) * 100 : 0;
@@ -268,11 +316,9 @@ public class PortfolioService {
                     dates.add(today.minusWeeks(i));
             }
             default -> {
-                // "All": monthly from first order
                 java.time.LocalDate cursor = firstOrder.withDayOfMonth(1);
                 while (!cursor.isAfter(today)) {
-                    dates.add(cursor.withDayOfMonth(
-                            cursor.lengthOfMonth()));    // end-of-month snapshot
+                    dates.add(cursor.withDayOfMonth(cursor.lengthOfMonth()));
                     cursor = cursor.plusMonths(1);
                 }
             }
@@ -284,7 +330,7 @@ public class PortfolioService {
         String  sym   = o.getSymbol();
         double  qty   = o.getQuantity();
         double  price = o.getPrice() != null ? o.getPrice().doubleValue() : 0;
-        double[] pos  = positions.getOrDefault(sym, new double[]{0, 0}); // [qty, totalCost]
+        double[] pos  = positions.getOrDefault(sym, new double[]{0, 0});
 
         if (o.getType() == Order.OrderType.BUY) {
             pos[0] += qty;
@@ -300,8 +346,6 @@ public class PortfolioService {
         positions.put(sym, pos);
     }
 
-    /** Snapshot: sum of (qty × avgPrice) — uses avg price as proxy, not live price,
-     *  to keep history deterministic without hammering the quotes API. */
     private double snapshotValue(Map<String, double[]> positions) {
         double total = 0;
         for (double[] pos : positions.values()) {
@@ -334,17 +378,14 @@ public class PortfolioService {
         return fallback;
     }
 
-    /** Infer market from symbol suffix, falling back to order.market field. */
     private String deriveMarket(String symbol, List<Order> orders) {
         if (symbol.contains("/"))           return "FX";
         if (symbol.endsWith(".BSE")
          || symbol.endsWith(".NSE"))        return "IN";
-        // Check if any order carries a market field
         for (Order o : orders) {
             if (o.getMarket() != null && !o.getMarket().isBlank())
                 return o.getMarket().toUpperCase();
         }
-        // Crypto heuristics
         Set<String> knownCrypto = Set.of("BTC","ETH","SOL","BNB","AVAX","DOGE","ADA","XRP","MATIC","DOT");
         String base = symbol.replaceAll("\\.(BSE|NSE|NYSE|NASDAQ|US)$", "").toUpperCase();
         if (knownCrypto.contains(base))     return "CRYPTO";

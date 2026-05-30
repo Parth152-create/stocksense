@@ -4,11 +4,11 @@ import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Cell,
+  ResponsiveContainer, BarChart, Bar, Cell, Legend,
 } from "recharts";
 import {
   TrendingUp, TrendingDown, BarChart2, Shield,
-  PieChart, Activity, ArrowUpRight, ArrowDownRight,
+  PieChart, Activity, ArrowUpRight, ArrowDownRight, GitCompare,
 } from "lucide-react";
 import { useMarket } from "@/hooks/useMarket";
 import { fetchWithAuth } from "@/lib/auth";
@@ -27,16 +27,24 @@ interface AnalyticsData {
   riskScore:      number;
 }
 
-interface HistoryPoint { date: string; value: number; }
+interface HistoryPoint  { date: string; value: number; }
+interface BenchmarkPoint {
+  date:           string;
+  portfolio:      number;
+  portfolioRaw:   number;
+  benchmark:      number | null;
+  benchmarkLabel: string;
+}
 
 interface TooltipPayloadItem {
   dataKey?: unknown;
   value?:   unknown;
   stroke?:  string;
+  name?:    string;
 }
 interface AnalyticsTooltipProps {
   active?:  boolean;
-  payload?: readonly TooltipPayloadItem[];
+  payload?: any;
   label?:   unknown;
   sym:      string;
 }
@@ -149,6 +157,25 @@ const PerfTooltip = ({ active, payload, label, sym }: AnalyticsTooltipProps) => 
   );
 };
 
+// ── Benchmark tooltip ─────────────────────────────────────────────────────────
+const BenchmarkTooltip = ({ active, payload, label }: {
+  active?: boolean; payload?: any; label?: unknown;
+}) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 16px", fontSize: 12, minWidth: 160 }}>
+      <p style={{ color: C.muted, marginBottom: 8, margin: "0 0 8px" }}>{String(label ?? "")}</p>
+      {payload.map((p: any, i: number) => (
+        <p key={i} style={{ color: p.stroke ?? "#8FFFD6", fontWeight: 600, margin: "3px 0 0", display: "flex", justifyContent: "space-between", gap: 16 }}>
+          <span style={{ color: C.muted, fontWeight: 400 }}>{String(p.name ?? "")}</span>
+          <span>{Number(p.value).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
+        </p>
+      ))}
+      <p style={{ color: C.muted, fontSize: 10, margin: "6px 0 0" }}>Base 10,000 normalized</p>
+    </div>
+  );
+};
+
 // ── Stat Card ─────────────────────────────────────────────────────────────────
 function StatCard({ label, value, change, positive, currencySymbol }: {
   label: string; value: string; change: string; positive: boolean; currencySymbol: string;
@@ -174,6 +201,33 @@ function Skeleton({ w, h = 16 }: { w: string | number; h?: number }) {
   return <div style={{ width: w, height: h, borderRadius: 4, background: "var(--color-line)", opacity: 0.5 }}/>;
 }
 
+// ── Benchmark delta badge ─────────────────────────────────────────────────────
+function BenchmarkDelta({ data, benchmarkLabel }: { data: BenchmarkPoint[]; benchmarkLabel: string }) {
+  if (data.length < 2) return null;
+  const last = data[data.length - 1];
+  if (last.benchmark == null) return null;
+
+  const portDelta  = ((last.portfolio  - 10_000) / 10_000) * 100;
+  const benchDelta = ((last.benchmark  - 10_000) / 10_000) * 100;
+  const alpha      = portDelta - benchDelta;
+  const beating    = alpha >= 0;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 7,
+        background: beating ? "rgba(143,255,214,0.08)" : "rgba(239,68,68,0.08)",
+        border: `1px solid ${beating ? "rgba(143,255,214,0.2)" : "rgba(239,68,68,0.2)"}`,
+      }}>
+        {beating ? <ArrowUpRight size={12} color="#8FFFD6"/> : <ArrowDownRight size={12} color="#ef4444"/>}
+        <span style={{ fontSize: 11, fontWeight: 700, color: beating ? "#8FFFD6" : "#ef4444" }}>
+          {beating ? "+" : ""}{alpha.toFixed(1)}% vs {benchmarkLabel}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function AnalyticsPage() {
   const { market } = useMarket();
@@ -182,37 +236,56 @@ export default function AnalyticsPage() {
   const [range,     setRange]     = useState<TimeRange>("1Y");
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [history,   setHistory]   = useState<HistoryPoint[]>([]);
+  const [benchmark, setBenchmark] = useState<BenchmarkPoint[]>([]);
   const [loading,   setLoading]   = useState(true);
+  const [benchmarkLoading, setBenchmarkLoading] = useState(false);
 
-  // ── Fetch analytics + history whenever market changes ─────────────────────
+  // ── Fetch analytics + history + benchmark ────────────────────────────────
   useEffect(() => {
     setLoading(true);
     setAnalytics(null);
     setHistory([]);
+    setBenchmark([]);
 
     Promise.all([
       fetchWithAuth(`/api/market/${market.id}/analytics`),
       fetchWithAuth(`/api/portfolio/history?range=${range}`),
+      fetchWithAuth(`/api/portfolio/benchmark?range=${range}&market=${market.id}`),
     ])
-      .then(async ([analyticsRes, historyRes]) => {
+      .then(async ([analyticsRes, historyRes, benchRes]) => {
         if (analyticsRes.ok) setAnalytics(await analyticsRes.json());
         if (historyRes.ok) {
           const data: HistoryPoint[] = await historyRes.json();
           if (Array.isArray(data) && data.length >= 2) setHistory(data);
+        }
+        if (benchRes.ok) {
+          const data: BenchmarkPoint[] = await benchRes.json();
+          if (Array.isArray(data) && data.length >= 2) setBenchmark(data);
         }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [market.id]);
 
-  // Refetch history when range changes
+  // Refetch history + benchmark when range changes
   useEffect(() => {
-    fetchWithAuth(`/api/portfolio/history?range=${range}`)
-      .then(r => r.ok ? r.json() : [])
-      .then((data: HistoryPoint[]) => {
-        if (Array.isArray(data) && data.length >= 2) setHistory(data);
+    setBenchmarkLoading(true);
+    Promise.all([
+      fetchWithAuth(`/api/portfolio/history?range=${range}`),
+      fetchWithAuth(`/api/portfolio/benchmark?range=${range}&market=${market.id}`),
+    ])
+      .then(async ([histRes, benchRes]) => {
+        if (histRes.ok) {
+          const data: HistoryPoint[] = await histRes.json();
+          if (Array.isArray(data) && data.length >= 2) setHistory(data);
+        }
+        if (benchRes.ok) {
+          const data: BenchmarkPoint[] = await benchRes.json();
+          if (Array.isArray(data) && data.length >= 2) setBenchmark(data);
+        }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setBenchmarkLoading(false));
   }, [range]);
 
   const totalValue    = analytics?.totalValue    ?? 0;
@@ -227,18 +300,15 @@ export default function AnalyticsPage() {
   const countedTotalInvested = useCountUp(Math.floor(totalInvested));
   const countedUnrealisedPnl = useCountUp(Math.abs(Math.floor(unrealisedPnl)));
 
-  // Allocation segments from real API data
   const allocSegs = (analytics?.allocation ?? []).length > 0
     ? (analytics!.allocation).map((a, i) => ({ label: a.label, pct: a.pct, color: SECTOR_COLORS[i % SECTOR_COLORS.length] }))
     : [{ label: "Stocks", pct: 100, color: "#8FFFD6" }];
 
-  // Monthly returns from real API data
   const monthlyData = (analytics?.monthlyReturns ?? []).map(r => ({
     month: r.month,
     ret:   r.ret ?? r.returnPct ?? 0,
   }));
 
-  // Risk breakdown bars — heuristic from riskScore
   const riskBars = [
     { label: "Market Volatility",  val: Math.min(Math.round(riskScore * 1.1), 99), color: riskScore > 60 ? "#ef4444" : "#f59e0b" },
     { label: "Concentration Risk", val: Math.min(Math.round(riskScore * 0.68), 99), color: riskScore < 50 ? "#8FFFD6" : "#f59e0b" },
@@ -246,10 +316,14 @@ export default function AnalyticsPage() {
     { label: "Currency Exposure",  val: Math.min(Math.round(riskScore * 0.88), 99), color: riskScore > 55 ? "#f59e0b" : "#8FFFD6" },
   ];
 
-  // Performer display
   const best  = analytics?.bestPerformer;
   const worst = analytics?.worstPerformer;
   const most  = analytics?.mostHeld;
+
+  // Benchmark label from data or derive from market
+  const benchmarkLabel = benchmark.length > 0
+    ? benchmark[0].benchmarkLabel
+    : market.id === "IN" ? "Nifty 50" : market.id === "CRYPTO" ? "Bitcoin" : "S&P 500";
 
   return (
     <>
@@ -300,7 +374,7 @@ export default function AnalyticsPage() {
           ))}
         </motion.div>
 
-        {/* Portfolio Value Over Time — real history data */}
+        {/* Portfolio Value Over Time */}
         <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
           style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
             padding: "22px 24px", marginBottom: 20,
@@ -346,6 +420,120 @@ export default function AnalyticsPage() {
               </LineChart>
             </ResponsiveContainer>
           )}
+        </motion.div>
+
+        {/* ── Benchmark Comparison Chart ── */}
+        <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
+          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
+            padding: "22px 24px", marginBottom: 20,
+            backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
+
+          {/* Header row */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <GitCompare size={15} color="#8FFFD6"/>
+              <span style={{ color: C.primary, fontWeight: 600, fontSize: 14 }}>vs {benchmarkLabel}</span>
+              <span style={{ fontSize: 11, color: C.muted, background: C.page, border: `1px solid ${C.line}`, padding: "2px 8px", borderRadius: 5 }}>
+                Base 10,000 normalized
+              </span>
+            </div>
+            <BenchmarkDelta data={benchmark} benchmarkLabel={benchmarkLabel} />
+          </div>
+
+          {/* Legend */}
+          <div style={{ display: "flex", gap: 20, marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 24, height: 2, background: "#8FFFD6", borderRadius: 1 }}/>
+              <span style={{ fontSize: 11, color: C.muted }}>My Portfolio</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 24, height: 2, background: "#6366f1", borderRadius: 1, borderTop: "2px dashed #6366f1" }}/>
+              <span style={{ fontSize: 11, color: C.muted }}>{benchmarkLabel}</span>
+            </div>
+          </div>
+
+          {benchmarkLoading ? (
+            <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 24, height: 24, border: `2px solid ${C.line}`, borderTop: "2px solid #8FFFD6", borderRadius: "50%", animation: "spin 0.8s linear infinite" }}/>
+            </div>
+          ) : benchmark.length < 2 ? (
+            <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <p style={{ color: C.muted, fontSize: 13 }}>
+                {loading ? "Loading benchmark…" : "Not enough portfolio history to compare — place orders over time to see benchmark comparison."}
+              </p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={benchmark} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false}/>
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: "var(--color-muted)", fontSize: 10 }}
+                  axisLine={false} tickLine={false}
+                  interval={Math.floor(benchmark.length / 8)}
+                />
+                <YAxis
+                  tick={{ fill: "var(--color-muted)", fontSize: 10 }}
+                  axisLine={false} tickLine={false}
+                  tickFormatter={v => v.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                  width={56}
+                  domain={["auto", "auto"]}
+                />
+                <Tooltip content={(p) => <BenchmarkTooltip {...p} />}/>
+                {/* Portfolio line */}
+                <Line
+                  type="monotone"
+                  dataKey="portfolio"
+                  name="My Portfolio"
+                  stroke="#8FFFD6"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, fill: "#8FFFD6", strokeWidth: 0 }}
+                />
+                {/* Benchmark line — dashed */}
+                <Line
+                  type="monotone"
+                  dataKey="benchmark"
+                  name={benchmarkLabel}
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  strokeDasharray="5 3"
+                  dot={false}
+                  activeDot={{ r: 4, fill: "#6366f1", strokeWidth: 0 }}
+                  connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+
+          {/* Bottom stat row — alpha, port return, benchmark return */}
+          {benchmark.length >= 2 && (() => {
+            const last       = benchmark[benchmark.length - 1];
+            const portReturn = ((last.portfolio - 10_000) / 10_000) * 100;
+            const benchRet   = last.benchmark != null ? ((last.benchmark - 10_000) / 10_000) * 100 : null;
+            const alpha      = benchRet != null ? portReturn - benchRet : null;
+            const fmt        = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+            const col        = (n: number) => n >= 0 ? "#22c55e" : "#ef4444";
+
+            return (
+              <div style={{ display: "flex", gap: 0, marginTop: 20, borderTop: `1px solid ${C.line}`, paddingTop: 16 }}>
+                {[
+                  { label: "Your Return",        value: fmt(portReturn),       color: col(portReturn) },
+                  { label: `${benchmarkLabel} Return`, value: benchRet != null ? fmt(benchRet) : "—", color: benchRet != null ? col(benchRet) : C.muted },
+                  { label: "Alpha (outperformance)", value: alpha != null ? fmt(alpha) : "—", color: alpha != null ? col(alpha) : C.muted },
+                ].map(({ label, value, color }, i) => (
+                  <div key={label} style={{
+                    flex: 1, textAlign: "center",
+                    borderRight: i < 2 ? `1px solid ${C.line}` : "none",
+                    padding: "0 16px",
+                  }}>
+                    <p style={{ color: C.muted, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.6, margin: "0 0 4px" }}>{label}</p>
+                    <p style={{ color, fontSize: 18, fontWeight: 700, margin: 0 }}>{value}</p>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </motion.div>
 
         {/* Risk + Allocation */}
@@ -416,7 +604,7 @@ export default function AnalyticsPage() {
           </motion.div>
         </div>
 
-        {/* Monthly Returns — real data from analytics.monthlyReturns */}
+        {/* Monthly Returns */}
         <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
           style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
             padding: "22px 24px", marginBottom: 20,
@@ -461,7 +649,7 @@ export default function AnalyticsPage() {
           )}
         </motion.div>
 
-        {/* Return Heatmap — real monthly data */}
+        {/* Return Heatmap */}
         {monthlyData.length > 0 && (
           <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
             style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
@@ -496,6 +684,8 @@ export default function AnalyticsPage() {
             </div>
           </motion.div>
         )}
+
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </motion.div>
     </>
   );
