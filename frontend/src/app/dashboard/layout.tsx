@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Briefcase, BookMarked, BarChart3,
   Settings, Bell, LogOut, ChevronRight, TrendingUp, Sparkles, Wallet,
-  Sun, Moon, Menu, X, SlidersHorizontal,
+  Sun, Moon, Menu, X, SlidersHorizontal, FileText,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,16 +18,17 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider } from "@/components/ToastContext";
 
 const NAV_ITEMS = [
-  { href: "/dashboard",               label: "Dashboard",     icon: LayoutDashboard },
-  { href: "/dashboard/wallet",        label: "Wallet",        icon: Wallet          },
-  { href: "/dashboard/portfolio",     label: "Portfolio",     icon: Briefcase       },
-  { href: "/dashboard/watchlist",     label: "Watchlist",     icon: BookMarked      },
-  { href: "/dashboard/analytics",     label: "Analytics",     icon: BarChart3       },
-  { href: "/dashboard/insights",      label: "Insights",      icon: Sparkles        },
-  { href: "/dashboard/orders",        label: "Orders",        icon: BarChart3       },
+  { href: "/dashboard",               label: "Dashboard",     icon: LayoutDashboard   },
+  { href: "/dashboard/wallet",        label: "Wallet",        icon: Wallet            },
+  { href: "/dashboard/portfolio",     label: "Portfolio",     icon: Briefcase         },
+  { href: "/dashboard/watchlist",     label: "Watchlist",     icon: BookMarked        },
+  { href: "/dashboard/analytics",     label: "Analytics",     icon: BarChart3         },
+  { href: "/dashboard/insights",      label: "Insights",      icon: Sparkles          },
+  { href: "/dashboard/orders",        label: "Orders",        icon: BarChart3         },
   { href: "/dashboard/screener",      label: "Screener",      icon: SlidersHorizontal },
-  { href: "/dashboard/notifications", label: "Notifications", icon: Bell            },
-  { href: "/dashboard/settings",      label: "Settings",      icon: Settings        },
+  { href: "/dashboard/tax",           label: "Tax & Lots",    icon: FileText          },
+  { href: "/dashboard/notifications", label: "Notifications", icon: Bell              },
+  { href: "/dashboard/settings",      label: "Settings",      icon: Settings          },
 ];
 
 function ThemeToggle() {
