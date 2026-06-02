@@ -11,7 +11,7 @@ import { useMarket } from "@/lib/MarketContext";
 import StockSearch from "@/components/StockSearch";
 import { useLivePrices } from "@/lib/websocket";
 import { fetchWithAuth } from "@/lib/auth";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, TrendingUp, TrendingDown, Trophy } from "lucide-react";
 
 const fadeUp = {
   hidden:  { opacity: 0, y: 16 },
@@ -100,6 +100,13 @@ interface PortfolioSummaryResponse {
   totalCost?:      number;
   totalPnl?:       number;
   totalPnlPct?:    number;
+}
+
+// ── Community leaderboard types ───────────────────────────────────────────────
+interface LeaderboardEntry {
+  userId?: string;
+  rank: number; username: string; name: string;
+  returnPct: number; totalValue: number; positions: number;
 }
 
 function CardNetworkIcon({ network }: { network: CardNetwork }) {
@@ -276,7 +283,6 @@ function getLogoUrl(sym: string, domain?: string) {
     : `https://unavatar.io/clearbit/${sym.toLowerCase()}`;
 }
 
-// ── resolveSymbol uses .NS for Indian stocks ──────────────────────────────────
 function resolveSymbol(symbol: string, marketId: string) {
   if (marketId === "IN" && !symbol.includes(".") && !symbol.includes("/"))
     return `${symbol}.NS`;
@@ -298,7 +304,6 @@ function StockAvatar({ symbol, color, bg, letter, px = 32 }: {
       fontSize: px * 0.33, fontWeight: 700, overflow: "hidden",
     }}>
       {!imgError && !isFx ? (
-        // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt={symbol} width={px * 0.6} height={px * 0.6}
           style={{ objectFit: "contain", borderRadius: "50%" }}
           onError={() => setImgError(true)} />
@@ -388,6 +393,97 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
   );
 }
 
+// ── Community Mini Widget ─────────────────────────────────────────────────────
+function CommunityWidget() {
+  const router = useRouter();
+  const [leaders, setLeaders] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchWithAuth("/api/community/leaderboard?sort=returnPct&limit=3")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.leaderboard) setLeaders(data.leaderboard); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const medals = ["🥇", "🥈", "🥉"];
+
+  return (
+    <Card>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Trophy size={13} color="#8FFFD6" />
+          <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>Top Traders</span>
+        </div>
+        <button onClick={() => router.push("/dashboard/community")}
+          style={{ background: "none", border: "none", color: "#8FFFD6", fontSize: 10, fontWeight: 600, cursor: "pointer", padding: 0 }}>
+          View all →
+        </button>
+      </div>
+
+      {loading ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {[1,2,3].map(i => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+              <div style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--color-line)", opacity: 0.4, flexShrink: 0 }} />
+              <div style={{ flex: 1, height: 10, borderRadius: 4, background: "var(--color-line)", opacity: 0.3 }} />
+              <div style={{ width: 36, height: 10, borderRadius: 4, background: "var(--color-line)", opacity: 0.3 }} />
+            </div>
+          ))}
+        </div>
+      ) : leaders.length === 0 ? (
+        <div style={{ padding: "16px 0", textAlign: "center" }}>
+          <p style={{ color: "var(--color-muted)", fontSize: 11, margin: 0 }}>No public traders yet</p>
+          <button onClick={() => router.push("/dashboard/community")}
+            style={{ marginTop: 8, padding: "5px 14px", borderRadius: 8, border: "1px solid #8FFFD644", background: "#8FFFD610", color: "#8FFFD6", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+            Join Community
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {leaders.map((entry, i) => {
+            const up     = entry.returnPct >= 0;
+            const letter = (entry.name || entry.username || "?")[0].toUpperCase();
+            const hue    = (letter.charCodeAt(0) * 37) % 360;
+            return (
+              <motion.button key={entry.userId ?? i}
+                whileHover={{ x: 3 }}
+                onClick={() => router.push("/dashboard/community")}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 4px", borderRadius: 8, background: "transparent", border: "none", cursor: "pointer", width: "100%", textAlign: "left" }}>
+                <span style={{ fontSize: 14, flexShrink: 0 }}>{medals[i]}</span>
+                <div style={{
+                  width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                  background: `hsl(${hue},60%,35%)`,
+                  border: `1px solid hsl(${hue},60%,50%)`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 10, fontWeight: 700, color: `hsl(${hue},80%,80%)`,
+                }}>
+                  {letter}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {entry.name || entry.username || "Anonymous"}
+                  </p>
+                  {entry.username && (
+                    <p style={{ color: "var(--color-muted)", fontSize: 9, margin: 0 }}>@{entry.username}</p>
+                  )}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
+                  {up ? <TrendingUp size={10} color="#22c55e" /> : <TrendingDown size={10} color="#ef4444" />}
+                  <span style={{ color: up ? "#22c55e" : "#ef4444", fontSize: 11, fontWeight: 700 }}>
+                    {up ? "+" : ""}{entry.returnPct.toFixed(1)}%
+                  </span>
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [activeRange, setActiveRange] = useState("1M");
@@ -395,7 +491,6 @@ export default function DashboardPage() {
   const [realTransactions,  setRealTransactions]  = useState<OrderRow[]>([]);
   const [realHoldings,      setRealHoldings]      = useState<{ symbol: string; shares: number; color: string; bg: string; letter: string }[]>([]);
   const [portfolioValue,    setPortfolioValue]    = useState<string | null>(null);
-  // ── NEW: real portfolio gain string ──────────────────────────────────────
   const [portfolioGain,     setPortfolioGain]     = useState<string | null>(null);
   const [activityData,      setActivityData]      = useState<{ date: string; value: number; daysAgo: number }[] | null>(null);
   const [realTradingScore,  setRealTradingScore]  = useState<number | null>(null);
@@ -411,7 +506,6 @@ export default function DashboardPage() {
 
   const displayHoldings       = realHoldings.length > 0 ? realHoldings : md.holdings;
   const displayPortfolioValue = portfolioValue ?? md.portfolioValue;
-  // ── Use real gain if available, fall back to static ───────────────────────
   const displayPortfolioGain  = portfolioGain ?? md.portfolioGain;
 
   const displayTransactions: DashboardTransaction[] = realTransactions.length > 0
@@ -436,24 +530,29 @@ export default function DashboardPage() {
   const countedTradingPoints = useCountUp(tradingPointsTarget);
   const countedTradingScore  = useCountUp(tradingScoreNumeric);
 
-  // ── Effect 1: portfolio + recent orders ───────────────────────────────────
   useEffect(() => {
-    setRealTransactions([]);
-    setRealHoldings([]);
-    setPortfolioValue(null);
-    setPortfolioGain(null);
-    setRealTradingScore(null);
-    setRealTradingPoints(null);
-    setDataLoading(true);
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setRealTransactions([]);
+      setRealHoldings([]);
+      setPortfolioValue(null);
+      setPortfolioGain(null);
+      setRealTradingScore(null);
+      setRealTradingPoints(null);
+      setDataLoading(true);
+    });
 
     Promise.all([
       fetchWithAuth(`/api/portfolio/summary?market=${key}`),
       fetchWithAuth(`/api/orders/paginated?page=0&size=5`),
     ])
       .then(async ([portfolioRes, ordersRes]) => {
+        if (cancelled) return;
         if (portfolioRes.ok) {
           const data = await portfolioRes.json() as PortfolioSummaryResponse;
-
+          if (cancelled) return;
           setRealHoldings((data.holdings ?? []).map((h) => ({
             symbol: h.symbol,
             shares: h.quantity ?? h.shares ?? 0,
@@ -461,15 +560,10 @@ export default function DashboardPage() {
             bg:     "rgba(143,255,214,0.1)",
             letter: (h.symbol ?? "?")[0],
           })));
-
           const val = data.totalValue ?? data.portfolioValue ?? null;
           if (val != null) {
-            setPortfolioValue(
-              `${currency}${Number(val).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
-            );
+            setPortfolioValue(`${currency}${Number(val).toLocaleString("en-US", { minimumFractionDigits: 2 })}`);
           }
-
-          // ── Wire real portfolio gain ──────────────────────────────────
           const pnl    = data.totalPnl ?? 0;
           const pnlPct = data.totalPnlPct ?? 0;
           if (pnl !== 0) {
@@ -477,58 +571,60 @@ export default function DashboardPage() {
             const pnlStr = `${sign}${currency}${Math.abs(pnl).toLocaleString("en-US", { minimumFractionDigits: 2 })} (${sign}${Math.abs(pnlPct).toFixed(2)}%) this month`;
             setPortfolioGain(pnlStr);
           }
-
           const totalCost = data.totalInvested ?? data.totalCost ?? 0;
           if (totalCost > 0) {
             setRealTradingScore(Math.floor(totalCost));
             setRealTradingPoints(Math.floor(totalCost / 10));
           }
         }
-
         if (ordersRes.ok) {
           const data = await ordersRes.json() as { orders?: OrderRow[] };
+          if (cancelled) return;
           const allOrders = data.orders ?? [];
-          const marketOrders = allOrders.filter(
-            o => o.market && o.market.toUpperCase() === key
-          );
+          const marketOrders = allOrders.filter(o => o.market && o.market.toUpperCase() === key);
           setRealTransactions(marketOrders.length > 0 ? marketOrders : allOrders);
         }
       })
       .catch(() => {})
-      .finally(() => setDataLoading(false));
+      .finally(() => {
+        if (!cancelled) setDataLoading(false);
+      });
 
+    return () => {
+      cancelled = true;
+    };
   }, [key, currency]);
 
-  // ── Effect 2: activity chart ──────────────────────────────────────────────
   useEffect(() => {
-    setActivityData(null);
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (!cancelled) setActivityData(null);
+    });
 
     fetchWithAuth(`/api/orders`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then((orders: OrderRow[]) => {
-        const marketOrders = orders.filter(
-          o => o.market && o.market.toUpperCase() === key
-        );
+        if (cancelled) return;
+        const marketOrders = orders.filter(o => o.market && o.market.toUpperCase() === key);
         const source = marketOrders.length > 0 ? marketOrders : orders;
-
         const grouped: Record<string, number> = {};
         source.forEach((o) => {
           const d     = new Date(o.createdAt ?? "");
           const label = d.toLocaleString("en-US", { month: "short" });
           grouped[label] = (grouped[label] ?? 0) + Math.abs(o.total ?? 0);
         });
-
-        const result = Object.entries(grouped).map(([date, value]) => ({
-          date,
-          value:   Math.round(value),
-          daysAgo: 0,
-        }));
-
+        const result = Object.entries(grouped).map(([date, value]) => ({ date, value: Math.round(value), daysAgo: 0 }));
         if (result.length >= 2) setActivityData(result);
         else setActivityData(null);
       })
-      .catch(() => setActivityData(null));
+      .catch(() => {
+        if (!cancelled) setActivityData(null);
+      });
 
+    return () => {
+      cancelled = true;
+    };
   }, [key]);
 
   return (
@@ -543,26 +639,15 @@ export default function DashboardPage() {
         @keyframes ping { 0%{transform:scale(1);opacity:.75} 100%{transform:scale(2.2);opacity:0} }
       `}</style>
 
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0  }}
-        transition={{ duration: 0.3 }}
-        style={{ maxWidth: 440 }}
-      >
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} style={{ maxWidth: 440 }}>
         <StockSearch />
       </motion.div>
 
       {/* ROW 1 */}
-      <motion.div
-        variants={stagger}
-        initial="hidden"
-        animate="visible"
+      <motion.div variants={stagger} initial="hidden" animate="visible"
         style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 240px", gap: 12 }}
-        className="responsive-grid-1"
-      >
-        <style>{`
-          @media (max-width: 768px) { .responsive-grid-1 { grid-template-columns: 1fr !important; } }
-        `}</style>
+        className="responsive-grid-1">
+        <style>{`@media (max-width: 768px) { .responsive-grid-1 { grid-template-columns: 1fr !important; } }`}</style>
 
         {/* Buy & Sell Activity */}
         <Card style={{ position: "relative", overflow: "hidden", minHeight: 240, padding: 16 }}>
@@ -576,54 +661,27 @@ export default function DashboardPage() {
                   color:      activeRange === r ? "var(--color-page)"    : "var(--color-muted)",
                   border:     activeRange === r ? "none" : "1px solid var(--color-line)",
                   cursor: "pointer", transition: "all 0.15s",
-                }}>
-                  {r}
-                </button>
+                }}>{r}</button>
               ))}
             </div>
           </div>
-
           <div style={{ position: "relative", height: 160 }}>
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 10 }}>
               {pins.map((pin, i) => {
-                const accentColor = pin.color === "#8FFFD6" ? "#8FFFD6"
-                  : pin.color === "#fff" ? "var(--color-primary)" : "#ef4444";
-                const dotBg = pin.color === "#8FFFD6" ? "#22c55e"
-                  : pin.color === "#fff" ? "#555" : "#ef4444";
+                const accentColor = pin.color === "#8FFFD6" ? "#8FFFD6" : pin.color === "#fff" ? "var(--color-primary)" : "#ef4444";
+                const dotBg = pin.color === "#8FFFD6" ? "#22c55e" : pin.color === "#fff" ? "#555" : "#ef4444";
                 return (
-                  <motion.div key={i}
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 1, scale: 1   }}
-                    transition={{ delay: 0.4 + i * 0.1, duration: 0.3, type: "spring" }}
-                    style={{
-                      position: "absolute", left: pin.left, top: pin.top,
-                      display: "flex", flexDirection: "column", alignItems: "center",
-                      transform: "translateX(-50%)",
-                    }}>
-                    <div style={{
-                      borderRadius: 6, padding: "2px 7px", fontSize: 9, fontWeight: 600,
-                      whiteSpace: "nowrap", marginBottom: 3,
-                      background: "var(--color-card)", color: accentColor,
-                      border: `1px solid ${accentColor}44`,
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                    }}>{pin.label}</div>
+                  <motion.div key={i} initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.4 + i * 0.1, duration: 0.3, type: "spring" }}
+                    style={{ position: "absolute", left: pin.left, top: pin.top, display: "flex", flexDirection: "column", alignItems: "center", transform: "translateX(-50%)" }}>
+                    <div style={{ borderRadius: 6, padding: "2px 7px", fontSize: 9, fontWeight: 600, whiteSpace: "nowrap", marginBottom: 3, background: "var(--color-card)", color: accentColor, border: `1px solid ${accentColor}44`, boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>{pin.label}</div>
                     <div style={{ width: 1, height: 12, background: `${accentColor}88` }} />
-                    <div style={{
-                      width: 14, height: 14, borderRadius: "50%", background: dotBg,
-                      border: `2px solid ${accentColor}`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 7, fontWeight: 800, color: "#fff",
-                      boxShadow: `0 0 6px ${accentColor}66`,
-                    }}>{pin.letter}</div>
+                    <div style={{ width: 14, height: 14, borderRadius: "50%", background: dotBg, border: `2px solid ${accentColor}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 7, fontWeight: 800, color: "#fff", boxShadow: `0 0 6px ${accentColor}66` }}>{pin.letter}</div>
                   </motion.div>
                 );
               })}
             </div>
             <ResponsiveContainer width="100%" height={160}>
-              <AreaChart
-                data={activityData ?? filterDashboardData(activeRange)}
-                margin={{ top: 28, right: 8, bottom: 0, left: -20 }}
-              >
+              <AreaChart data={activityData ?? filterDashboardData(activeRange)} margin={{ top: 28, right: 8, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor="#8FFFD6" stopOpacity={0.18}/>
@@ -632,14 +690,8 @@ export default function DashboardPage() {
                 </defs>
                 <XAxis dataKey="date" tick={{ fill: "var(--color-muted)", fontSize: 9 }} axisLine={false} tickLine={false}/>
                 <YAxis hide/>
-                <Tooltip
-                  contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-line)", borderRadius: 8, fontSize: 11 }}
-                  itemStyle={{ color: "var(--color-primary)" }}
-                  labelStyle={{ color: "var(--color-muted)" }}
-                />
-                <Area type="monotone" dataKey="value" stroke="#8FFFD6" strokeWidth={1.5}
-                  fill="url(#actGrad)" dot={false} isAnimationActive={true}
-                  animationDuration={600} animationEasing="ease-out"/>
+                <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-line)", borderRadius: 8, fontSize: 11 }} itemStyle={{ color: "var(--color-primary)" }} labelStyle={{ color: "var(--color-muted)" }}/>
+                <Area type="monotone" dataKey="value" stroke="#8FFFD6" strokeWidth={1.5} fill="url(#actGrad)" dot={false} isAnimationActive animationDuration={600} animationEasing="ease-out"/>
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -655,18 +707,9 @@ export default function DashboardPage() {
             </p>
             <p style={{ color: "var(--color-muted)", fontSize: 11, margin: "0 0 20px" }}>Total buy volume</p>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ color: "var(--color-primary)", fontWeight: 800, fontSize: 22, letterSpacing: "-0.02em" }}>
-                {countedTradingPoints.toLocaleString()}
-              </span>
-              <div style={{
-                width: 22, height: 22, borderRadius: "50%",
-                background: "linear-gradient(135deg,#8FFFD6,#00c896)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: "0 0 8px #8FFFD644",
-              }}>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="#0a0a0a">
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-                </svg>
+              <span style={{ color: "var(--color-primary)", fontWeight: 800, fontSize: 22, letterSpacing: "-0.02em" }}>{countedTradingPoints.toLocaleString()}</span>
+              <div style={{ width: 22, height: 22, borderRadius: "50%", background: "linear-gradient(135deg,#8FFFD6,#00c896)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 8px #8FFFD644" }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="#0a0a0a"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
               </div>
             </div>
             <p style={{ color: "var(--color-muted)", fontSize: 11, marginTop: 4 }}>Trading points</p>
@@ -675,19 +718,12 @@ export default function DashboardPage() {
       </motion.div>
 
       {/* ROW 2 */}
-      <motion.div
-        variants={stagger}
-        initial="hidden"
-        animate="visible"
-        transition={{ delayChildren: 0.15 }}
+      <motion.div variants={stagger} initial="hidden" animate="visible" transition={{ delayChildren: 0.15 }}
         style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr)", gap: 12 }}
-        className="responsive-grid-2"
-      >
-        <style>{`
-          @media (max-width: 768px) { .responsive-grid-2 { grid-template-columns: 1fr !important; } }
-        `}</style>
+        className="responsive-grid-2">
+        <style>{`@media (max-width: 768px) { .responsive-grid-2 { grid-template-columns: 1fr !important; } }`}</style>
 
-        {/* LEFT col */}
+        {/* LEFT col — Holdings + Activity + Dividend + Community */}
         <motion.div variants={fadeUp} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
 
           {/* Total Holdings */}
@@ -700,26 +736,15 @@ export default function DashboardPage() {
                 const navSymbol = resolveSymbol(h.symbol, key);
                 return (
                   <motion.button key={h.symbol}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1   }}
+                    initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.3 + i * 0.06, duration: 0.3 }}
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
+                    whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
                     onClick={() => router.push(`/dashboard/stock/${navSymbol}?market=${key}`)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      padding: "6px 8px", borderRadius: 10,
-                      background: "transparent", border: "none",
-                      cursor: "pointer", textAlign: "left",
-                    }}>
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 10, background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
                     <StockAvatar symbol={h.symbol} color={h.color} bg={h.bg} letter={h.letter} px={28} />
                     <div style={{ minWidth: 0 }}>
-                      <p style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 600, margin: 0 }}>
-                        {h.shares} {h.shares > 999 ? "u" : "Sh"}
-                      </p>
-                      <p style={{ color: "var(--color-muted)", fontSize: 9, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 60 }}>
-                        {h.symbol.replace(/\.(NS|BSE|NSE)$/, "")}
-                      </p>
+                      <p style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 600, margin: 0 }}>{h.shares} {h.shares > 999 ? "u" : "Sh"}</p>
+                      <p style={{ color: "var(--color-muted)", fontSize: 9, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 60 }}>{h.symbol.replace(/\.(NS|BSE|NSE)$/, "")}</p>
                     </div>
                   </motion.button>
                 );
@@ -727,33 +752,21 @@ export default function DashboardPage() {
             </div>
           </Card>
 
-          {/* Trading Activity — wired to real order count */}
+          {/* Trading Activity */}
           <Card>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <p style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13, margin: "0 0 4px" }}>Trading Activity</p>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                  {/* ── FIXED: real order count instead of hardcoded 48 ── */}
-                  <span style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 22 }}>
-                    {realTransactions.length > 0 ? realTransactions.length : 48}
-                  </span>
+                  <span style={{ color: "var(--color-primary)", fontWeight: 700, fontSize: 22 }}>{realTransactions.length > 0 ? realTransactions.length : 48}</span>
                   <span style={{ color: "var(--color-muted)", fontSize: 11 }}>/trades</span>
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 40 }}>
                 {WEEKLY_ACTIVITY.map((d, i) => (
                   <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                    <motion.div
-                      initial={{ scaleY: 0 }}
-                      animate={{ scaleY: 1 }}
-                      transition={{ delay: 0.5 + i * 0.05, duration: 0.4, ease: "easeOut" }}
-                      style={{
-                        width: 10, borderRadius: 3,
-                        height: `${(d.trades / 12) * 34}px`,
-                        background: i === 2 ? "#8FFFD6" : "var(--color-line)",
-                        transformOrigin: "bottom",
-                      }}
-                    />
+                    <motion.div initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ delay: 0.5 + i * 0.05, duration: 0.4, ease: "easeOut" }}
+                      style={{ width: 10, borderRadius: 3, height: `${(d.trades / 12) * 34}px`, background: i === 2 ? "#8FFFD6" : "var(--color-line)", transformOrigin: "bottom" }} />
                     <span style={{ color: "var(--color-muted)", fontSize: 7 }}>{d.day}</span>
                   </div>
                 ))}
@@ -782,6 +795,9 @@ export default function DashboardPage() {
               </div>
             </div>
           </Card>
+
+          {/* ── Community Mini Widget ── */}
+          <CommunityWidget />
         </motion.div>
 
         {/* CENTER: Portfolio */}
@@ -789,26 +805,14 @@ export default function DashboardPage() {
           <Card style={{ display: "flex", flexDirection: "column", minWidth: 0, height: "100%" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <span style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: 13 }}>My Portfolio</span>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                 onClick={() => router.push("/dashboard/wallet")}
-                style={{
-                  display: "flex", alignItems: "center", gap: 4,
-                  padding: "5px 12px", borderRadius: 10, fontSize: 11, fontWeight: 600,
-                  background: "linear-gradient(135deg,#8FFFD6,#00c896)",
-                  color: "#0a0a0a", border: "none", cursor: "pointer",
-                }}>
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 10, fontSize: 11, fontWeight: 600, background: "linear-gradient(135deg,#8FFFD6,#00c896)", color: "#0a0a0a", border: "none", cursor: "pointer" }}>
                 + Deposit
               </motion.button>
             </div>
-            <p style={{ color: "var(--color-primary)", fontWeight: 800, fontSize: 26, lineHeight: 1.1, letterSpacing: "-0.03em", margin: "0 0 4px" }}>
-              {displayPortfolioValue}
-            </p>
-            {/* ── FIXED: real portfolio gain ── */}
-            <p style={{ color: (portfolioGain ?? "").startsWith("-") ? "#ef4444" : "#22c55e", fontSize: 12, fontWeight: 600, margin: "0 0 12px" }}>
-              {displayPortfolioGain}
-            </p>
+            <p style={{ color: "var(--color-primary)", fontWeight: 800, fontSize: 26, lineHeight: 1.1, letterSpacing: "-0.03em", margin: "0 0 4px" }}>{displayPortfolioValue}</p>
+            <p style={{ color: (portfolioGain ?? "").startsWith("-") ? "#ef4444" : "#22c55e", fontSize: 12, fontWeight: 600, margin: "0 0 12px" }}>{displayPortfolioGain}</p>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
               {PORTFOLIO_CATEGORIES.map((cat, i) => (
                 <div key={cat.label}>
@@ -819,12 +823,8 @@ export default function DashboardPage() {
                   <div style={{ height: 44, borderRadius: 10, overflow: "hidden", background: "var(--color-surface-hover)", position: "relative" }}>
                     <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, display: "flex", alignItems: "flex-end", gap: 1, padding: "0 4px", height: "100%" }}>
                       {BAR_HEIGHTS[cat.label].map((h, j) => (
-                        <motion.div key={j}
-                          initial={{ scaleY: 0 }}
-                          animate={{ scaleY: 1 }}
-                          transition={{ delay: 0.4 + i * 0.1 + j * 0.01, duration: 0.4, ease: "easeOut" }}
-                          style={{ flex: 1, borderRadius: "2px 2px 0 0", height: `${h}%`, background: cat.color, opacity: 0.65 + j / 60, transformOrigin: "bottom" }}
-                        />
+                        <motion.div key={j} initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ delay: 0.4 + i * 0.1 + j * 0.01, duration: 0.4, ease: "easeOut" }}
+                          style={{ flex: 1, borderRadius: "2px 2px 0 0", height: `${h}%`, background: cat.color, opacity: 0.65 + j / 60, transformOrigin: "bottom" }} />
                       ))}
                     </div>
                   </div>
@@ -843,20 +843,14 @@ export default function DashboardPage() {
                 {Object.values(livePrices).some(p => p.live) && <LiveDot />}
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", display: "flex", alignItems: "center", padding: 2 }}>
-                  <Search size={13}/>
-                </button>
-                <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", display: "flex", alignItems: "center", padding: 2 }}>
-                  <SlidersHorizontal size={13}/>
-                </button>
+                <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", display: "flex", alignItems: "center", padding: 2 }}><Search size={13}/></button>
+                <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", display: "flex", alignItems: "center", padding: 2 }}><SlidersHorizontal size={13}/></button>
               </div>
             </div>
-
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
               <span style={{ color: "var(--color-muted)", fontSize: 11 }}>Recent</span>
               <span style={{ color: "var(--color-muted)", fontSize: 11 }}>{displayTransactions.length} Transactions</span>
             </div>
-
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               {dataLoading ? (
                 [1,2,3,4,5].map(i => (
@@ -874,52 +868,29 @@ export default function DashboardPage() {
                 const liveChange    = live?.changePct ?? null;
                 const displayChange = live?.live ? liveChange : tx.change;
                 const isPos = displayChange !== null && displayChange > 0;
-
                 return (
                   <motion.button key={`${tx.symbol}-${i}`}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0  }}
+                    initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.3 + i * 0.07, duration: 0.35 }}
                     whileHover={{ x: 3 }}
                     onClick={() => router.push(`/dashboard/stock/${resolvedSym}?market=${key}`)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      padding: "7px 6px", borderRadius: 10, width: "100%",
-                      background: "transparent", border: "none", cursor: "pointer",
-                    }}>
-
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 6px", borderRadius: 10, width: "100%", background: "transparent", border: "none", cursor: "pointer" }}>
                     <StockAvatar symbol={tx.symbol} color={tx.color} bg={tx.bg} letter={tx.letter} px={30} />
-
                     <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
-                      <p style={{
-                        color: "var(--color-primary)", fontSize: 11, fontWeight: 600,
-                        margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      }}>
+                      <p style={{ color: "var(--color-primary)", fontSize: 11, fontWeight: 600, margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {tx.symbol.replace(/\.(BSE|NSE|NS)$/i, "")}
                       </p>
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                         <CardNetworkIcon network={tx.cardNetwork} />
-                        <span style={{ color: "var(--color-muted)", fontSize: 10, letterSpacing: "0.05em" }}>
-                          ****{tx.cardLast4}
-                        </span>
+                        <span style={{ color: "var(--color-muted)", fontSize: 10, letterSpacing: "0.05em" }}>****{tx.cardLast4}</span>
                       </div>
                     </div>
-
                     {displayChange !== null && (
-                      <span style={{
-                        fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 99, flexShrink: 0,
-                        background: isPos ? "#22c55e22" : "#ef444422",
-                        color:      isPos ? "#22c55e"   : "#ef4444",
-                      }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 99, flexShrink: 0, background: isPos ? "#22c55e22" : "#ef444422", color: isPos ? "#22c55e" : "#ef4444" }}>
                         {isPos ? "+" : ""}{live?.live ? `${liveChange?.toFixed(1)}%` : displayChange}
                       </span>
                     )}
-
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 8, flexShrink: 0,
-                      background: tx.amount < 0 ? "#ef444422" : "#22c55e22",
-                      color:      tx.amount < 0 ? "#ef4444"   : "#22c55e",
-                    }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 8, flexShrink: 0, background: tx.amount < 0 ? "#ef444422" : "#22c55e22", color: tx.amount < 0 ? "#ef4444" : "#22c55e" }}>
                       {tx.amount < 0 ? "-" : "+"}{currency}{Math.abs(tx.amount)}
                     </span>
                   </motion.button>

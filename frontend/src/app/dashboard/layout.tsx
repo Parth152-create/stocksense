@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Briefcase, BookMarked, BarChart3,
   Settings, Bell, LogOut, ChevronRight, TrendingUp, Sparkles, Wallet,
-  Sun, Moon, Menu, X, SlidersHorizontal, FileText,
+  Sun, Moon, Menu, X, SlidersHorizontal, FileText, Users,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { motion, AnimatePresence } from "framer-motion";
@@ -27,6 +27,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/orders",        label: "Orders",        icon: BarChart3         },
   { href: "/dashboard/screener",      label: "Screener",      icon: SlidersHorizontal },
   { href: "/dashboard/tax",           label: "Tax & Lots",    icon: FileText          },
+  { href: "/dashboard/community",    label: "Community",  icon: Users          },
   { href: "/dashboard/notifications", label: "Notifications", icon: Bell              },
   { href: "/dashboard/settings",      label: "Settings",      icon: Settings          },
 ];
