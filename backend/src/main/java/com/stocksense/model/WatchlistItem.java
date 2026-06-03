@@ -28,39 +28,34 @@ public class WatchlistItem {
     @Column(precision = 19, scale = 4)
     private BigDecimal lastCheckedPrice;
 
-    public UUID getId() {
-        return id;
-    }
+    // ── Shared watchlist ──────────────────────────────────────────────────────
+    // shareToken: a random UUID string generated when the user first shares
+    //             their watchlist. Stored on every item belonging to that user
+    //             so a single token resolves all their symbols.
+    // shared:     true  = this user's watchlist is publicly accessible via token
+    //             false = private (default)
+    @Column(unique = false)          // same token on all rows for one user — not unique per row
+    private String shareToken;
 
-    public UUID getUserId() {
-        return userId;
-    }
+    @Column(nullable = false)
+    private boolean shared = false;
 
-    public String getSymbol() {
-        return symbol;
-    }
+    // ── Getters ───────────────────────────────────────────────────────────────
 
-    public BigDecimal getAlertPrice() {
-        return alertPrice;
-    }
+    public UUID getId()                         { return id; }
+    public UUID getUserId()                     { return userId; }
+    public String getSymbol()                   { return symbol; }
+    public BigDecimal getAlertPrice()           { return alertPrice; }
+    public BigDecimal getLastCheckedPrice()     { return lastCheckedPrice; }
+    public String getShareToken()               { return shareToken; }
+    public boolean isShared()                   { return shared; }
 
-    public BigDecimal getLastCheckedPrice() {
-        return lastCheckedPrice;
-    }
+    // ── Setters ───────────────────────────────────────────────────────────────
 
-    public void setUserId(UUID userId) {
-        this.userId = userId;
-    }
-
-    public void setSymbol(String symbol) {
-        this.symbol = symbol;
-    }
-
-    public void setAlertPrice(BigDecimal alertPrice) {
-        this.alertPrice = alertPrice;
-    }
-
-    public void setLastCheckedPrice(BigDecimal lastCheckedPrice) {
-        this.lastCheckedPrice = lastCheckedPrice;
-    }
+    public void setUserId(UUID userId)                      { this.userId = userId; }
+    public void setSymbol(String symbol)                    { this.symbol = symbol; }
+    public void setAlertPrice(BigDecimal alertPrice)        { this.alertPrice = alertPrice; }
+    public void setLastCheckedPrice(BigDecimal v)           { this.lastCheckedPrice = v; }
+    public void setShareToken(String shareToken)            { this.shareToken = shareToken; }
+    public void setShared(boolean shared)                   { this.shared = shared; }
 }

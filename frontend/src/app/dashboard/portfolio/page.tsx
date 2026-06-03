@@ -19,9 +19,7 @@ interface HoldingRow {
   avgPrice: number; currentPrice: number;
   marketValue: number; pnl: number; pnlPct: number;
 }
-interface PortfolioHoldingApiRow extends HoldingRow {
-  quantity?: number;
-}
+interface PortfolioHoldingApiRow extends HoldingRow { quantity?: number; }
 interface PortfolioSummary {
   totalValue: number; totalCost: number;
   totalPnl: number; totalPnlPct: number;
@@ -46,7 +44,6 @@ const LOGO_DOMAINS: Record<string, string> = {
   AMZN: "amazon.com", GOOGL: "google.com", RELIANCE: "ril.com", TCS: "tcs.com",
   INFY: "infosys.com", HDFCBANK: "hdfcbank.com", WIPRO: "wipro.com",
 };
-
 const SYMBOL_COLORS: Record<string, { color: string; bg: string }> = {
   NVDA:     { color: "#76b900", bg: "#76b90018" },
   AAPL:     { color: "#aaaaaa", bg: "#aaaaaa18" },
@@ -81,7 +78,7 @@ const C = {
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.07 } } };
 const cardV = {
   hidden:  { opacity: 0, y: 18, scale: 0.97 },
-  visible: { opacity: 1, y: 0,  scale: 1, transition: { duration: 0.42, ease: APPLE } },
+  visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.42, ease: APPLE } },
 };
 const fadeUp = {
   hidden:  { opacity: 0, y: 14 },
@@ -118,45 +115,35 @@ function toNavSymbol(symbol: string) { return symbol.replace(/\.(BSE|NSE)$/i, ""
 function PnlBreakdownCard({ unrealizedPnl, unrealizedPnlPct, realizedPnl, totalCombinedPnl, currency }: {
   unrealizedPnl: number; unrealizedPnlPct: number; realizedPnl: number; totalCombinedPnl: number; currency: string;
 }) {
-  const fmtAbs = (n: number) => `${n >= 0 ? "+" : "-"}${currency}${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtAbs  = (n: number) => `${n >= 0 ? "+" : "-"}${currency}${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const colorFor = (n: number) => n >= 0 ? "#22c55e" : "#ef4444";
   const combinedUp = totalCombinedPnl >= 0;
   return (
     <motion.div variants={cardV} whileHover={{ y: -2, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", transition: { duration: 0.18 } }}
+      className="pnl-span"
       style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", position: "relative", overflow: "hidden", gridColumn: "span 2" }}>
       <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 180, background: `radial-gradient(ellipse at right, ${combinedUp ? "#8FFFD6" : "#ef4444"}08 0%, transparent 70%)`, pointerEvents: "none" }} />
       <p style={{ color: C.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 14px" }}>P&amp;L Breakdown</p>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 10, background: unrealizedPnl >= 0 ? "rgba(34,197,94,0.06)" : "rgba(239,68,68,0.06)", border: `1px solid ${unrealizedPnl >= 0 ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)"}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: unrealizedPnl >= 0 ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Unlock size={13} color={colorFor(unrealizedPnl)} />
+        {[
+          { label: "Unrealized", sub: "Open positions", icon: <Unlock size={13} color={colorFor(unrealizedPnl)} />, pnl: unrealizedPnl, pct: unrealizedPnlPct, showPct: true },
+          { label: "Realized",   sub: "Closed trades · FIFO", icon: <Lock size={13} color={colorFor(realizedPnl)} />, pnl: realizedPnl, pct: null, showPct: false },
+        ].map(({ label, sub, icon, pnl, pct, showPct }) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 10, background: pnl >= 0 ? "rgba(34,197,94,0.06)" : "rgba(239,68,68,0.06)", border: `1px solid ${pnl >= 0 ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)"}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: pnl >= 0 ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>{icon}</div>
+              <div>
+                <p style={{ color: C.primary, fontSize: 12, fontWeight: 600, margin: 0 }}>{label}</p>
+                <p style={{ color: C.muted, fontSize: 10, margin: "1px 0 0" }}>{sub}</p>
+              </div>
             </div>
-            <div>
-              <p style={{ color: C.primary, fontSize: 12, fontWeight: 600, margin: 0 }}>Unrealized</p>
-              <p style={{ color: C.muted, fontSize: 10, margin: "1px 0 0" }}>Open positions</p>
-            </div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <p style={{ color: colorFor(unrealizedPnl), fontSize: 14, fontWeight: 700, margin: 0 }}>{fmtAbs(unrealizedPnl)}</p>
-            <p style={{ color: colorFor(unrealizedPnl), fontSize: 10, margin: "2px 0 0", opacity: 0.8 }}>{unrealizedPnlPct >= 0 ? "+" : ""}{unrealizedPnlPct.toFixed(2)}%</p>
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 10, background: realizedPnl >= 0 ? "rgba(34,197,94,0.06)" : "rgba(239,68,68,0.06)", border: `1px solid ${realizedPnl >= 0 ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)"}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: realizedPnl >= 0 ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Lock size={13} color={colorFor(realizedPnl)} />
-            </div>
-            <div>
-              <p style={{ color: C.primary, fontSize: 12, fontWeight: 600, margin: 0 }}>Realized</p>
-              <p style={{ color: C.muted, fontSize: 10, margin: "1px 0 0" }}>Closed trades · FIFO</p>
+            <div style={{ textAlign: "right" }}>
+              <p style={{ color: colorFor(pnl), fontSize: 14, fontWeight: 700, margin: 0 }}>{fmtAbs(pnl)}</p>
+              {showPct && pct != null && <p style={{ color: colorFor(pnl), fontSize: 10, margin: "2px 0 0", opacity: 0.8 }}>{pct >= 0 ? "+" : ""}{pct.toFixed(2)}%</p>}
+              {!showPct && <p style={{ color: C.muted, fontSize: 10, margin: "2px 0 0" }}>{pnl === 0 ? "No closed positions" : "Locked in"}</p>}
             </div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <p style={{ color: colorFor(realizedPnl), fontSize: 14, fontWeight: 700, margin: 0 }}>{fmtAbs(realizedPnl)}</p>
-            <p style={{ color: C.muted, fontSize: 10, margin: "2px 0 0" }}>{realizedPnl === 0 ? "No closed positions" : "Locked in"}</p>
-          </div>
-        </div>
+        ))}
       </div>
       <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 12, paddingTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ color: C.muted, fontSize: 11, fontWeight: 600 }}>Combined Total</span>
@@ -174,12 +161,12 @@ export default function PortfolioPage() {
   const { market } = useMarket();
   const currency   = market.currency || "$";
 
-  const [holdings,         setHoldings]         = useState<HoldingRow[]>([]);
-  const [summary,          setSummary]           = useState<PortfolioSummary | null>(null);
-  const [portfolioHistory, setPortfolioHistory]  = useState<{ t: string; v: number }[]>([]);
-  const [loading,          setLoading]           = useState(true);
-  const [sortBy,           setSortBy]            = useState<"value" | "pnl" | "pnlpct">("value");
-  const [exportingPdf,     setExportingPdf]      = useState(false);
+  const [holdings,        setHoldings]        = useState<HoldingRow[]>([]);
+  const [summary,         setSummary]         = useState<PortfolioSummary | null>(null);
+  const [portfolioHistory,setPortfolioHistory] = useState<{ t: string; v: number }[]>([]);
+  const [loading,         setLoading]         = useState(true);
+  const [sortBy,          setSortBy]          = useState<"value" | "pnl" | "pnlpct">("value");
+  const [exportingPdf,    setExportingPdf]    = useState(false);
 
   const loadPortfolio = useCallback(async () => {
     setLoading(true);
@@ -213,7 +200,7 @@ export default function PortfolioPage() {
         if (Array.isArray(data) && data.length >= 2)
           setPortfolioHistory(data.map((p) => ({ t: p.date, v: p.value })));
       }
-    } catch { /* auth redirect handled upstream */ }
+    } catch { }
     finally { setLoading(false); }
   }, [market.id]);
 
@@ -222,7 +209,6 @@ export default function PortfolioPage() {
     return () => window.clearTimeout(timeout);
   }, [loadPortfolio]);
 
-  // ── PDF export ─────────────────────────────────────────────────────────────
   const handleExportPdf = async () => {
     setExportingPdf(true);
     try {
@@ -237,11 +223,10 @@ export default function PortfolioPage() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-    } catch { /* non-fatal */ }
+    } catch { }
     finally { setExportingPdf(false); }
   };
 
-  // Derived values
   const totalValue       = summary?.totalValue       ?? holdings.reduce((s, h) => s + h.marketValue, 0);
   const totalCost        = summary?.totalCost        ?? holdings.reduce((s, h) => s + h.avgPrice * h.qty, 0);
   const totalPnl         = summary?.totalPnl         ?? (totalValue - totalCost);
@@ -257,9 +242,8 @@ export default function PortfolioPage() {
 
   const sectorData = (() => {
     const realAlloc = summary?.allocation;
-    if (Array.isArray(realAlloc) && realAlloc.length > 0) {
+    if (Array.isArray(realAlloc) && realAlloc.length > 0)
       return realAlloc.map((a, i) => ({ name: a.label, value: totalValue > 0 ? (a.pct / 100) * totalValue : 0, color: SECTOR_COLORS[i % SECTOR_COLORS.length] }));
-    }
     const totals: Record<string, number> = {};
     holdings.forEach(h => { const sym = h.symbol.replace(/\.(BSE|NSE)$/i, ""); const sector = SECTOR_MAP[sym] ?? "Other"; totals[sector] = (totals[sector] ?? 0) + h.marketValue; });
     return Object.entries(totals).map(([name, value], i) => ({ name, value, color: SECTOR_COLORS[i % SECTOR_COLORS.length] }));
@@ -276,69 +260,72 @@ export default function PortfolioPage() {
   const fmt = (n: number) => `${currency}${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <div style={{ padding: "24px 32px", maxWidth: 1200, margin: "0 auto", fontFamily: "var(--font-gantari,'Gantari',system-ui,sans-serif)", background: C.page, minHeight: "100vh" }}>
+    <div style={{ padding: "16px", maxWidth: 1200, margin: "0 auto", fontFamily: "var(--font-gantari,'Gantari',system-ui,sans-serif)", background: C.page, minHeight: "100vh", boxSizing: "border-box" }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        @media (max-width: 1024px) {
-          .stats-grid { grid-template-columns: 1fr 1fr !important; }
-          .chart-donut-grid { grid-template-columns: 1fr !important; }
-          .holdings-cols { grid-template-columns: 2fr 1fr 1fr 80px !important; }
-          .hide-md { display: none !important; }
-          .pnl-span { grid-column: span 1 !important; }
-        }
-        @media (max-width: 640px) {
-          .stats-grid { grid-template-columns: 1fr !important; }
-          .holdings-cols { grid-template-columns: 1fr 1fr 80px !important; }
-          .hide-sm { display: none !important; }
-        }
+
+        /* Stats grid: 4 cols → 2 → 1 */
+        .port-stats-grid { grid-template-columns: 1.4fr 1fr 1fr 1fr; }
+        @media (max-width: 900px)  { .port-stats-grid { grid-template-columns: 1fr 1fr; } .pnl-span { grid-column: span 2 !important; } }
+        @media (max-width: 480px)  { .port-stats-grid { grid-template-columns: 1fr; }    .pnl-span { grid-column: span 1 !important; } }
+
+        /* Chart + donut: side-by-side → stacked */
+        .port-chart-grid { grid-template-columns: minmax(0,1fr) 290px; }
+        @media (max-width: 768px)  { .port-chart-grid { grid-template-columns: 1fr; } }
+
+        /* Header action buttons: wrap on mobile */
+        .port-header { flex-wrap: wrap; gap: 10px; }
+        .port-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+        /* Holdings table columns */
+        .h-cols { grid-template-columns: 2.2fr 0.8fr 1fr 1fr 1.1fr 1.1fr 90px; }
+        @media (max-width: 900px)  { .h-cols { grid-template-columns: 2.2fr 1fr 1.1fr 80px; } .hide-md { display: none !important; } }
+        @media (max-width: 540px)  { .h-cols { grid-template-columns: 1fr 1.1fr 70px; }        .hide-sm { display: none !important; } }
+
+        /* Export buttons: hide labels on very small */
+        @media (max-width: 400px) { .port-btn-label { display: none; } }
       `}</style>
 
       {/* ── Header ── */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: APPLE }}
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        className="port-header"
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
           <h1 style={{ color: C.primary, fontWeight: 700, fontSize: 20, margin: 0, letterSpacing: -0.3 }}>My Portfolio</h1>
           <p style={{ color: C.muted, fontSize: 12, margin: "4px 0 0" }}>{market.flag} {market.label} · {holdings.length} positions</p>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          {/* Export CSV */}
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-            onClick={() => exportPortfolioCsv(holdings)}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", borderRadius: 10, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
-            <Download size={13} /> Export CSV
+        <div className="port-actions">
+          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={() => exportPortfolioCsv(holdings)}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+            <Download size={13} /><span className="port-btn-label">CSV</span>
           </motion.button>
-          {/* Export PDF */}
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-            onClick={handleExportPdf}
-            disabled={exportingPdf}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", borderRadius: 10, border: `1px solid ${C.line}`, background: exportingPdf ? C.hover : "transparent", color: exportingPdf ? C.muted : C.muted, cursor: exportingPdf ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, opacity: exportingPdf ? 0.6 : 1 }}>
-            {exportingPdf
-              ? <div style={{ width: 13, height: 13, border: `2px solid ${C.line}`, borderTop: "2px solid #8FFFD6", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-              : <FileText size={13} />}
-            {exportingPdf ? "Exporting…" : "Export PDF"}
+          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={handleExportPdf} disabled={exportingPdf}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.line}`, background: exportingPdf ? C.hover : "transparent", color: C.muted, cursor: exportingPdf ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, opacity: exportingPdf ? 0.6 : 1 }}>
+            {exportingPdf ? <div style={{ width: 13, height: 13, border: `2px solid ${C.line}`, borderTop: "2px solid #8FFFD6", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} /> : <FileText size={13} />}
+            <span className="port-btn-label">{exportingPdf ? "…" : "PDF"}</span>
           </motion.button>
           <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.9 }} onClick={loadPortfolio}
             style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <RefreshCw size={14} />
           </motion.button>
           <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => router.push("/dashboard")}
-            style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", background: "#8FFFD6", borderRadius: 10, border: "none", cursor: "pointer", color: "#0a0a0a", fontWeight: 700, fontSize: 13 }}>
-            <Plus size={14} /> Add Position
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", background: "#8FFFD6", borderRadius: 10, border: "none", cursor: "pointer", color: "#0a0a0a", fontWeight: 700, fontSize: 13 }}>
+            <Plus size={14} /><span className="port-btn-label">Add</span>
           </motion.button>
         </div>
       </motion.div>
 
       {/* ── Stats row ── */}
-      <motion.div initial="hidden" animate="visible" variants={stagger} className="stats-grid"
-        style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 14, marginBottom: 24 }}>
+      <motion.div initial="hidden" animate="visible" variants={stagger}
+        className="port-stats-grid"
+        style={{ display: "grid", gap: 12, marginBottom: 20 }}>
+
+        {/* Total Value */}
         <motion.div variants={cardV} whileHover={{ y: -2, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", transition: { duration: 0.18 } }}
-          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 140, background: `radial-gradient(ellipse at right, ${isUp ? "#8FFFD6" : "#ef4444"}10 0%, transparent 70%)`, pointerEvents: "none" }} />
+          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "18px 20px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 120, background: `radial-gradient(ellipse at right, ${isUp ? "#8FFFD6" : "#ef4444"}10 0%, transparent 70%)`, pointerEvents: "none" }} />
           <p style={{ color: C.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 8px" }}>Total Value</p>
-          <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.4, ease: APPLE }}
-            style={{ color: C.primary, fontWeight: 800, fontSize: 28, margin: 0, letterSpacing: -0.5 }}>
-            {currency}{countedValue.toLocaleString("en-US")}
-          </motion.p>
+          <p style={{ color: C.primary, fontWeight: 800, fontSize: 26, margin: 0, letterSpacing: -0.5 }}>{currency}{countedValue.toLocaleString("en-US")}</p>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
             {isUp ? <TrendingUp size={13} color="#22c55e" /> : <TrendingDown size={13} color="#ef4444" />}
             <span style={{ color: isUp ? "#22c55e" : "#ef4444", fontSize: 12, fontWeight: 600 }}>
@@ -347,36 +334,33 @@ export default function PortfolioPage() {
           </div>
         </motion.div>
 
+        {/* Total Cost */}
         <motion.div variants={cardV} whileHover={{ y: -2, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", transition: { duration: 0.18 } }}
-          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", top: -20, right: -20, width: 80, height: 80, borderRadius: "50%", background: "radial-gradient(circle, rgba(99,102,241,0.1) 0%, transparent 70%)", pointerEvents: "none" }} />
+          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "18px 20px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
           <p style={{ color: C.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 8px" }}>Total Cost</p>
-          <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.4, ease: APPLE }}
-            style={{ color: C.muted, fontWeight: 700, fontSize: 22, margin: 0, letterSpacing: -0.3 }}>
-            {currency}{countedCost.toLocaleString("en-US")}
-          </motion.p>
+          <p style={{ color: C.muted, fontWeight: 700, fontSize: 22, margin: 0, letterSpacing: -0.3 }}>{currency}{countedCost.toLocaleString("en-US")}</p>
           <p style={{ color: C.muted, fontSize: 11, margin: "6px 0 0" }}>Invested capital</p>
         </motion.div>
 
+        {/* Positions */}
         <motion.div variants={cardV} whileHover={{ y: -2, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", transition: { duration: 0.18 } }}
-          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", top: -20, right: -20, width: 80, height: 80, borderRadius: "50%", background: "radial-gradient(circle, rgba(143,255,214,0.1) 0%, transparent 70%)", pointerEvents: "none" }} />
+          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "18px 20px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
           <p style={{ color: C.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.8, margin: "0 0 8px" }}>Positions</p>
-          <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.4, ease: APPLE }}
-            style={{ color: "#8FFFD6", fontWeight: 700, fontSize: 22, margin: 0, letterSpacing: -0.3 }}>
-            {holdings.length}
-          </motion.p>
+          <p style={{ color: "#8FFFD6", fontWeight: 700, fontSize: 22, margin: 0, letterSpacing: -0.3 }}>{holdings.length}</p>
           <p style={{ color: C.muted, fontSize: 11, margin: "6px 0 0" }}>Active holdings</p>
         </motion.div>
 
+        {/* P&L Breakdown — spans 2 cols on wide, full width on mobile */}
         <PnlBreakdownCard unrealizedPnl={unrealizedPnl} unrealizedPnlPct={unrealizedPnlPct} realizedPnl={realizedPnl} totalCombinedPnl={totalCombinedPnl} currency={currency} />
       </motion.div>
 
       {/* ── Chart + Donut ── */}
-      <motion.div variants={fadeUp} initial="hidden" animate="visible" className="chart-donut-grid"
-        style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 290px", gap: 16, marginBottom: 24 }}>
-        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+      <motion.div variants={fadeUp} initial="hidden" animate="visible"
+        className="port-chart-grid"
+        style={{ display: "grid", gap: 14, marginBottom: 20 }}>
+
+        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "18px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <p style={{ color: C.primary, fontWeight: 600, fontSize: 13, margin: 0 }}>Portfolio Performance</p>
             <span style={{ color: "#22c55e", fontSize: 12, fontWeight: 600 }}>{allTimePctLabel}</span>
           </div>
@@ -396,34 +380,34 @@ export default function PortfolioPage() {
           </ResponsiveContainer>
         </div>
 
-        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px" }}>
+        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "18px 20px" }}>
           <p style={{ color: C.primary, fontWeight: 600, fontSize: 13, margin: "0 0 4px" }}>Sector Allocation</p>
-          <p style={{ color: C.muted, fontSize: 11, margin: "0 0 12px" }}>{sectorData.length} sectors</p>
+          <p style={{ color: C.muted, fontSize: 11, margin: "0 0 10px" }}>{sectorData.length} sectors</p>
           {sectorData.length === 0 ? (
             <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center" }}><p style={{ color: C.muted, fontSize: 12 }}>No data yet</p></div>
           ) : (
-            <ResponsiveContainer width="100%" height={130}>
+            <ResponsiveContainer width="100%" height={120}>
               <PieChart>
-                <Pie data={sectorData} cx="50%" cy="50%" innerRadius={38} outerRadius={56} dataKey="value" stroke="none" animationBegin={200} animationDuration={800}>
+                <Pie data={sectorData} cx="50%" cy="50%" innerRadius={34} outerRadius={52} dataKey="value" stroke="none" animationBegin={200} animationDuration={800}>
                   {sectorData.map((s, i) => <Cell key={i} fill={s.color} />)}
                 </Pie>
                 <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-line)", borderRadius: 8, fontSize: 11 }} formatter={(v: unknown) => [`${currency}${typeof v === "number" ? v.toLocaleString() : String(v)}`, ""]} />
               </PieChart>
             </ResponsiveContainer>
           )}
-          <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
             {sectorData.map(s => {
               const pct = totalValue > 0 ? (s.value / totalValue) * 100 : 0;
               return (
                 <div key={s.name}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />
                       <span style={{ color: C.muted, fontSize: 11 }}>{s.name}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ color: C.muted, fontSize: 10 }}>{currency}{s.value.toLocaleString()}</span>
-                      <span style={{ color: C.primary, fontSize: 11, fontWeight: 700, minWidth: 32, textAlign: "right" }}>{pct.toFixed(0)}%</span>
+                      <span style={{ color: C.primary, fontSize: 11, fontWeight: 700, minWidth: 28, textAlign: "right" }}>{pct.toFixed(0)}%</span>
                     </div>
                   </div>
                   <div style={{ height: 3, borderRadius: 99, background: "var(--color-line)", overflow: "hidden" }}>
@@ -439,7 +423,8 @@ export default function PortfolioPage() {
       {/* ── Holdings Table ── */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.4, ease: APPLE }}
         style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, overflow: "hidden", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `1px solid ${C.line}` }}>
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${C.line}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <p style={{ color: C.primary, fontWeight: 600, fontSize: 13, margin: 0 }}>Holdings</p>
             {!loading && sorted.length > 0 && (
@@ -449,16 +434,19 @@ export default function PortfolioPage() {
           <div style={{ display: "flex", background: C.page, border: `1px solid ${C.line}`, borderRadius: 8, padding: 3, gap: 2 }}>
             {(["value", "pnl", "pnlpct"] as const).map(s => (
               <motion.button key={s} onClick={() => setSortBy(s)} whileTap={{ scale: 0.95 }}
-                style={{ padding: "4px 10px", borderRadius: 5, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 600, transition: "all 0.15s", background: sortBy === s ? C.card : "transparent", color: sortBy === s ? "#8FFFD6" : C.muted }}>
-                {s === "value" ? "Value" : s === "pnl" ? "P&L $" : "P&L %"}
+                style={{ padding: "4px 8px", borderRadius: 5, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 600, transition: "all 0.15s", background: sortBy === s ? C.card : "transparent", color: sortBy === s ? "#8FFFD6" : C.muted }}>
+                {s === "value" ? "Val" : s === "pnl" ? "P&L$" : "P&L%"}
               </motion.button>
             ))}
           </div>
         </div>
 
-        <div className="holdings-cols" style={{ display: "grid", gridTemplateColumns: "2.2fr 0.8fr 1fr 1fr 1.1fr 1.1fr 90px", padding: "10px 20px", borderBottom: `1px solid ${C.line}`, background: "var(--color-surface-hover)" }}>
-          {["Asset", "Weight", "Avg Price", "Current", "Market Value", "P&L", ""].map((h, i) => (
-            <span key={i} className={i >= 2 && i <= 4 ? "hide-md" : ""} style={{ color: C.muted, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{h}</span>
+        {/* Column headers */}
+        <div className="h-cols" style={{ display: "grid", padding: "9px 16px", borderBottom: `1px solid ${C.line}`, background: "var(--color-surface-hover)" }}>
+          {["Asset", "Weight", "Avg", "Current", "Value", "P&L", ""].map((h, i) => (
+            <span key={i}
+              className={[i === 1 ? "hide-sm" : "", i >= 2 && i <= 4 ? "hide-md" : ""].join(" ").trim()}
+              style={{ color: C.muted, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{h}</span>
           ))}
         </div>
 
@@ -489,32 +477,37 @@ export default function PortfolioPage() {
                 <motion.div key={h.symbol} variants={rowAnim}
                   whileHover={{ backgroundColor: "var(--color-surface-hover)", transition: { duration: 0.12 } }}
                   onClick={() => router.push(`/dashboard/stock/${nav}?market=${market.id}`)}
-                  className="holdings-cols"
-                  style={{ display: "grid", gridTemplateColumns: "2.2fr 0.8fr 1fr 1fr 1.1fr 1.1fr 90px", padding: "14px 20px", borderBottom: i < sorted.length - 1 ? `1px solid ${C.line}` : "none", cursor: "pointer", alignItems: "center" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <StockAvatar symbol={h.symbol} color={color} bg={bg} size={34} />
+                  className="h-cols"
+                  style={{ display: "grid", padding: "12px 16px", borderBottom: i < sorted.length - 1 ? `1px solid ${C.line}` : "none", cursor: "pointer", alignItems: "center" }}>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <StockAvatar symbol={h.symbol} color={color} bg={bg} size={32} />
                     <div style={{ minWidth: 0 }}>
                       <p style={{ color: C.primary, fontWeight: 600, fontSize: 13, margin: 0 }}>{sym}</p>
-                      <p style={{ color: C.muted, fontSize: 11, margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>{h.name}</p>
+                      <p style={{ color: C.muted, fontSize: 10, margin: "1px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 100 }}>{h.name}</p>
                     </div>
                   </div>
+
                   <div className="hide-sm">
                     <p style={{ color: C.primary, fontSize: 12, fontWeight: 600, margin: 0 }}>{weight.toFixed(1)}%</p>
                     <WeightBar pct={weight} color={color} />
                   </div>
-                  <span className="hide-md" style={{ color: C.muted, fontSize: 13 }}>{currency}{h.avgPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-                  <span className="hide-md" style={{ color: C.primary, fontSize: 13, fontWeight: 500 }}>{currency}{h.currentPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-                  <span className="hide-md" style={{ color: C.primary, fontSize: 13, fontWeight: 600 }}>{currency}{h.marketValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+
+                  <span className="hide-md" style={{ color: C.muted, fontSize: 12 }}>{currency}{h.avgPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                  <span className="hide-md" style={{ color: C.primary, fontSize: 12 }}>{currency}{h.currentPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                  <span className="hide-md" style={{ color: C.primary, fontSize: 12, fontWeight: 600 }}>{currency}{h.marketValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+
                   <div>
-                    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", padding: "5px 9px", borderRadius: 8, background: up ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", border: `1px solid ${up ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}` }}>
-                      <span style={{ color: up ? "#22c55e" : "#ef4444", fontSize: 12, fontWeight: 700, lineHeight: 1.3 }}>{up ? "+" : "-"}{currency}{Math.abs(h.pnl).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-                      <span style={{ color: up ? "#22c55e" : "#ef4444", fontSize: 10, fontWeight: 500, opacity: 0.8 }}>{up ? "+" : ""}{h.pnlPct.toFixed(2)}%</span>
+                    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", padding: "4px 8px", borderRadius: 8, background: up ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", border: `1px solid ${up ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}` }}>
+                      <span style={{ color: up ? "#22c55e" : "#ef4444", fontSize: 11, fontWeight: 700, lineHeight: 1.3 }}>{up ? "+" : "-"}{currency}{Math.abs(h.pnl).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                      <span style={{ color: up ? "#22c55e" : "#ef4444", fontSize: 9, fontWeight: 500, opacity: 0.8 }}>{up ? "+" : ""}{h.pnlPct.toFixed(2)}%</span>
                     </div>
                   </div>
+
                   <motion.button whileHover={{ scale: 1.04, borderColor: "#8FFFD6", color: "#8FFFD6" }} whileTap={{ scale: 0.96 }}
                     onClick={e => { e.stopPropagation(); router.push(`/dashboard/stock/${nav}?market=${market.id}`); }}
-                    style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 7, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", fontSize: 11, fontWeight: 600, transition: "all 0.15s" }}>
-                    Trade <ArrowUpRight size={11} />
+                    style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 8px", borderRadius: 7, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", fontSize: 11, fontWeight: 600, transition: "all 0.15s" }}>
+                    <ArrowUpRight size={11} />
                   </motion.button>
                 </motion.div>
               );

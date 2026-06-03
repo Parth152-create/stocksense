@@ -6,7 +6,8 @@ import { fetchWithAuth } from "@/lib/auth";
 import { useMarket } from "@/hooks/useMarket";
 import {
   Trophy, Users, TrendingUp, TrendingDown, Search,
-  Globe, Lock, Edit3, Check, X, RefreshCw, ChevronUp, ChevronDown,
+  Globe, Lock, Edit3, X, RefreshCw, Copy, CheckCircle,
+  AlertCircle, Loader,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -23,6 +24,14 @@ interface PublicProfile {
 }
 interface MyProfile {
   username: string; name: string; bio: string; publicProfile: boolean;
+}
+interface CopyResult {
+  success: boolean;
+  message: string;
+  placed?: number;
+  skipped?: number;
+  totalSpent?: number;
+  orders?: { symbol: string; quantity: number; price: number; total: number }[];
 }
 
 const APPLE = [0.22, 1, 0.36, 1] as const;
@@ -77,6 +86,181 @@ function AllocationBar({ allocation }: { allocation?: { label: string; pct: numb
       {allocation.map((a, i) => (
         <div key={a.label} style={{ width: `${a.pct}%`, background: SECTOR_COLORS[i % SECTOR_COLORS.length], borderRadius: 99 }} />
       ))}
+    </div>
+  );
+}
+
+// ── Copy Confirm Modal ────────────────────────────────────────────────────────
+function CopyConfirmModal({ entry, currency, onClose, onSuccess }: {
+  entry: LeaderboardEntry;
+  currency: string;
+  onClose: () => void;
+  onSuccess: (result: CopyResult) => void;
+}) {
+  const [loading,  setLoading]  = useState(false);
+  const [result,   setResult]   = useState<CopyResult | null>(null);
+
+  const execute = async () => {
+    setLoading(true);
+    try {
+      const res  = await fetchWithAuth(`/api/community/copy/${entry.username}`, { method: "POST" });
+      const data = await res.json();
+      const r: CopyResult = res.ok
+        ? { success: true, ...data }
+        : { success: false, message: data.error || "Copy failed" };
+      setResult(r);
+      if (r.success) onSuccess(r);
+    } catch {
+      setResult({ success: false, message: "Network error — please try again" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const up = entry.returnPct >= 0;
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 50,
+        display: "flex", alignItems: "center", justifyContent: "center" }}
+      onClick={!loading ? onClose : undefined}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2, ease: APPLE }}
+        style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16,
+          padding: "28px 32px", width: 460, maxWidth: "calc(100vw - 32px)" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Copy size={16} color="#8FFFD6" />
+            <h3 style={{ color: "#8FFFD6", fontWeight: 700, fontSize: 16, margin: 0 }}>Copy Portfolio</h3>
+          </div>
+          {!loading && (
+            <button onClick={onClose} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer" }}>
+              <X size={16} />
+            </button>
+          )}
+        </div>
+
+        {/* ── Pre-confirm state ── */}
+        {!result && (
+          <>
+            {/* Trader card */}
+            <div style={{ background: C.page, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
+              <Avatar name={entry.name || entry.username} size={44} />
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                  <p style={{ color: C.primary, fontWeight: 700, fontSize: 14, margin: 0 }}>{entry.name || "Anonymous"}</p>
+                  {entry.username && <span style={{ color: C.muted, fontSize: 12 }}>@{entry.username}</span>}
+                  <RankBadge rank={entry.rank} />
+                </div>
+                <div style={{ display: "flex", gap: 16 }}>
+                  <span style={{ color: C.muted, fontSize: 12 }}>
+                    {currency}{entry.totalValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                  </span>
+                  <span style={{ color: up ? "#22c55e" : "#ef4444", fontSize: 12, fontWeight: 600 }}>
+                    {up ? "+" : ""}{entry.returnPct.toFixed(2)}%
+                  </span>
+                  <span style={{ color: "#8FFFD6", fontSize: 12 }}>{entry.positions} positions</span>
+                </div>
+              </div>
+            </div>
+
+            {/* What will happen */}
+            <div style={{ marginBottom: 20 }}>
+              <p style={{ color: C.muted, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, margin: "0 0 10px" }}>What happens</p>
+              {[
+                "Each of their holdings is weighted by its share of the portfolio",
+                "Those weights are applied to your current wallet balance",
+                "MARKET BUY orders are placed for each position",
+                "Your existing positions are not sold or changed",
+              ].map((text, i) => (
+                <div key={i} style={{ display: "flex", gap: 10, marginBottom: 7, alignItems: "flex-start" }}>
+                  <div style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(143,255,214,0.12)", border: "1px solid rgba(143,255,214,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                    <span style={{ color: "#8FFFD6", fontSize: 9, fontWeight: 700 }}>{i + 1}</span>
+                  </div>
+                  <p style={{ color: C.muted, fontSize: 12, margin: 0, lineHeight: 1.5 }}>{text}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Warning */}
+            <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 10, padding: "10px 14px", marginBottom: 20, display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <AlertCircle size={14} color="#f59e0b" style={{ flexShrink: 0, marginTop: 1 }} />
+              <p style={{ color: "#f59e0b", fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+                Copy trading involves risk. Past performance is not a guarantee of future results. Only invest what you can afford to lose.
+              </p>
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={onClose}
+                style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={execute}
+                disabled={loading}
+                style={{ flex: 2, padding: "11px 0", borderRadius: 10, border: "none", background: "#8FFFD6", color: "#0a0a0a", cursor: loading ? "not-allowed" : "pointer", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: loading ? 0.7 : 1 }}
+              >
+                {loading ? <><Loader size={14} style={{ animation: "spin 0.8s linear infinite" }} /> Placing orders…</> : <><Copy size={14} /> Copy @{entry.username}</>}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Result state ── */}
+        {result && (
+          <div style={{ textAlign: "center" }}>
+            {result.success ? (
+              <>
+                <CheckCircle size={44} color="#22c55e" style={{ margin: "0 auto 16px" }} />
+                <p style={{ color: C.primary, fontWeight: 700, fontSize: 16, margin: "0 0 6px" }}>Portfolio Copied!</p>
+                <p style={{ color: C.muted, fontSize: 13, margin: "0 0 20px" }}>{result.message}</p>
+                <div style={{ display: "flex", gap: 0, background: C.page, border: `1px solid ${C.line}`, borderRadius: 10, marginBottom: 20 }}>
+                  {[
+                    { label: "Orders placed", value: String(result.placed ?? 0), color: "#22c55e" },
+                    { label: "Skipped",        value: String(result.skipped ?? 0), color: C.muted },
+                    { label: "Total spent",    value: `${currency}${Number(result.totalSpent ?? 0).toLocaleString("en-US", { maximumFractionDigits: 2 })}`, color: "#8FFFD6" },
+                  ].map(({ label, value, color }, i) => (
+                    <div key={label} style={{ flex: 1, padding: "12px 0", textAlign: "center", borderRight: i < 2 ? `1px solid ${C.line}` : "none" }}>
+                      <p style={{ color: C.muted, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, margin: "0 0 4px" }}>{label}</p>
+                      <p style={{ color, fontSize: 15, fontWeight: 700, margin: 0 }}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+                {result.orders && result.orders.length > 0 && (
+                  <div style={{ background: C.page, border: `1px solid ${C.line}`, borderRadius: 10, padding: "4px 0", marginBottom: 20, maxHeight: 180, overflowY: "auto" }}>
+                    {result.orders.map(o => (
+                      <div key={o.symbol} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px", borderBottom: `1px solid ${C.line}` }}>
+                        <span style={{ color: "#8FFFD6", fontSize: 12, fontWeight: 700 }}>{o.symbol}</span>
+                        <span style={{ color: C.muted, fontSize: 12 }}>{o.quantity} × {currency}{Number(o.price).toFixed(2)}</span>
+                        <span style={{ color: C.primary, fontSize: 12, fontWeight: 600 }}>{currency}{Number(o.total).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <AlertCircle size={44} color="#ef4444" style={{ margin: "0 auto 16px" }} />
+                <p style={{ color: C.primary, fontWeight: 700, fontSize: 16, margin: "0 0 6px" }}>Copy Failed</p>
+                <p style={{ color: C.muted, fontSize: 13, margin: "0 0 20px" }}>{result.message}</p>
+              </>
+            )}
+            <button
+              onClick={onClose}
+              style={{ width: "100%", padding: "11px 0", borderRadius: 10, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13 }}
+            >
+              Close
+            </button>
+          </div>
+        )}
+      </motion.div>
     </div>
   );
 }
@@ -158,6 +342,7 @@ export default function CommunityPage() {
   const [search,       setSearch]       = useState("");
   const [editOpen,     setEditOpen]     = useState(false);
   const [togglingVis,  setTogglingVis]  = useState(false);
+  const [copyTarget,   setCopyTarget]   = useState<LeaderboardEntry | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -201,6 +386,10 @@ export default function CommunityPage() {
     !search || p.name.toLowerCase().includes(search.toLowerCase()) ||
     p.username.toLowerCase().includes(search.toLowerCase())
   );
+
+  // Is this leaderboard entry the current user?
+  const isMe = (entry: LeaderboardEntry) =>
+    myProfile?.username && entry.username === myProfile.username;
 
   return (
     <div style={{ padding: "24px 32px", maxWidth: 1100, margin: "0 auto", fontFamily: "var(--font-gantari,'Gantari',system-ui,sans-serif)", background: C.page, minHeight: "100vh" }}>
@@ -310,8 +499,9 @@ export default function CommunityPage() {
             </div>
           ) : (
             <motion.div initial="hidden" animate="visible" variants={stagger}>
-              {filteredLeaderboard.map((entry, i) => {
-                const up = entry.returnPct >= 0;
+              {filteredLeaderboard.map((entry) => {
+                const up   = entry.returnPct >= 0;
+                const mine = isMe(entry);
                 return (
                   <motion.div key={entry.userId} variants={fadeUp}
                     style={{ background: C.card, border: `1px solid ${entry.rank <= 3 ? "rgba(255,215,0,0.2)" : C.line}`, borderRadius: 14, padding: "16px 20px", marginBottom: 10, display: "flex", alignItems: "center", gap: 14 }}>
@@ -321,11 +511,14 @@ export default function CommunityPage() {
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                         <p style={{ color: C.primary, fontWeight: 700, fontSize: 14, margin: 0 }}>{entry.name || "Anonymous"}</p>
                         {entry.username && <span style={{ color: C.muted, fontSize: 11 }}>@{entry.username}</span>}
+                        {mine && (
+                          <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99, background: "rgba(99,102,241,0.12)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.3)" }}>You</span>
+                        )}
                       </div>
                       {entry.bio && <p style={{ color: C.muted, fontSize: 11, margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.bio}</p>}
                       <AllocationBar allocation={entry.allocation} />
                     </div>
-                    <div style={{ display: "flex", gap: 24, flexShrink: 0 }}>
+                    <div style={{ display: "flex", gap: 20, flexShrink: 0, alignItems: "center" }}>
                       <div style={{ textAlign: "right" }}>
                         <p style={{ color: C.muted, fontSize: 10, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: 0.5 }}>Value</p>
                         <p style={{ color: C.primary, fontSize: 14, fontWeight: 700, margin: 0 }}>{currency}{entry.totalValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}</p>
@@ -343,6 +536,17 @@ export default function CommunityPage() {
                         <p style={{ color: C.muted, fontSize: 10, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: 0.5 }}>Positions</p>
                         <p style={{ color: "#8FFFD6", fontSize: 14, fontWeight: 700, margin: 0 }}>{entry.positions}</p>
                       </div>
+                      {/* Copy button — hidden for own entry */}
+                      {!mine && entry.username && (
+                        <motion.button
+                          whileHover={{ scale: 1.04 }}
+                          whileTap={{ scale: 0.93 }}
+                          onClick={() => setCopyTarget(entry)}
+                          style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "1px solid rgba(143,255,214,0.35)", background: "rgba(143,255,214,0.07)", color: "#8FFFD6", cursor: "pointer", fontSize: 12, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap" }}
+                        >
+                          <Copy size={12} /> Copy
+                        </motion.button>
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -406,11 +610,19 @@ export default function CommunityPage() {
         </>
       )}
 
-      {/* Edit modal */}
+      {/* Modals */}
       <AnimatePresence>
         {editOpen && myProfile && (
           <ProfileEditModal profile={myProfile} onClose={() => setEditOpen(false)}
             onSave={updated => { setMyProfile(updated); loadData(); }} />
+        )}
+        {copyTarget && (
+          <CopyConfirmModal
+            entry={copyTarget}
+            currency={currency}
+            onClose={() => setCopyTarget(null)}
+            onSuccess={() => { /* result shown inside modal; close on user action */ }}
+          />
         )}
       </AnimatePresence>
 
