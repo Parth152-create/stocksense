@@ -65,8 +65,7 @@ async function requestBiometricCredential(): Promise<{ email: string; password: 
     const cred = await (navigator.credentials as any).get({
       password: true,
       mediation: "optional",
-    }) as (PasswordCredential & { id: string; password?: string }) | null;
-
+    }) as ({ id: string; password?: string }) | null;
     if (!cred) return null;
     return { email: cred.id, password: (cred as any).password ?? "" };
   } catch {
