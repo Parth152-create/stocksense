@@ -80,8 +80,10 @@ async function requestBiometricCredential(): Promise<{ email: string; password: 
  */
 async function storeCredential(email: string, password: string): Promise<void> {
   try {
-    if (!("credentials" in navigator) || !("PasswordCredential" in window)) return;
-    const cred = new (window as any).PasswordCredential({ id: email, password });
+    if (!("credentials" in navigator) || !((window as any).PasswordCredential)) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const PC = (window as any).PasswordCredential as new (init: { id: string; password: string }) => Credential;
+    const cred = new PC({ id: email, password });
     await navigator.credentials.store(cred);
     storeBiometricEmail(email);
   } catch { /* non-fatal */ }
