@@ -13,11 +13,14 @@ public class PortfolioService {
 
     private final OrderRepository     orderRepository;
     private final AlphaVantageService alphaVantageService;
+    private final StockService  stockService;
 
     public PortfolioService(OrderRepository orderRepository,
-                            AlphaVantageService alphaVantageService) {
+                            AlphaVantageService alphaVantageService,
+                            StockService stockService) {
         this.orderRepository     = orderRepository;
         this.alphaVantageService = alphaVantageService;
+        this.stockService        = stockService;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -371,9 +374,13 @@ public class PortfolioService {
 
     private double fetchLivePrice(String symbol, double fallback) {
         try {
+            // StockService.getQuote() is @Cacheable — hits Redis first
+            double live = stockService.getLivePrice(symbol);
+            if (live > 0) return live;
+            // Fallback to AlphaVantage if StockService returns 0
             Map<String, Object> quote = alphaVantageService.getQuote(symbol);
-            if (quote != null && quote.get("price") instanceof Number)
-                return ((Number) quote.get("price")).doubleValue();
+            if (quote != null && quote.get("price") instanceof Number n)
+                return n.doubleValue();
         } catch (Exception ignored) {}
         return fallback;
     }

@@ -13,6 +13,11 @@ public interface WatchlistRepository extends JpaRepository<WatchlistItem, UUID> 
 
     List<WatchlistItem> findByUserId(UUID userId);
 
+    void deleteByUserId(UUID userId);
+
+    @Query("SELECT w FROM WatchlistItem w WHERE w.alertPrice IS NOT NULL")
+    List<WatchlistItem> findAllWithAlertPrice();
+
     // All items that carry a given share token (may belong to one user)
     List<WatchlistItem> findByShareToken(String shareToken);
 

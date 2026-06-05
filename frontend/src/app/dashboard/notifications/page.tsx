@@ -116,13 +116,13 @@ export default function NotificationsPage() {
   return (
     <motion.div
       initial="hidden" animate="visible" variants={stagger}
-      style={{ padding: "32px 28px", maxWidth: 720, margin: "0 auto", fontFamily: "var(--font-gantari,'Gantari',system-ui,sans-serif)" }}
+      style={{ padding: 16, boxSizing: "border-box", maxWidth: 720, margin: "0 auto", fontFamily: "var(--font-gantari,'Gantari',system-ui,sans-serif)" }}
     >
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }`}</style>
 
       {/* ── Header ── */}
       <motion.div variants={fadeUp}
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
             <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: -0.3 }}>
@@ -164,7 +164,7 @@ export default function NotificationsPage() {
 
       {/* ── Filter tabs ── */}
       <motion.div variants={fadeUp}
-        style={{ display: "flex", gap: 2, marginBottom: 20, background: "var(--color-line)", borderRadius: 10, padding: 3, width: "fit-content" }}>
+        style={{ display: "flex", flexWrap: "wrap", gap: 2, marginBottom: 20, background: "var(--color-line)", borderRadius: 10, padding: 3, width: "fit-content", maxWidth: "100%" }}>
         {(["ALL", "UNREAD"] as const).map(f => (
           <motion.button key={f} onClick={() => setFilter(f)}
             whileTap={{ scale: 0.96 }}

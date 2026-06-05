@@ -1,0 +1,103 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # allow manual trigger from GitHub UI
+
+# Only one deploy runs at a time — cancel in-flight if a newer push arrives
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+
+    # Only deploy after CI passes
+    needs: []   # remove this line and uncomment below once CI is stable
+    # needs: [ci]  # reference the CI workflow's job names if using workflow_call
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Build and push Docker images to GitHub Container Registry ──────────
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/stocksense-backend:latest
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/stocksense-frontend:latest
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
+
+      # ── SSH into server and pull + restart ───────────────────────────────
+      #
+      # Required GitHub Secrets (set at repo → Settings → Secrets → Actions):
+      #   DEPLOY_HOST        — your server IP or hostname
+      #   DEPLOY_USER        — SSH username (e.g. ubuntu, root)
+      #   DEPLOY_SSH_KEY     — private SSH key (contents of ~/.ssh/id_rsa)
+      #   DEPLOY_PATH        — absolute path to StockSense on server (e.g. /opt/stocksense)
+      #
+      # Optional — if you don't have a remote server yet, comment out this step
+      # and the workflow will still build + push images to GHCR on every push to main.
+      # ─────────────────────────────────────────────────────────────────────────
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        if: ${{ secrets.DEPLOY_HOST != '' }}
+        with:
+          host:     ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key:      ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            echo "── Pulling latest images ──"
+            docker compose pull backend frontend
+
+            echo "── Restarting services ──"
+            docker compose up -d --no-build backend frontend
+
+            echo "── Waiting for backend health ──"
+            for i in $(seq 1 24); do
+              if docker compose ps backend | grep -q "healthy"; then
+                echo "Backend healthy after ${i}×5s"
+                break
+              fi
+              echo "  attempt $i/24..."
+              sleep 5
+            done
+
+            echo "── Pruning old images ──"
+            docker image prune -f
+
+            echo "── Deploy complete ──"
+            docker compose ps
+
+      # ── Notify on failure ─────────────────────────────────────────────────
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Deploy failed on commit ${{ github.sha }}"
+          echo "Check the logs above for details."

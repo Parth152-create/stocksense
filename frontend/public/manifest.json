@@ -46,6 +46,47 @@
       "description": "View your watchlist",
       "url": "/dashboard/watchlist",
       "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Orders",
+      "short_name": "Orders",
+      "description": "View your orders",
+      "url": "/dashboard/orders",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
     }
-  ]
+  ],
+  "widgets": [
+    {
+      "name": "Portfolio Value",
+      "short_name": "Portfolio",
+      "description": "Live portfolio value and daily P&L at a glance",
+      "tag": "portfolio-widget",
+      "template": "/widget-template.json",
+      "ms_ac_template": "/widget-template.json",
+      "data": "/api/widget/portfolio",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "/icons/icon-512x512.png",
+          "sizes": "512x512",
+          "form_factor": "narrow",
+          "label": "Portfolio value widget"
+        }
+      ],
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ],
+      "backgrounds": [
+        {
+          "color": "#0a0a0a"
+        }
+      ],
+      "auth": true,
+      "update": 900
+    }
+  ],
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"]
 }

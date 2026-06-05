@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/stocksense
+    url: jdbc:postgresql://postgres:5432/stocksense
     username: postgres
     password: password
 
@@ -25,6 +25,23 @@ spring:
           starttls:
             enable: true
             required: true
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  # Lettuce is the default client (no extra dep needed beyond starter-data-redis)
+  # In Docker: host = service name "redis" as defined in docker-compose.yml
+  # Locally (outside Docker): use localhost
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      # password: ${REDIS_PASSWORD:}   # uncomment if Redis auth is enabled
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 4
+          min-idle: 1
+          max-wait: 1000ms
 
 server:
   port: 8081

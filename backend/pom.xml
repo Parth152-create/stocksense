@@ -59,6 +59,14 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- ── Redis ──────────────────────────────────────────────────────── -->
+        <!-- Replaces Caffeine as the distributed cache layer.                 -->
+        <!-- Lettuce (the default client) is included transitively.            -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
         <!-- PostgreSQL -->
         <dependency>
             <groupId>org.postgresql</groupId>
@@ -99,7 +107,7 @@
             <version>2.2.0</version>
         </dependency>
 
-        <!-- Caffeine Cache -->
+        <!-- Caffeine — kept for local in-process caching in StockService -->
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
@@ -120,7 +128,7 @@
             <version>1.4.5</version>
         </dependency>
 
-        <!-- ── OpenPDF — PDF generation ───────────────────────────────────── -->
+        <!-- OpenPDF -->
         <dependency>
             <groupId>com.github.librepdf</groupId>
             <artifactId>openpdf</artifactId>

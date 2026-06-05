@@ -19,6 +19,22 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: stocksense-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── Spring Boot Backend ─────────────────────────────────────────────────────
   backend:
     build:
@@ -32,6 +48,8 @@ services:
       SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/stocksense
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      REDIS_HOST:                 redis
+      REDIS_PORT:                 6379
       JWT_SECRET:                 ${JWT_SECRET:-your_super_secret_key_change_in_production}
       JWT_EXPIRATION:             604800000
       ALPHAVANTAGE_API_KEY:       ${ALPHAVANTAGE_API_KEY:-demo}
@@ -50,6 +68,8 @@ services:
       JAVA_OPTS: "-XX:MaxRAMPercentage=75.0 -XX:+UseContainerSupport"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 8081 || exit 1"]
@@ -88,12 +108,12 @@ services:
     ports:
       - "3000:3000"
     environment:
-      HOSTNAME:                         "0.0.0.0"
-      NEXT_PUBLIC_API_URL:              http://backend:8081
-      NEXT_PUBLIC_ML_URL:               http://ml-service:8082
-      INTERNAL_API_URL:                 http://backend:8081
-      INTERNAL_ML_URL:                  http://ml-service:8082
-      NEXT_PUBLIC_GOOGLE_CLIENT_ID:     ${GOOGLE_CLIENT_ID:-}
+      HOSTNAME:                           "0.0.0.0"
+      NEXT_PUBLIC_API_URL:                http://backend:8081
+      NEXT_PUBLIC_ML_URL:                 http://ml-service:8082
+      INTERNAL_API_URL:                   http://backend:8081
+      INTERNAL_ML_URL:                    http://ml-service:8082
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID:       ${GOOGLE_CLIENT_ID:-}
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-pk_test_placeholder}
       NEXT_PUBLIC_RAZORPAY_KEY_ID:        ${RAZORPAY_KEY_ID:-rzp_test_placeholder}
     depends_on:
@@ -102,3 +122,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:

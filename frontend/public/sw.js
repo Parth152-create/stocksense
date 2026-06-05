@@ -7,38 +7,42 @@
  *   - Static assets (icons, images) → Cache First
  *   - Navigation requests → Network First, fallback to cached /dashboard
  *
+ * PWA Widget:
+ *   - Handles widgetinstall / widgetclick / widgetresume events
+ *   - Fetches /api/widget/portfolio and renders into the portfolio widget
+ *
  * Cache names are versioned — bump CACHE_VERSION to force full refresh.
  */
 
-const CACHE_VERSION   = 'v1';
-const SHELL_CACHE     = `stocksense-shell-${CACHE_VERSION}`;
-const API_CACHE       = `stocksense-api-${CACHE_VERSION}`;
-const STATIC_CACHE    = `stocksense-static-${CACHE_VERSION}`;
+const CACHE_VERSION = 'v2';
+const SHELL_CACHE   = `stocksense-shell-${CACHE_VERSION}`;
+const API_CACHE     = `stocksense-api-${CACHE_VERSION}`;
+const STATIC_CACHE  = `stocksense-static-${CACHE_VERSION}`;
 
 const SHELL_URLS = [
   '/',
   '/dashboard',
   '/manifest.json',
+  '/widget-template.json',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
 ];
 
-// ── Install — pre-cache app shell ─────────────────────────────────────────────
+// ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing StockSense service worker');
   event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) => {
-      // Use individual adds so one 404 doesn't kill the whole install
-      return Promise.allSettled(
-        SHELL_URLS.map(url => cache.add(url).catch(err =>
-          console.warn(`[SW] Failed to cache ${url}:`, err)
-        ))
-      );
-    }).then(() => self.skipWaiting())
+    caches.open(SHELL_CACHE).then((cache) =>
+      Promise.allSettled(
+        SHELL_URLS.map(url =>
+          cache.add(url).catch(err => console.warn(`[SW] Failed to cache ${url}:`, err))
+        )
+      )
+    ).then(() => self.skipWaiting())
   );
 });
 
-// ── Activate — delete old caches ──────────────────────────────────────────────
+// ── Activate ──────────────────────────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating StockSense service worker');
   event.waitUntil(
@@ -46,51 +50,166 @@ self.addEventListener('activate', (event) => {
       Promise.all(
         keys
           .filter(key => key.startsWith('stocksense-') && !key.endsWith(CACHE_VERSION))
-          .map(key => {
-            console.log('[SW] Deleting old cache:', key);
-            return caches.delete(key);
-          })
+          .map(key => { console.log('[SW] Deleting old cache:', key); return caches.delete(key); })
       )
     ).then(() => self.clients.claim())
   );
 });
 
-// ── Fetch — route requests ────────────────────────────────────────────────────
+// ── Fetch ─────────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Only handle same-origin + GET requests
   if (request.method !== 'GET') return;
   if (url.origin !== self.location.origin) return;
 
-  // API calls → Network First with timeout
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(networkFirstWithTimeout(request, API_CACHE, 3000));
     return;
   }
 
-  // Navigation (HTML pages) → Network First, fallback to /dashboard
   if (request.mode === 'navigate') {
     event.respondWith(navigationHandler(request));
     return;
   }
 
-  // Static assets → Cache First
   if (
     url.pathname.startsWith('/icons/') ||
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.endsWith('.png') ||
     url.pathname.endsWith('.svg') ||
     url.pathname.endsWith('.ico') ||
-    url.pathname === '/manifest.json'
+    url.pathname === '/manifest.json' ||
+    url.pathname === '/widget-template.json'
   ) {
     event.respondWith(cacheFirst(request, STATIC_CACHE));
     return;
   }
 
-  // Everything else → Network First
   event.respondWith(networkFirst(request, SHELL_CACHE));
+});
+
+// ── PWA Widget events ─────────────────────────────────────────────────────────
+//
+// The Widgets API (Chrome 114+ / Android 14+) fires these lifecycle events.
+// We fetch fresh portfolio data from /api/widget/portfolio and push it into
+// the widget via self.widgets.updateByTag().
+//
+// Fallback: if self.widgets is undefined (browser doesn't support widgets yet),
+// the handlers exit silently — no errors, no impact on the rest of the SW.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WIDGET_TAG = 'portfolio-widget';
+
+/** Fetch portfolio summary and shape it for the Adaptive Card template */
+async function getWidgetPayload() {
+  try {
+    // Retrieve the JWT from IndexedDB if available, else try without auth
+    // (widget data endpoint should handle missing auth gracefully)
+    const res = await fetch('/api/widget/portfolio', {
+      headers: { 'Accept': 'application/json' },
+    });
+
+    if (!res.ok) return buildFallbackPayload();
+    const data = await res.json();
+
+    const totalValue = data.totalValue ?? 0;
+    const pnl        = data.totalPnl   ?? 0;
+    const pnlPct     = data.totalPnlPct ?? 0;
+    const invested   = data.totalInvested ?? data.totalCost ?? 0;
+    const positions  = data.positions ?? 0;
+    const currency   = data.currency ?? '$';
+
+    const fmt = (n) => `${currency}${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    return {
+      totalValue: fmt(totalValue),
+      pnlSign:    pnl >= 0 ? '+' : '-',
+      pnlAbs:     fmt(pnl),
+      pnlPct:     (pnlPct >= 0 ? '+' : '') + pnlPct.toFixed(2),
+      pnlColor:   pnl >= 0 ? 'Good' : 'Attention',  // Adaptive Card color tokens
+      invested:   fmt(invested),
+      positions:  String(positions),
+      updatedAt:  new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    };
+  } catch {
+    return buildFallbackPayload();
+  }
+}
+
+function buildFallbackPayload() {
+  return {
+    totalValue: '—',
+    pnlSign:    '',
+    pnlAbs:     '—',
+    pnlPct:     '—',
+    pnlColor:   'Default',
+    invested:   '—',
+    positions:  '—',
+    updatedAt:  'Offline',
+  };
+}
+
+/** Update the widget with fresh data */
+async function updatePortfolioWidget() {
+  if (!self.widgets) return; // Browser doesn't support Widgets API yet
+
+  const widget = await self.widgets.getByTag(WIDGET_TAG);
+  if (!widget) return;
+
+  const payload = await getWidgetPayload();
+
+  await self.widgets.updateByTag(WIDGET_TAG, {
+    data: JSON.stringify(payload),
+  });
+
+  console.log('[SW] Portfolio widget updated:', payload.totalValue);
+}
+
+// Widget installed — user added it to their home screen
+self.addEventListener('widgetinstall', (event) => {
+  console.log('[SW] Widget installed:', event.widget?.tag);
+  event.waitUntil(updatePortfolioWidget());
+});
+
+// Widget resumed (home screen visible again / periodic refresh)
+self.addEventListener('widgetresume', (event) => {
+  console.log('[SW] Widget resumed:', event.widget?.tag);
+  event.waitUntil(updatePortfolioWidget());
+});
+
+// Widget clicked — navigate to portfolio page
+self.addEventListener('widgetclick', (event) => {
+  console.log('[SW] Widget clicked:', event.widget?.tag, event.action);
+  event.waitUntil(
+    (async () => {
+      // Refresh data on click
+      await updatePortfolioWidget();
+
+      // Open / focus the portfolio page
+      const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const portfolioClient = allClients.find(c => c.url.includes('/dashboard'));
+
+      if (portfolioClient) {
+        portfolioClient.focus();
+      } else {
+        self.clients.openWindow('/dashboard/portfolio');
+      }
+    })()
+  );
+});
+
+// Widget uninstalled — nothing to clean up for now
+self.addEventListener('widgetuninstall', (event) => {
+  console.log('[SW] Widget uninstalled:', event.widget?.tag);
+});
+
+// Periodic background sync — refresh widget data every 15 minutes
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'portfolio-widget-sync') {
+    event.waitUntil(updatePortfolioWidget());
+  }
 });
 
 // ── Strategies ────────────────────────────────────────────────────────────────
@@ -127,7 +246,6 @@ async function networkFirst(request, cacheName) {
 async function networkFirstWithTimeout(request, cacheName, timeoutMs) {
   const controller = new AbortController();
   const timeout    = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
     const response = await fetch(request, { signal: controller.signal });
     clearTimeout(timeout);
@@ -140,7 +258,6 @@ async function networkFirstWithTimeout(request, cacheName, timeoutMs) {
     clearTimeout(timeout);
     const cached = await caches.match(request);
     if (cached) return cached;
-    // Return structured offline JSON for API calls
     return new Response(
       JSON.stringify({ error: 'Offline', message: 'No cached data available' }),
       { status: 503, headers: { 'Content-Type': 'application/json' } }
@@ -157,7 +274,6 @@ async function navigationHandler(request) {
     }
     return response;
   } catch {
-    // Fallback to cached dashboard shell
     const cached = await caches.match('/dashboard') ?? await caches.match('/');
     return cached ?? new Response('Offline — please reconnect to use StockSense', {
       status: 503,

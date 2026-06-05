@@ -80,7 +80,7 @@ function TaxLotCard({ sym, currency }: { sym: TaxLotSymbol; currency: string }) 
     <motion.div variants={fadeUp} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, overflow: "hidden", marginBottom: 10 }}>
       {/* Symbol header row */}
       <div onClick={() => setOpen(o => !o)}
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", cursor: "pointer", userSelect: "none" }}>
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "16px 20px", cursor: "pointer", userSelect: "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: up ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", border: `1px solid ${up ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: up ? "#22c55e" : "#ef4444" }}>
             {sym.symbol.charAt(0)}
@@ -90,7 +90,7 @@ function TaxLotCard({ sym, currency }: { sym: TaxLotSymbol; currency: string }) 
             <p style={{ color: C.muted, fontSize: 11, margin: "2px 0 0" }}>{sym.lots.length} open lot{sym.lots.length !== 1 ? "s" : ""} · {currency}{sym.currentPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })} current</p>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
           <div style={{ textAlign: "right" }}>
             <p style={{ color: C.muted, fontSize: 10, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: 0.5 }}>Unrealized Gain</p>
             <ColorVal n={sym.totalGain} currency={currency} showPct />
@@ -104,13 +104,13 @@ function TaxLotCard({ sym, currency }: { sym: TaxLotSymbol; currency: string }) 
         {open && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: APPLE }}>
             {/* Column headers */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 0.7fr 1fr 1fr 1fr 1.2fr", padding: "8px 20px", background: C.hover, borderTop: `1px solid ${C.line}` }}>
+            <div className="tax-lot-grid" style={{ display: "grid", gridTemplateColumns: "1fr 0.7fr 1fr 1fr 1fr 1.2fr", padding: "8px 20px", background: C.hover, borderTop: `1px solid ${C.line}` }}>
               {["Lot", "Qty", "Cost/Share", "Cost Basis", "Current Value", "Unrealized G/L"].map((h, i) => (
                 <span key={i} style={{ color: C.muted, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{h}</span>
               ))}
             </div>
             {sym.lots.map((lot, i) => (
-              <div key={lot.lotId} style={{ display: "grid", gridTemplateColumns: "1fr 0.7fr 1fr 1fr 1fr 1.2fr", padding: "12px 20px", borderTop: `1px solid ${C.line}`, background: i % 2 === 0 ? "transparent" : C.hover }}>
+              <div key={lot.lotId} className="tax-lot-grid" style={{ display: "grid", gridTemplateColumns: "1fr 0.7fr 1fr 1fr 1fr 1.2fr", padding: "12px 20px", borderTop: `1px solid ${C.line}`, background: i % 2 === 0 ? "transparent" : C.hover }}>
                 <div>
                   <p style={{ color: C.primary, fontSize: 12, fontWeight: 600, margin: 0 }}>Lot {i + 1}</p>
                   <p style={{ color: C.muted, fontSize: 10, margin: "2px 0 0" }}>{lot.purchaseDate}</p>
@@ -183,11 +183,11 @@ export default function TaxPage() {
   };
 
   return (
-    <div style={{ padding: "24px 32px", maxWidth: 1100, margin: "0 auto", fontFamily: "var(--font-gantari,'Gantari',system-ui,sans-serif)", background: C.page, minHeight: "100vh" }}>
+    <div style={{ padding: 16, boxSizing: "border-box", maxWidth: 1100, margin: "0 auto", fontFamily: "var(--font-gantari,'Gantari',system-ui,sans-serif)", background: C.page, minHeight: "100vh" }}>
 
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: APPLE }}
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
             <FileText size={20} color="#8FFFD6" />
@@ -195,7 +195,7 @@ export default function TaxPage() {
           </div>
           <p style={{ color: C.muted, fontSize: 12, margin: 0 }}>FIFO cost basis tracking · unrealized and realized gains</p>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
           {tab === "report" && taxReport?.hasActivity && (
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={exportTaxCsv}
               style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", borderRadius: 10, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
@@ -210,7 +210,7 @@ export default function TaxPage() {
       </motion.div>
 
       {/* Tab switcher */}
-      <div style={{ display: "flex", gap: 2, marginBottom: 20, background: C.line, borderRadius: 10, padding: 3, width: "fit-content" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 2, marginBottom: 20, background: C.line, borderRadius: 10, padding: 3, width: "fit-content", maxWidth: "100%" }}>
         {(["lots", "report"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             style={{ padding: "8px 20px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, background: tab === t ? C.card : "transparent", color: tab === t ? "#8FFFD6" : C.muted, transition: "all 0.15s" }}>
@@ -224,6 +224,7 @@ export default function TaxPage() {
         <>
           {/* Summary cards */}
           <motion.div initial="hidden" animate="visible" variants={stagger}
+            className="tax-summary-grid"
             style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}>
             {[
               { label: "Total Cost Basis", value: `${currency}${totalCost.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, color: C.muted },
@@ -268,9 +269,9 @@ export default function TaxPage() {
       {tab === "report" && (
         <>
           {/* Year selector */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
             <span style={{ color: C.muted, fontSize: 13 }}>Tax Year:</span>
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {[currentYear - 1, currentYear].map(y => (
                 <button key={y} onClick={() => setYear(y)}
                   style={{ padding: "6px 16px", borderRadius: 8, border: `1px solid ${year === y ? "#8FFFD6" : C.line}`, background: year === y ? "#8FFFD618" : "transparent", color: year === y ? "#8FFFD6" : C.muted, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
@@ -295,7 +296,7 @@ export default function TaxPage() {
             <>
               {/* Total realized gain card */}
               <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: APPLE }}
-                style={{ background: C.card, border: `1px solid ${taxReport.totalRealizedGain >= 0 ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`, borderRadius: 14, padding: "22px 28px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                style={{ background: C.card, border: `1px solid ${taxReport.totalRealizedGain >= 0 ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`, borderRadius: 14, padding: "22px 28px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div>
                   <p style={{ color: C.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.7, margin: "0 0 6px" }}>Total Realized Gain / Loss — {year}</p>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -316,14 +317,14 @@ export default function TaxPage() {
                 <motion.div key={sym.symbol} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: si * 0.05, duration: 0.35, ease: APPLE }}
                   style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, overflow: "hidden", marginBottom: 12 }}>
                   {/* Symbol header */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `1px solid ${C.line}` }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "16px 20px", borderBottom: `1px solid ${C.line}` }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <div style={{ width: 32, height: 32, borderRadius: "50%", background: sym.realizedGain >= 0 ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: sym.realizedGain >= 0 ? "#22c55e" : "#ef4444" }}>
                         {sym.symbol.charAt(0)}
                       </div>
                       <p style={{ color: C.primary, fontWeight: 700, fontSize: 14, margin: 0 }}>{sym.symbol}</p>
                     </div>
-                    <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center" }}>
                       <div style={{ textAlign: "right" }}>
                         <p style={{ color: C.muted, fontSize: 10, margin: "0 0 2px" }}>Proceeds</p>
                         <p style={{ color: C.primary, fontSize: 13, fontWeight: 600, margin: 0 }}>{currency}{sym.totalProceeds.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
@@ -365,7 +366,15 @@ export default function TaxPage() {
         </>
       )}
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 640px) {
+          .tax-summary-grid,
+          .tax-lot-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

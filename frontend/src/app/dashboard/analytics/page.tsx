@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Cell, Legend,
+  ResponsiveContainer, BarChart, Bar, Cell,
 } from "recharts";
 import {
   TrendingUp, TrendingDown, BarChart2, Shield,
@@ -36,19 +36,6 @@ interface BenchmarkPoint {
   benchmarkLabel: string;
 }
 
-interface TooltipPayloadItem {
-  dataKey?: unknown;
-  value?:   unknown;
-  stroke?:  string;
-  name?:    string;
-}
-interface AnalyticsTooltipProps {
-  active?:  boolean;
-  payload?: any;
-  label?:   unknown;
-  sym:      string;
-}
-
 const C = {
   page:    "var(--color-page)",
   card:    "var(--color-card)",
@@ -64,7 +51,6 @@ const cardV   = { hidden: { opacity: 0, y: 20, scale: 0.98 }, visible: { opacity
 
 const SECTOR_COLORS = ["#8FFFD6", "#6366f1", "#f59e0b", "#ef4444", "#a855f7", "#ec4899"];
 
-// ── useCountUp ────────────────────────────────────────────────────────────────
 const useCountUp = (target: number, duration = 1500) => {
   const [count, setCount] = useState(0);
   const ref = useRef<number | null>(null);
@@ -121,8 +107,8 @@ function AllocationDonut({ segments }: { segments: { label: string; pct: number;
     return { ...s, dashArray: `${(s.pct/100)*circ} ${circ}`, dashOffset: -((prev/100)*circ) };
   });
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-      <svg width={120} height={120} viewBox="0 0 120 120">
+    <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+      <svg width={120} height={120} viewBox="0 0 120 120" style={{ flexShrink: 0 }}>
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--color-line)" strokeWidth={16}/>
         {slices.map(s => (
           <circle key={s.label} cx={cx} cy={cy} r={r} fill="none" stroke={s.color} strokeWidth={16}
@@ -145,33 +131,27 @@ function AllocationDonut({ segments }: { segments: { label: string; pct: number;
 }
 
 // ── Tooltips ──────────────────────────────────────────────────────────────────
-const PerfTooltip = ({ active, payload, label, sym }: AnalyticsTooltipProps) => {
+const PerfTooltip = ({ active, payload, label, sym }: { active?: boolean; payload?: any; label?: unknown; sym: string }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 16px", fontSize: 12 }}>
-      <p style={{ color: C.muted, marginBottom: 6 }}>{String(label ?? "")}</p>
-      <p style={{ color: "#8FFFD6", fontWeight: 600, margin: 0 }}>
-        {sym}{Number(payload[0].value).toLocaleString("en-IN")}
-      </p>
+    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 14px", fontSize: 12 }}>
+      <p style={{ color: C.muted, marginBottom: 4, margin: "0 0 4px" }}>{String(label ?? "")}</p>
+      <p style={{ color: "#8FFFD6", fontWeight: 600, margin: 0 }}>{sym}{Number(payload[0].value).toLocaleString("en-IN")}</p>
     </div>
   );
 };
 
-// ── Benchmark tooltip ─────────────────────────────────────────────────────────
-const BenchmarkTooltip = ({ active, payload, label }: {
-  active?: boolean; payload?: any; label?: unknown;
-}) => {
+const BenchmarkTooltip = ({ active, payload, label }: { active?: boolean; payload?: any; label?: unknown }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 16px", fontSize: 12, minWidth: 160 }}>
-      <p style={{ color: C.muted, marginBottom: 8, margin: "0 0 8px" }}>{String(label ?? "")}</p>
+    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 14px", fontSize: 12, minWidth: 150 }}>
+      <p style={{ color: C.muted, margin: "0 0 6px" }}>{String(label ?? "")}</p>
       {payload.map((p: any, i: number) => (
-        <p key={i} style={{ color: p.stroke ?? "#8FFFD6", fontWeight: 600, margin: "3px 0 0", display: "flex", justifyContent: "space-between", gap: 16 }}>
+        <p key={i} style={{ color: p.stroke ?? "#8FFFD6", fontWeight: 600, margin: "3px 0 0", display: "flex", justifyContent: "space-between", gap: 14 }}>
           <span style={{ color: C.muted, fontWeight: 400 }}>{String(p.name ?? "")}</span>
           <span>{Number(p.value).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
         </p>
       ))}
-      <p style={{ color: C.muted, fontSize: 10, margin: "6px 0 0" }}>Base 10,000 normalized</p>
     </div>
   );
 };
@@ -181,9 +161,9 @@ function StatCard({ label, value, change, positive, currencySymbol }: {
   label: string; value: string; change: string; positive: boolean; currencySymbol: string;
 }) {
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px" }}>
-      <p style={{ color: C.muted, fontSize: 11, margin: "0 0 10px", textTransform: "uppercase", letterSpacing: 0.6 }}>{label}</p>
-      <div style={{ fontSize: 26, fontWeight: 800, color: C.primary, letterSpacing: -0.5, marginBottom: 8 }}>
+    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "18px 20px" }}>
+      <p style={{ color: C.muted, fontSize: 11, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 0.6 }}>{label}</p>
+      <div style={{ fontSize: 24, fontWeight: 800, color: C.primary, letterSpacing: -0.5, marginBottom: 8 }}>
         {currencySymbol}{value}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -196,34 +176,24 @@ function StatCard({ label, value, change, positive, currencySymbol }: {
   );
 }
 
-// ── Loading skeleton ──────────────────────────────────────────────────────────
 function Skeleton({ w, h = 16 }: { w: string | number; h?: number }) {
   return <div style={{ width: w, height: h, borderRadius: 4, background: "var(--color-line)", opacity: 0.5 }}/>;
 }
 
-// ── Benchmark delta badge ─────────────────────────────────────────────────────
 function BenchmarkDelta({ data, benchmarkLabel }: { data: BenchmarkPoint[]; benchmarkLabel: string }) {
   if (data.length < 2) return null;
   const last = data[data.length - 1];
   if (last.benchmark == null) return null;
-
-  const portDelta  = ((last.portfolio  - 10_000) / 10_000) * 100;
-  const benchDelta = ((last.benchmark  - 10_000) / 10_000) * 100;
+  const portDelta  = ((last.portfolio - 10_000) / 10_000) * 100;
+  const benchDelta = ((last.benchmark - 10_000) / 10_000) * 100;
   const alpha      = portDelta - benchDelta;
   const beating    = alpha >= 0;
-
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 7,
-        background: beating ? "rgba(143,255,214,0.08)" : "rgba(239,68,68,0.08)",
-        border: `1px solid ${beating ? "rgba(143,255,214,0.2)" : "rgba(239,68,68,0.2)"}`,
-      }}>
-        {beating ? <ArrowUpRight size={12} color="#8FFFD6"/> : <ArrowDownRight size={12} color="#ef4444"/>}
-        <span style={{ fontSize: 11, fontWeight: 700, color: beating ? "#8FFFD6" : "#ef4444" }}>
-          {beating ? "+" : ""}{alpha.toFixed(1)}% vs {benchmarkLabel}
-        </span>
-      </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 7, background: beating ? "rgba(143,255,214,0.08)" : "rgba(239,68,68,0.08)", border: `1px solid ${beating ? "rgba(143,255,214,0.2)" : "rgba(239,68,68,0.2)"}` }}>
+      {beating ? <ArrowUpRight size={12} color="#8FFFD6"/> : <ArrowDownRight size={12} color="#ef4444"/>}
+      <span style={{ fontSize: 11, fontWeight: 700, color: beating ? "#8FFFD6" : "#ef4444" }}>
+        {beating ? "+" : ""}{alpha.toFixed(1)}% vs {benchmarkLabel}
+      </span>
     </div>
   );
 }
@@ -233,20 +203,16 @@ export default function AnalyticsPage() {
   const { market } = useMarket();
   const sym = market?.currency ?? "$";
 
-  const [range,     setRange]     = useState<TimeRange>("1Y");
-  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-  const [history,   setHistory]   = useState<HistoryPoint[]>([]);
-  const [benchmark, setBenchmark] = useState<BenchmarkPoint[]>([]);
-  const [loading,   setLoading]   = useState(true);
+  const [range,            setRange]            = useState<TimeRange>("1Y");
+  const [analytics,        setAnalytics]        = useState<AnalyticsData | null>(null);
+  const [history,          setHistory]          = useState<HistoryPoint[]>([]);
+  const [benchmark,        setBenchmark]        = useState<BenchmarkPoint[]>([]);
+  const [loading,          setLoading]          = useState(true);
   const [benchmarkLoading, setBenchmarkLoading] = useState(false);
 
-  // ── Fetch analytics + history + benchmark ────────────────────────────────
   useEffect(() => {
     setLoading(true);
-    setAnalytics(null);
-    setHistory([]);
-    setBenchmark([]);
-
+    setAnalytics(null); setHistory([]); setBenchmark([]);
     Promise.all([
       fetchWithAuth(`/api/market/${market.id}/analytics`),
       fetchWithAuth(`/api/portfolio/history?range=${range}`),
@@ -254,20 +220,13 @@ export default function AnalyticsPage() {
     ])
       .then(async ([analyticsRes, historyRes, benchRes]) => {
         if (analyticsRes.ok) setAnalytics(await analyticsRes.json());
-        if (historyRes.ok) {
-          const data: HistoryPoint[] = await historyRes.json();
-          if (Array.isArray(data) && data.length >= 2) setHistory(data);
-        }
-        if (benchRes.ok) {
-          const data: BenchmarkPoint[] = await benchRes.json();
-          if (Array.isArray(data) && data.length >= 2) setBenchmark(data);
-        }
+        if (historyRes.ok) { const d: HistoryPoint[] = await historyRes.json(); if (Array.isArray(d) && d.length >= 2) setHistory(d); }
+        if (benchRes.ok)   { const d: BenchmarkPoint[] = await benchRes.json(); if (Array.isArray(d) && d.length >= 2) setBenchmark(d); }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [market.id]);
 
-  // Refetch history + benchmark when range changes
   useEffect(() => {
     setBenchmarkLoading(true);
     Promise.all([
@@ -275,14 +234,8 @@ export default function AnalyticsPage() {
       fetchWithAuth(`/api/portfolio/benchmark?range=${range}&market=${market.id}`),
     ])
       .then(async ([histRes, benchRes]) => {
-        if (histRes.ok) {
-          const data: HistoryPoint[] = await histRes.json();
-          if (Array.isArray(data) && data.length >= 2) setHistory(data);
-        }
-        if (benchRes.ok) {
-          const data: BenchmarkPoint[] = await benchRes.json();
-          if (Array.isArray(data) && data.length >= 2) setBenchmark(data);
-        }
+        if (histRes.ok)  { const d: HistoryPoint[] = await histRes.json(); if (Array.isArray(d) && d.length >= 2) setHistory(d); }
+        if (benchRes.ok) { const d: BenchmarkPoint[] = await benchRes.json(); if (Array.isArray(d) && d.length >= 2) setBenchmark(d); }
       })
       .catch(() => {})
       .finally(() => setBenchmarkLoading(false));
@@ -301,13 +254,10 @@ export default function AnalyticsPage() {
   const countedUnrealisedPnl = useCountUp(Math.abs(Math.floor(unrealisedPnl)));
 
   const allocSegs = (analytics?.allocation ?? []).length > 0
-    ? (analytics!.allocation).map((a, i) => ({ label: a.label, pct: a.pct, color: SECTOR_COLORS[i % SECTOR_COLORS.length] }))
+    ? analytics!.allocation.map((a, i) => ({ label: a.label, pct: a.pct, color: SECTOR_COLORS[i % SECTOR_COLORS.length] }))
     : [{ label: "Stocks", pct: 100, color: "#8FFFD6" }];
 
-  const monthlyData = (analytics?.monthlyReturns ?? []).map(r => ({
-    month: r.month,
-    ret:   r.ret ?? r.returnPct ?? 0,
-  }));
+  const monthlyData = (analytics?.monthlyReturns ?? []).map(r => ({ month: r.month, ret: r.ret ?? r.returnPct ?? 0 }));
 
   const riskBars = [
     { label: "Market Volatility",  val: Math.min(Math.round(riskScore * 1.1), 99), color: riskScore > 60 ? "#ef4444" : "#f59e0b" },
@@ -320,7 +270,6 @@ export default function AnalyticsPage() {
   const worst = analytics?.worstPerformer;
   const most  = analytics?.mostHeld;
 
-  // Benchmark label from data or derive from market
   const benchmarkLabel = benchmark.length > 0
     ? benchmark[0].benchmarkLabel
     : market.id === "IN" ? "Nifty 50" : market.id === "CRYPTO" ? "Bitcoin" : "S&P 500";
@@ -328,185 +277,146 @@ export default function AnalyticsPage() {
   return (
     <>
       <style>{`
-        .range-pill:hover { opacity: 0.8; }
-        .analytics-stat-grid            { grid-template-columns: repeat(3, minmax(0,1fr)); }
-        .analytics-risk-allocation-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-        .analytics-heatmap-grid         { grid-template-columns: repeat(12, minmax(0,1fr)); }
-        @media (max-width: 768px) {
-          .analytics-stat-grid, .analytics-risk-allocation-grid { grid-template-columns: minmax(0,1fr); }
-          .analytics-heatmap-grid { grid-template-columns: repeat(6, minmax(0,1fr)); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Stat grid: 3 → 1 */
+        .an-stat-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+        @media (max-width: 640px) { .an-stat-grid { grid-template-columns: 1fr; } }
+
+        /* Risk + Allocation: 2 → 1 */
+        .an-risk-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+        @media (max-width: 768px) { .an-risk-grid { grid-template-columns: 1fr; } }
+
+        /* Heatmap: 12 → 6 → 4 cols */
+        .an-heatmap { grid-template-columns: repeat(12, minmax(0,1fr)); }
+        @media (max-width: 768px) { .an-heatmap { grid-template-columns: repeat(6, minmax(0,1fr)); } }
+        @media (max-width: 400px) { .an-heatmap { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+
+        /* Benchmark bottom row: wrap on mobile */
+        .an-bench-bottom { flex-wrap: nowrap; }
+        @media (max-width: 480px) { .an-bench-bottom { flex-direction: column; gap: 12px; } .an-bench-bottom > div { border-right: none !important; border-bottom: 1px solid var(--color-line); padding: 8px 0 !important; } }
+
+        /* Header: wrap */
+        .an-header { flex-wrap: wrap; gap: 8px; }
+
+        /* Chart header: wrap on mobile */
+        .an-chart-header { flex-wrap: wrap; gap: 8px; }
       `}</style>
 
       <motion.div initial="hidden" animate="visible" variants={stagger}
-        style={{ padding: "28px 32px", maxWidth: 1200, margin: "0 auto",
-          background: C.page, minHeight: "100vh",
-          fontFamily: "var(--font-gantari,'Gantari',system-ui,sans-serif)" }}>
+        style={{ padding: "16px", maxWidth: 1200, margin: "0 auto", background: C.page, minHeight: "100vh", fontFamily: "var(--font-gantari,'Gantari',system-ui,sans-serif)", boxSizing: "border-box" }}>
 
         {/* Header */}
-        <motion.div variants={fadeUp} style={{ marginBottom: 28 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <BarChart2 size={20} color="#8FFFD6"/>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: C.primary, margin: 0 }}>Performance Analytics</h1>
+        <motion.div variants={fadeUp} className="an-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <BarChart2 size={18} color="#8FFFD6"/>
+              <h1 style={{ fontSize: 20, fontWeight: 700, color: C.primary, margin: 0 }}>Analytics</h1>
+            </div>
+            <p style={{ color: C.muted, fontSize: 12, margin: 0 }}>Performance, risk, and allocation</p>
           </div>
-          <p style={{ color: C.muted, fontSize: 13, margin: 0 }}>Track your portfolio performance, risk exposure, and asset allocation</p>
         </motion.div>
 
         {/* Stat cards */}
-        <motion.div variants={stagger} className="analytics-stat-grid"
-          style={{ display: "grid", gap: 14, marginBottom: 20 }}>
+        <motion.div variants={stagger} className="an-stat-grid" style={{ display: "grid", gap: 12, marginBottom: 16 }}>
           {loading ? (
             [1,2,3].map(i => (
-              <div key={i} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "20px 22px" }}>
-                <Skeleton w="60%" h={11}/><div style={{ marginTop: 10 }}><Skeleton w="80%" h={26}/></div>
+              <div key={i} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "18px 20px" }}>
+                <Skeleton w="60%" h={11}/><div style={{ marginTop: 10 }}><Skeleton w="80%" h={24}/></div>
                 <div style={{ marginTop: 8 }}><Skeleton w="40%" h={11}/></div>
               </div>
             ))
           ) : [
-            { label: "Portfolio Value",  value: countedTotalValue.toLocaleString("en-IN", { minimumFractionDigits: 2 }), change: `${isUp?"+":""}${changePct.toFixed(2)}%`, positive: isUp, currencySymbol: sym },
-            { label: "Total Invested",   value: countedTotalInvested.toLocaleString("en-IN", { minimumFractionDigits: 2 }), change: "Invested capital", positive: true, currencySymbol: sym },
-            { label: "Unrealised P&L",   value: countedUnrealisedPnl.toLocaleString("en-IN", { minimumFractionDigits: 2 }), change: `${unrealisedPct >= 0 ? "+" : ""}${unrealisedPct.toFixed(2)}%`, positive: unrealisedPnl >= 0, currencySymbol: unrealisedPnl < 0 ? `-${sym}` : sym },
-          ].map(({ label, value, change, positive, currencySymbol }) => (
-            <motion.div key={label} variants={cardV} transition={{ duration: 0.4 }}
+            { label: "Portfolio Value", value: countedTotalValue.toLocaleString("en-IN", { minimumFractionDigits: 2 }), change: `${isUp?"+":""}${changePct.toFixed(2)}%`, positive: isUp, currencySymbol: sym },
+            { label: "Total Invested",  value: countedTotalInvested.toLocaleString("en-IN", { minimumFractionDigits: 2 }), change: "Invested capital", positive: true, currencySymbol: sym },
+            { label: "Unrealised P&L",  value: countedUnrealisedPnl.toLocaleString("en-IN", { minimumFractionDigits: 2 }), change: `${unrealisedPct >= 0 ? "+" : ""}${unrealisedPct.toFixed(2)}%`, positive: unrealisedPnl >= 0, currencySymbol: unrealisedPnl < 0 ? `-${sym}` : sym },
+          ].map(props => (
+            <motion.div key={props.label} variants={cardV} transition={{ duration: 0.4 }}
               whileHover={{ y: -2, boxShadow: "0 8px 32px rgba(0,0,0,0.15)" }}>
-              <StatCard label={label} value={value} change={change} positive={positive} currencySymbol={currencySymbol}/>
+              <StatCard {...props}/>
             </motion.div>
           ))}
         </motion.div>
 
         {/* Portfolio Value Over Time */}
         <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
-          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
-            padding: "22px 24px", marginBottom: 20,
-            backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
+          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "18px 20px", marginBottom: 14, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
+          <div className="an-chart-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Activity size={15} color="#8FFFD6"/>
-              <span style={{ color: C.primary, fontWeight: 600, fontSize: 14 }}>Portfolio Value Over Time</span>
+              <Activity size={14} color="#8FFFD6"/>
+              <span style={{ color: C.primary, fontWeight: 600, fontSize: 13 }}>Portfolio Value</span>
               {history.length > 0 && (
-                <span style={{ fontSize: 11, color: "#8FFFD6", background: "rgba(143,255,214,0.08)", border: "1px solid rgba(143,255,214,0.2)", borderRadius: 6, padding: "2px 8px" }}>
-                  Live data
-                </span>
+                <span style={{ fontSize: 10, color: "#8FFFD6", background: "rgba(143,255,214,0.08)", border: "1px solid rgba(143,255,214,0.2)", borderRadius: 5, padding: "2px 7px" }}>Live</span>
               )}
             </div>
             <div style={{ display: "flex", background: C.page, border: `1px solid ${C.line}`, borderRadius: 8, padding: 3, gap: 2 }}>
               {(["1M", "1Y", "All"] as TimeRange[]).map(r => (
-                <button key={r} className="range-pill" onClick={() => setRange(r)}
-                  style={{ padding: "5px 12px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600,
-                    background: range === r ? C.card : "transparent",
-                    color:      range === r ? "#8FFFD6" : C.muted }}>
+                <button key={r} onClick={() => setRange(r)}
+                  style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: range === r ? C.card : "transparent", color: range === r ? "#8FFFD6" : C.muted }}>
                   {r}
                 </button>
               ))}
             </div>
           </div>
-
           {history.length === 0 ? (
-            <div style={{ height: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <p style={{ color: C.muted, fontSize: 13 }}>
-                {loading ? "Loading chart…" : "Not enough history yet — place more orders to see performance over time."}
-              </p>
+            <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <p style={{ color: C.muted, fontSize: 13 }}>{loading ? "Loading chart…" : "Not enough history yet."}</p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={220}>
               <LineChart data={history} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false}/>
-                <XAxis dataKey="date" tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false} interval={Math.floor(history.length / 8)}/>
-                <YAxis tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false}
-                  tickFormatter={v => `${sym}${(v/1000).toFixed(0)}k`} width={56} domain={["auto","auto"]}/>
+                <XAxis dataKey="date" tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false} interval={Math.floor(history.length / 6)}/>
+                <YAxis tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${sym}${(v/1000).toFixed(0)}k`} width={50} domain={["auto","auto"]}/>
                 <Tooltip content={(p) => <PerfTooltip {...p} sym={sym}/>}/>
-                <Line type="monotone" dataKey="value" stroke="#8FFFD6" strokeWidth={2} dot={false}
-                  activeDot={{ r: 4, fill: "#8FFFD6", strokeWidth: 0 }}/>
+                <Line type="monotone" dataKey="value" stroke="#8FFFD6" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#8FFFD6", strokeWidth: 0 }}/>
               </LineChart>
             </ResponsiveContainer>
           )}
         </motion.div>
 
-        {/* ── Benchmark Comparison Chart ── */}
+        {/* Benchmark Comparison */}
         <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
-          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
-            padding: "22px 24px", marginBottom: 20,
-            backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
-
-          {/* Header row */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "18px 20px", marginBottom: 14, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
+          <div className="an-chart-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <GitCompare size={15} color="#8FFFD6"/>
-              <span style={{ color: C.primary, fontWeight: 600, fontSize: 14 }}>vs {benchmarkLabel}</span>
-              <span style={{ fontSize: 11, color: C.muted, background: C.page, border: `1px solid ${C.line}`, padding: "2px 8px", borderRadius: 5 }}>
-                Base 10,000 normalized
-              </span>
+              <GitCompare size={14} color="#8FFFD6"/>
+              <span style={{ color: C.primary, fontWeight: 600, fontSize: 13 }}>vs {benchmarkLabel}</span>
+              <span style={{ fontSize: 10, color: C.muted, background: C.page, border: `1px solid ${C.line}`, padding: "2px 7px", borderRadius: 5 }}>Base 10k</span>
             </div>
             <BenchmarkDelta data={benchmark} benchmarkLabel={benchmarkLabel} />
           </div>
 
-          {/* Legend */}
-          <div style={{ display: "flex", gap: 20, marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ width: 24, height: 2, background: "#8FFFD6", borderRadius: 1 }}/>
-              <span style={{ fontSize: 11, color: C.muted }}>My Portfolio</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ width: 24, height: 2, background: "#6366f1", borderRadius: 1, borderTop: "2px dashed #6366f1" }}/>
-              <span style={{ fontSize: 11, color: C.muted }}>{benchmarkLabel}</span>
-            </div>
+          <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+            {[{ color: "#8FFFD6", label: "My Portfolio" }, { color: "#6366f1", label: benchmarkLabel, dashed: true }].map(({ color, label, dashed }) => (
+              <div key={label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 20, height: 2, background: color, borderRadius: 1, borderTop: dashed ? `2px dashed ${color}` : undefined }}/>
+                <span style={{ fontSize: 11, color: C.muted }}>{label}</span>
+              </div>
+            ))}
           </div>
 
           {benchmarkLoading ? (
-            <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ width: 24, height: 24, border: `2px solid ${C.line}`, borderTop: "2px solid #8FFFD6", borderRadius: "50%", animation: "spin 0.8s linear infinite" }}/>
+            <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 22, height: 22, border: `2px solid ${C.line}`, borderTop: "2px solid #8FFFD6", borderRadius: "50%", animation: "spin 0.8s linear infinite" }}/>
             </div>
           ) : benchmark.length < 2 ? (
-            <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <p style={{ color: C.muted, fontSize: 13 }}>
-                {loading ? "Loading benchmark…" : "Not enough portfolio history to compare — place orders over time to see benchmark comparison."}
-              </p>
+            <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <p style={{ color: C.muted, fontSize: 13 }}>{loading ? "Loading…" : "Not enough history to compare."}</p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={220}>
               <LineChart data={benchmark} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false}/>
-                <XAxis
-                  dataKey="date"
-                  tick={{ fill: "var(--color-muted)", fontSize: 10 }}
-                  axisLine={false} tickLine={false}
-                  interval={Math.floor(benchmark.length / 8)}
-                />
-                <YAxis
-                  tick={{ fill: "var(--color-muted)", fontSize: 10 }}
-                  axisLine={false} tickLine={false}
-                  tickFormatter={v => v.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                  width={56}
-                  domain={["auto", "auto"]}
-                />
-                <Tooltip content={(p) => <BenchmarkTooltip {...p} />}/>
-                {/* Portfolio line */}
-                <Line
-                  type="monotone"
-                  dataKey="portfolio"
-                  name="My Portfolio"
-                  stroke="#8FFFD6"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4, fill: "#8FFFD6", strokeWidth: 0 }}
-                />
-                {/* Benchmark line — dashed */}
-                <Line
-                  type="monotone"
-                  dataKey="benchmark"
-                  name={benchmarkLabel}
-                  stroke="#6366f1"
-                  strokeWidth={2}
-                  strokeDasharray="5 3"
-                  dot={false}
-                  activeDot={{ r: 4, fill: "#6366f1", strokeWidth: 0 }}
-                  connectNulls
-                />
+                <XAxis dataKey="date" tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false} interval={Math.floor(benchmark.length / 6)}/>
+                <YAxis tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v.toLocaleString("en-US", { maximumFractionDigits: 0 })} width={50} domain={["auto","auto"]}/>
+                <Tooltip content={(p) => <BenchmarkTooltip {...p}/>}/>
+                <Line type="monotone" dataKey="portfolio" name="My Portfolio" stroke="#8FFFD6" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#8FFFD6", strokeWidth: 0 }}/>
+                <Line type="monotone" dataKey="benchmark" name={benchmarkLabel} stroke="#6366f1" strokeWidth={2} strokeDasharray="5 3" dot={false} activeDot={{ r: 4, fill: "#6366f1", strokeWidth: 0 }} connectNulls/>
               </LineChart>
             </ResponsiveContainer>
           )}
 
-          {/* Bottom stat row — alpha, port return, benchmark return */}
           {benchmark.length >= 2 && (() => {
             const last       = benchmark[benchmark.length - 1];
             const portReturn = ((last.portfolio - 10_000) / 10_000) * 100;
@@ -514,21 +424,16 @@ export default function AnalyticsPage() {
             const alpha      = benchRet != null ? portReturn - benchRet : null;
             const fmt        = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
             const col        = (n: number) => n >= 0 ? "#22c55e" : "#ef4444";
-
             return (
-              <div style={{ display: "flex", gap: 0, marginTop: 20, borderTop: `1px solid ${C.line}`, paddingTop: 16 }}>
+              <div className="an-bench-bottom" style={{ display: "flex", marginTop: 16, borderTop: `1px solid ${C.line}`, paddingTop: 14 }}>
                 {[
-                  { label: "Your Return",        value: fmt(portReturn),       color: col(portReturn) },
-                  { label: `${benchmarkLabel} Return`, value: benchRet != null ? fmt(benchRet) : "—", color: benchRet != null ? col(benchRet) : C.muted },
-                  { label: "Alpha (outperformance)", value: alpha != null ? fmt(alpha) : "—", color: alpha != null ? col(alpha) : C.muted },
+                  { label: "Your Return",           value: fmt(portReturn), color: col(portReturn) },
+                  { label: `${benchmarkLabel}`,     value: benchRet != null ? fmt(benchRet) : "—", color: benchRet != null ? col(benchRet) : C.muted },
+                  { label: "Alpha",                 value: alpha != null ? fmt(alpha) : "—", color: alpha != null ? col(alpha) : C.muted },
                 ].map(({ label, value, color }, i) => (
-                  <div key={label} style={{
-                    flex: 1, textAlign: "center",
-                    borderRight: i < 2 ? `1px solid ${C.line}` : "none",
-                    padding: "0 16px",
-                  }}>
-                    <p style={{ color: C.muted, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.6, margin: "0 0 4px" }}>{label}</p>
-                    <p style={{ color, fontSize: 18, fontWeight: 700, margin: 0 }}>{value}</p>
+                  <div key={label} style={{ flex: 1, textAlign: "center", borderRight: i < 2 ? `1px solid ${C.line}` : "none", padding: "0 12px" }}>
+                    <p style={{ color: C.muted, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, margin: "0 0 4px" }}>{label}</p>
+                    <p style={{ color, fontSize: 16, fontWeight: 700, margin: 0 }}>{value}</p>
                   </div>
                 ))}
               </div>
@@ -537,28 +442,25 @@ export default function AnalyticsPage() {
         </motion.div>
 
         {/* Risk + Allocation */}
-        <div className="analytics-risk-allocation-grid" style={{ display: "grid", gap: 14, marginBottom: 20 }}>
+        <div className="an-risk-grid" style={{ display: "grid", gap: 14, marginBottom: 14 }}>
 
           {/* Risk */}
           <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
-            style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
-              padding: "22px 24px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
-              <Shield size={15} color="#8FFFD6"/>
-              <span style={{ color: C.primary, fontWeight: 600, fontSize: 14 }}>Risk Assessment</span>
-              <span style={{ marginLeft: "auto", fontSize: 11, color: C.muted, background: C.page, border: `1px solid ${C.line}`, padding: "2px 8px", borderRadius: 5 }}>AI-powered</span>
+            style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "18px 20px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
+              <Shield size={14} color="#8FFFD6"/>
+              <span style={{ color: C.primary, fontWeight: 600, fontSize: 13 }}>Risk Assessment</span>
+              <span style={{ marginLeft: "auto", fontSize: 10, color: C.muted, background: C.page, border: `1px solid ${C.line}`, padding: "2px 7px", borderRadius: 5 }}>AI</span>
             </div>
             {loading ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "20px 0" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "16px 0" }}>
                 <Skeleton w={200} h={110}/><Skeleton w={80} h={36}/>
               </div>
-            ) : (
-              <RiskGauge score={riskScore}/>
-            )}
-            <div style={{ marginTop: 24 }}>
+            ) : <RiskGauge score={riskScore}/>}
+            <div style={{ marginTop: 20 }}>
               {riskBars.map(({ label, val, color }) => (
-                <div key={label} style={{ marginBottom: 12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                <div key={label} style={{ marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                     <span style={{ fontSize: 12, color: C.muted }}>{label}</span>
                     <span style={{ fontSize: 12, color, fontWeight: 600 }}>{val}</span>
                   </div>
@@ -572,27 +474,24 @@ export default function AnalyticsPage() {
 
           {/* Allocation */}
           <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
-            style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
-              padding: "22px 24px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
-              <PieChart size={15} color="#8FFFD6"/>
-              <span style={{ color: C.primary, fontWeight: 600, fontSize: 14 }}>Asset Allocation</span>
+            style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "18px 20px", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
+              <PieChart size={14} color="#8FFFD6"/>
+              <span style={{ color: C.primary, fontWeight: 600, fontSize: 13 }}>Asset Allocation</span>
             </div>
             {loading ? (
-              <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
                 <Skeleton w={120} h={120}/><div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{[1,2,3].map(i => <Skeleton key={i} w={120} h={14}/>)}</div>
               </div>
-            ) : (
-              <AllocationDonut segments={allocSegs}/>
-            )}
-            <div style={{ marginTop: 28 }}>
+            ) : <AllocationDonut segments={allocSegs}/>}
+            <div style={{ marginTop: 24 }}>
               {[
-                { label: "Best Performer",  value: best?.symbol  ?? "—", change: best  ? `+${best.changePct.toFixed(1)}%`    : "—", positive: true  },
-                { label: "Worst Performer", value: worst?.symbol ?? "—", change: worst ? `${worst.changePct.toFixed(1)}%`    : "—", positive: false },
-                { label: "Most Held",       value: most?.symbol  ?? "—", change: most  ? `${most.quantity} shares`           : "—", positive: true  },
-                { label: "Total Positions", value: String(analytics ? (analytics.allocation?.length ?? 0) : 0), change: "asset classes", positive: true },
+                { label: "Best Performer",  value: best?.symbol  ?? "—", change: best  ? `+${best.changePct.toFixed(1)}%`  : "—", positive: true  },
+                { label: "Worst Performer", value: worst?.symbol ?? "—", change: worst ? `${worst.changePct.toFixed(1)}%`  : "—", positive: false },
+                { label: "Most Held",       value: most?.symbol  ?? "—", change: most  ? `${most.quantity} shares`         : "—", positive: true  },
+                { label: "Positions",       value: String(analytics ? (analytics.allocation?.length ?? 0) : 0), change: "asset classes", positive: true },
               ].map(({ label, value, change, positive }) => (
-                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.line}` }}>
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${C.line}` }}>
                   <span style={{ fontSize: 12, color: C.muted }}>{label}</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontSize: 13, color: C.primary, fontWeight: 600 }}>{value}</span>
@@ -606,43 +505,32 @@ export default function AnalyticsPage() {
 
         {/* Monthly Returns */}
         <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
-          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
-            padding: "22px 24px", marginBottom: 20,
-            backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "18px 20px", marginBottom: 14, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <TrendingUp size={15} color="#8FFFD6"/>
-              <span style={{ color: C.primary, fontWeight: 600, fontSize: 14 }}>Monthly Returns</span>
+              <TrendingUp size={14} color="#8FFFD6"/>
+              <span style={{ color: C.primary, fontWeight: 600, fontSize: 13 }}>Monthly Returns</span>
             </div>
             {monthlyData.length > 0 && (
-              <span style={{ fontSize: 11, color: "#8FFFD6", background: "rgba(143,255,214,0.08)", border: "1px solid rgba(143,255,214,0.2)", borderRadius: 6, padding: "2px 8px" }}>
+              <span style={{ fontSize: 10, color: "#8FFFD6", background: "rgba(143,255,214,0.08)", border: "1px solid rgba(143,255,214,0.2)", borderRadius: 5, padding: "2px 7px" }}>
                 {monthlyData.length} months
               </span>
             )}
           </div>
-
           {monthlyData.length === 0 ? (
-            <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <p style={{ color: C.muted, fontSize: 13 }}>
-                {loading ? "Loading…" : "No order history yet to calculate monthly returns."}
-              </p>
+            <div style={{ height: 160, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <p style={{ color: C.muted, fontSize: 13 }}>{loading ? "Loading…" : "No order history yet."}</p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={monthlyData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barSize={18}>
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={monthlyData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barSize={16}>
                 <XAxis dataKey="month" tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false}/>
                 <YAxis tick={{ fill: "var(--color-muted)", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`}/>
-                <Tooltip
-                  contentStyle={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 11 }}
-                  formatter={(v) => {
-                    const val = Number(v);
-                    return [`${val > 0 ? "+" : ""}${val.toFixed(2)}%`, "Return"];
-                  }}
+                <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 11 }}
+                  formatter={(v) => { const val = Number(v); return [`${val > 0 ? "+" : ""}${val.toFixed(2)}%`, "Return"]; }}
                   labelStyle={{ color: C.muted }}/>
                 <Bar dataKey="ret" radius={[4,4,0,0]}>
-                  {monthlyData.map((m, i) => (
-                    <Cell key={i} fill={m.ret >= 0 ? "#8FFFD6" : "#ef4444"} fillOpacity={0.85}/>
-                  ))}
+                  {monthlyData.map((m, i) => <Cell key={i} fill={m.ret >= 0 ? "#8FFFD6" : "#ef4444"} fillOpacity={0.85}/>)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -652,32 +540,23 @@ export default function AnalyticsPage() {
         {/* Return Heatmap */}
         {monthlyData.length > 0 && (
           <motion.div variants={fadeUp} transition={{ duration: 0.4 }}
-            style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14,
-              padding: "22px 24px", marginBottom: 20,
-              backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
-              <TrendingDown size={15} color="#8FFFD6"/>
-              <span style={{ color: C.primary, fontWeight: 600, fontSize: 14 }}>Return Heatmap</span>
+            style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "18px 20px", marginBottom: 14, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <TrendingDown size={14} color="#8FFFD6"/>
+              <span style={{ color: C.primary, fontWeight: 600, fontSize: 13 }}>Return Heatmap</span>
             </div>
-            <div className="analytics-heatmap-grid" style={{ display: "grid", gap: 6 }}>
+            <div className="an-heatmap" style={{ display: "grid", gap: 6 }}>
               {monthlyData.map(({ month, ret }, i) => {
                 const pos       = ret >= 0;
                 const intensity = Math.min(Math.abs(ret) / 10, 1);
                 return (
                   <motion.div key={month}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: i * 0.04, duration: 0.3 }}
                     whileHover={{ scale: 1.05, zIndex: 1 }}
-                    style={{
-                      background: pos ? `rgba(143,255,214,${0.06 + intensity * 0.25})` : `rgba(239,68,68,${0.06 + intensity * 0.25})`,
-                      border: `1px solid ${pos ? "rgba(143,255,214,0.15)" : "rgba(239,68,68,0.15)"}`,
-                      borderRadius: 8, padding: "10px 4px", textAlign: "center", position: "relative",
-                    }}>
-                    <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>{month}</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: pos ? "#8FFFD6" : "#ef4444" }}>
-                      {pos ? "+" : ""}{ret.toFixed(1)}%
-                    </div>
+                    style={{ background: pos ? `rgba(143,255,214,${0.06 + intensity * 0.25})` : `rgba(239,68,68,${0.06 + intensity * 0.25})`, border: `1px solid ${pos ? "rgba(143,255,214,0.15)" : "rgba(239,68,68,0.15)"}`, borderRadius: 8, padding: "8px 4px", textAlign: "center" }}>
+                    <div style={{ fontSize: 9, color: C.muted, marginBottom: 3 }}>{month}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: pos ? "#8FFFD6" : "#ef4444" }}>{pos ? "+" : ""}{ret.toFixed(1)}%</div>
                   </motion.div>
                 );
               })}
@@ -685,7 +564,6 @@ export default function AnalyticsPage() {
           </motion.div>
         )}
 
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </motion.div>
     </>
   );
