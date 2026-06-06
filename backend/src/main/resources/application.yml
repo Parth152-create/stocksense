@@ -26,15 +26,10 @@ spring:
             enable: true
             required: true
 
-  # ── Redis ──────────────────────────────────────────────────────────────────
-  # Lettuce is the default client (no extra dep needed beyond starter-data-redis)
-  # In Docker: host = service name "redis" as defined in docker-compose.yml
-  # Locally (outside Docker): use localhost
   data:
     redis:
       host: ${REDIS_HOST:redis}
       port: ${REDIS_PORT:6379}
-      # password: ${REDIS_PASSWORD:}   # uncomment if Redis auth is enabled
       timeout: 2000ms
       lettuce:
         pool:
@@ -49,6 +44,20 @@ server:
 alphavantage:
   api:
     key: HXW27CL9C8V78EXL
+
+# ── Sentry ────────────────────────────────────────────────────────────────────
+sentry:
+  dsn: ${SENTRY_DSN:}
+  # Capture 10% of transactions for performance monitoring
+  traces-sample-rate: 0.1
+  # Only send events in production — set SENTRY_ENVIRONMENT in docker-compose
+  environment: ${SENTRY_ENVIRONMENT:development}
+  # Include Spring MVC request data in error reports
+  enable-tracing: true
+  # Don't log Sentry SDK internals
+  logging:
+    minimum-event-level: error
+    minimum-breadcrumb-level: info
 
 # ── Stripe ────────────────────────────────────────────────────────────────────
 stripe:

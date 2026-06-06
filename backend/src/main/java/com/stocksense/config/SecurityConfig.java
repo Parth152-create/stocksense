@@ -18,10 +18,12 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final JwtAuthFilter jwtAuthFilter;
+    private final JwtAuthFilter   jwtAuthFilter;
+    private final ApiKeyFilter    apiKeyFilter;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, ApiKeyFilter apiKeyFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.apiKeyFilter  = apiKeyFilter;
     }
 
     @Bean
@@ -36,12 +38,18 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/stocks/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/market/**").permitAll()
                 .requestMatchers("/ws/**").permitAll()
-                // Stripe webhook — verified by signature, no JWT needed
+                // Public shared watchlist — no auth needed
+                .requestMatchers(HttpMethod.GET, "/api/watchlist/shared/**").permitAll()
+                // Stripe webhook — verified by signature
                 .requestMatchers(HttpMethod.POST, "/api/payments/stripe/webhook").permitAll()
-                // All other payment endpoints require JWT
+                // API v1 routes — authenticated via ApiKeyFilter (runs before this)
+                .requestMatchers("/api/v1/**").authenticated()
+                // All payment endpoints require JWT
                 .requestMatchers("/api/payments/**").authenticated()
                 .anyRequest().authenticated()
             )
+            // ApiKeyFilter runs first — handles /api/v1/** before JWT filter sees it
+            .addFilterBefore(apiKeyFilter,  UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -63,9 +71,16 @@ public class SecurityConfig {
             "X-Requested-With",
             "Access-Control-Request-Method",
             "Access-Control-Request-Headers",
-            "Stripe-Signature"
+            "Stripe-Signature",
+            "X-API-Key"          // allow API key header through CORS
         ));
-        config.setExposedHeaders(List.of("Authorization"));
+        config.setExposedHeaders(List.of(
+            "Authorization",
+            "X-RateLimit-Limit",
+            "X-RateLimit-Remaining",
+            "X-RateLimit-Reset",
+            "Retry-After"
+        ));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 

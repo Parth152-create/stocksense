@@ -59,6 +59,8 @@ services:
       STRIPE_WEBHOOK_SECRET:      ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
       RAZORPAY_KEY_ID:            ${RAZORPAY_KEY_ID:-rzp_test_placeholder}
       RAZORPAY_KEY_SECRET:        ${RAZORPAY_KEY_SECRET:-placeholder}
+      SENTRY_DSN: ${SENTRY_BACKEND_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       SPRING_MAIL_HOST:           smtp.gmail.com
       SPRING_MAIL_PORT:           587
       SPRING_MAIL_USERNAME:       onealpha457@gmail.com
@@ -116,6 +118,8 @@ services:
       NEXT_PUBLIC_GOOGLE_CLIENT_ID:       ${GOOGLE_CLIENT_ID:-}
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-pk_test_placeholder}
       NEXT_PUBLIC_RAZORPAY_KEY_ID:        ${RAZORPAY_KEY_ID:-rzp_test_placeholder}
+      NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_FRONTEND_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
     depends_on:
       backend:
         condition: service_healthy
