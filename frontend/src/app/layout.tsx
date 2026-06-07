@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Gantari } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import { CommandPalette } from "@/components/CommandPalette";
 import "./globals.css";
 
 const gantari = Gantari({
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           disableTransitionOnChange
         >
           {children}
+          <CommandPalette />
         </ThemeProvider>
         <script
           dangerouslySetInnerHTML={{

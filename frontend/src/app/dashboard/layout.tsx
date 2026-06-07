@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MarketProvider } from "@/lib/MarketContext";
 import MarketSwitcher from "@/components/MarketSwitcher";
 import NotificationsDrawer, { AppNotification } from "@/components/NotificationsDrawer";
+import { CommandPaletteTrigger } from "@/components/CommandPalette";
 import { fetchWithAuth, getToken, logout } from "@/lib/auth";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider } from "@/components/ToastContext";
@@ -533,6 +534,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       </span>
                     ))}
                   </nav>
+
+                  <CommandPaletteTrigger isDark={isDark} />
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
