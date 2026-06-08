@@ -17,6 +17,7 @@ import { CommandPaletteTrigger } from "@/components/CommandPalette";
 import { fetchWithAuth, getToken, logout } from "@/lib/auth";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider } from "@/components/ToastContext";
+import { PWAManager } from "@/components/PWAManager";
 
 const NAV_ITEMS = [
   { href: "/dashboard",               label: "Dashboard",     icon: LayoutDashboard   },
@@ -253,6 +254,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!token) {
       router.replace(`/login?redirect=${pathname}`);
     } else {
+      const onboarded = localStorage.getItem("ss_onboarded");
+      if (!onboarded) {
+        // Check if this is actually a new user by seeing if they have any orders
+        fetchWithAuth("/api/orders/paginated?page=0&size=1")
+          .then(r => r.ok ? r.json() : null)
+          .then(data => {
+            const hasOrders = (data?.orders?.length ?? 0) > 0;
+            if (hasOrders) {
+              // Existing user — mark as onboarded and stay on dashboard
+              localStorage.setItem("ss_onboarded", "1");
+              setAuthChecked(true);
+            } else {
+              // Truly new user — send to onboarding
+              router.replace("/onboarding");
+            }
+          })
+          .catch(() => {
+            // On error, don't block — just mark as onboarded
+            localStorage.setItem("ss_onboarded", "1");
+            setAuthChecked(true);
+          });
+        return;
+      }
       setAuthChecked(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -360,6 +384,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <MarketProvider>
       <ToastProvider>
+         <PWAManager />
         <TooltipProvider>
           <style>{`
             @keyframes slideInLeft {

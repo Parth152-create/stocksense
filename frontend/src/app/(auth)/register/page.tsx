@@ -140,7 +140,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await register(form.email, form.password, form.name);
-      router.replace("/dashboard");
+      router.replace("/onboarding");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed. Email may already be in use.");
     } finally {

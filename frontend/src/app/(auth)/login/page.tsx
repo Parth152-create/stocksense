@@ -26,6 +26,7 @@ const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 // ── Biometric helpers ─────────────────────────────────────────────────────────
 
 const BIOMETRIC_KEY = "ss_biometric_email";
+const BIOMETRIC_DECLINED_KEY = "ss_biometric_declined";
 
 /** Returns true if the browser supports the Credential Management API */
 function isBiometricSupported(): boolean {
@@ -322,8 +323,9 @@ function LoginForm() {
     e.preventDefault(); setLoading(true); setError(null);
     try {
       await login(email, password);
-      // Offer biometric after successful login if supported and not already stored
-      if (biometricSupported && !storedEmail) {
+      const alreadyDeclined = localStorage.getItem(BIOMETRIC_DECLINED_KEY);
+      // Offer biometric after successful login if supported, not already stored, and not declined
+      if (biometricSupported && !storedEmail && !alreadyDeclined) {
         setOfferBiometric(true);
         return; // Don't redirect yet — wait for biometric offer response
       }
@@ -366,6 +368,7 @@ function LoginForm() {
   }
 
   function declineBiometricOffer() {
+    localStorage.setItem(BIOMETRIC_DECLINED_KEY, "1");
     setOfferBiometric(false);
     router.push(redirectTo);
   }

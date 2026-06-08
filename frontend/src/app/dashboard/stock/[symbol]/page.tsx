@@ -9,6 +9,7 @@ import { fetchWithAuth } from "@/lib/auth";
 import { useLivePrices } from "@/lib/websocket";
 import { useMarket } from "@/lib/MarketContext";
 import { MLInsightsPanel } from "@/components/MLInsightsPanel";
+import { PriceAlertPanel } from "@/components/PriceAlertPanel";
 import { useToast } from "@/components/ToastContext";
 import {
   TrendingUp, TrendingDown, ArrowLeft, Star, StarOff,
@@ -1143,6 +1144,12 @@ function StockPageInner() {
             </motion.div>
 
             <MLInsightsPanel symbol={symbol}/>
+            <PriceAlertPanel
+              symbol={symbol}
+              price={price}
+              watchlisted={watchlisted}
+              currency={market.currency || "$"}
+            />
           </div>
         </div>
       )}
