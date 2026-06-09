@@ -45,21 +45,19 @@ alphavantage:
   api:
     key: HXW27CL9C8V78EXL
 
-# ── Sentry ────────────────────────────────────────────────────────────────────
+ml:
+  service:
+    url: http://ml-service:8082
+
 sentry:
   dsn: ${SENTRY_DSN:}
-  # Capture 10% of transactions for performance monitoring
   traces-sample-rate: 0.1
-  # Only send events in production — set SENTRY_ENVIRONMENT in docker-compose
   environment: ${SENTRY_ENVIRONMENT:development}
-  # Include Spring MVC request data in error reports
   enable-tracing: true
-  # Don't log Sentry SDK internals
   logging:
     minimum-event-level: error
     minimum-breadcrumb-level: info
 
-# ── Stripe ────────────────────────────────────────────────────────────────────
 stripe:
   secret:
     key: ${STRIPE_SECRET_KEY:sk_test_placeholder}
@@ -68,7 +66,6 @@ stripe:
   webhook:
     secret: ${STRIPE_WEBHOOK_SECRET:whsec_placeholder}
 
-# ── Razorpay ──────────────────────────────────────────────────────────────────
 razorpay:
   key:
     id: ${RAZORPAY_KEY_ID:rzp_test_placeholder}
@@ -76,7 +73,7 @@ razorpay:
 
 jwt:
   secret: "your-256-bit-secret-here-change-in-production-min-32-chars"
-  expiration: 604800000
+  expiration: 900000
 
 google:
   client-id: "724652717839-u1lacrp7rmj5rp2117vhnpoj26t5vgm5.apps.googleusercontent.com"

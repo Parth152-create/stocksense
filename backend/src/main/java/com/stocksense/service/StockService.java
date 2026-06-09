@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -36,6 +38,11 @@ public class StockService {
 
     @Value("${alphavantage.api.key:demo}")
     private String alphaVantageKey;
+
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+
+    private static final String PRICE_KEY_PREFIX = "price:";
 
     private final HttpClient   http   = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
@@ -79,7 +86,24 @@ public class StockService {
 
     @Cacheable(value = "stockQuote", key = "#symbol.toUpperCase()", unless = "#result == null || #result.isEmpty()")
     public Map<String, Object> getQuote(String symbol) {
-        log.debug("Cache miss — fetching quote for {}", symbol);
+        log.debug("Cache miss — checking Redis price key for {}", symbol);
+
+        // 1. Check Redis price:{symbol} written by PriceIngestionService
+        try {
+            String json = redisTemplate.opsForValue().get(PRICE_KEY_PREFIX + symbol.toUpperCase());
+            if (json != null) {
+                ObjectMapper om = new ObjectMapper();
+                Map<String, Object> cached = om.readValue(json,
+                    om.getTypeFactory().constructMapType(Map.class, String.class, Object.class));
+                log.debug("Redis price hit for {}", symbol);
+                return cached;
+            }
+        } catch (Exception e) {
+            log.warn("Redis price read failed for {}: {}", symbol, e.getMessage());
+        }
+
+        // 2. Fall back to direct API fetch
+        log.debug("Redis miss — fetching live quote for {}", symbol);
         Map<String, Object> result = fetchYahooQuote(symbol);
         if (result == null || result.isEmpty()) {
             log.warn("Yahoo Finance failed for {}, falling back to Alpha Vantage", symbol);

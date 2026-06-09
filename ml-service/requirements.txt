@@ -9,3 +9,5 @@ vaderSentiment==3.3.2
 cachetools==5.3.3
 pydantic==2.10.6
 pyjwt==2.10.1
+redis==5.0.4
+gunicorn==22.0.0

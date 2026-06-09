@@ -21,6 +21,9 @@ public interface WatchlistRepository extends JpaRepository<WatchlistItem, UUID> 
     // All items that carry a given share token (may belong to one user)
     List<WatchlistItem> findByShareToken(String shareToken);
 
+    List<WatchlistItem> findBySymbolAndAlertPriceIsNotNull(String symbol);
+
+
     // Bulk-update share token + shared flag for all of a user's items
     @Modifying
     @Query("UPDATE WatchlistItem w SET w.shareToken = :token, w.shared = :shared WHERE w.userId = :userId")

@@ -19,6 +19,11 @@ const SHELL_CACHE   = `stocksense-shell-${CACHE_VERSION}`;
 const API_CACHE     = `stocksense-api-${CACHE_VERSION}`;
 const STATIC_CACHE  = `stocksense-static-${CACHE_VERSION}`;
 
+// Only log in development
+const DEBUG = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
+const log   = (...args) => { if (DEBUG) console.log(...args); };
+const warn  = (...args) => { if (DEBUG) console.warn(...args); };
+
 const SHELL_URLS = [
   '/',
   '/dashboard',
@@ -30,12 +35,12 @@ const SHELL_URLS = [
 
 // ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing StockSense service worker');
+  log('[SW] Installing StockSense service worker');
   event.waitUntil(
     caches.open(SHELL_CACHE).then((cache) =>
       Promise.allSettled(
         SHELL_URLS.map(url =>
-          cache.add(url).catch(err => console.warn(`[SW] Failed to cache ${url}:`, err))
+          cache.add(url).catch(err => warn(`[SW] Failed to cache ${url}:`, err))
         )
       )
     ).then(() => self.skipWaiting())
@@ -44,13 +49,13 @@ self.addEventListener('install', (event) => {
 
 // ── Activate ──────────────────────────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating StockSense service worker');
+  log('[SW] Activating StockSense service worker');
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
         keys
           .filter(key => key.startsWith('stocksense-') && !key.endsWith(CACHE_VERSION))
-          .map(key => { console.log('[SW] Deleting old cache:', key); return caches.delete(key); })
+          .map(key => { log('[SW] Deleting old cache:', key); return caches.delete(key); })
       )
     ).then(() => self.clients.claim())
   );
@@ -91,22 +96,11 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ── PWA Widget events ─────────────────────────────────────────────────────────
-//
-// The Widgets API (Chrome 114+ / Android 14+) fires these lifecycle events.
-// We fetch fresh portfolio data from /api/widget/portfolio and push it into
-// the widget via self.widgets.updateByTag().
-//
-// Fallback: if self.widgets is undefined (browser doesn't support widgets yet),
-// the handlers exit silently — no errors, no impact on the rest of the SW.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const WIDGET_TAG = 'portfolio-widget';
 
-/** Fetch portfolio summary and shape it for the Adaptive Card template */
 async function getWidgetPayload() {
   try {
-    // Retrieve the JWT from IndexedDB if available, else try without auth
-    // (widget data endpoint should handle missing auth gracefully)
     const res = await fetch('/api/widget/portfolio', {
       headers: { 'Accept': 'application/json' },
     });
@@ -128,7 +122,7 @@ async function getWidgetPayload() {
       pnlSign:    pnl >= 0 ? '+' : '-',
       pnlAbs:     fmt(pnl),
       pnlPct:     (pnlPct >= 0 ? '+' : '') + pnlPct.toFixed(2),
-      pnlColor:   pnl >= 0 ? 'Good' : 'Attention',  // Adaptive Card color tokens
+      pnlColor:   pnl >= 0 ? 'Good' : 'Attention',
       invested:   fmt(invested),
       positions:  String(positions),
       updatedAt:  new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
@@ -151,46 +145,32 @@ function buildFallbackPayload() {
   };
 }
 
-/** Update the widget with fresh data */
 async function updatePortfolioWidget() {
-  if (!self.widgets) return; // Browser doesn't support Widgets API yet
-
+  if (!self.widgets) return;
   const widget = await self.widgets.getByTag(WIDGET_TAG);
   if (!widget) return;
-
   const payload = await getWidgetPayload();
-
-  await self.widgets.updateByTag(WIDGET_TAG, {
-    data: JSON.stringify(payload),
-  });
-
-  console.log('[SW] Portfolio widget updated:', payload.totalValue);
+  await self.widgets.updateByTag(WIDGET_TAG, { data: JSON.stringify(payload) });
+  log('[SW] Portfolio widget updated:', payload.totalValue);
 }
 
-// Widget installed — user added it to their home screen
 self.addEventListener('widgetinstall', (event) => {
-  console.log('[SW] Widget installed:', event.widget?.tag);
+  log('[SW] Widget installed:', event.widget?.tag);
   event.waitUntil(updatePortfolioWidget());
 });
 
-// Widget resumed (home screen visible again / periodic refresh)
 self.addEventListener('widgetresume', (event) => {
-  console.log('[SW] Widget resumed:', event.widget?.tag);
+  log('[SW] Widget resumed:', event.widget?.tag);
   event.waitUntil(updatePortfolioWidget());
 });
 
-// Widget clicked — navigate to portfolio page
 self.addEventListener('widgetclick', (event) => {
-  console.log('[SW] Widget clicked:', event.widget?.tag, event.action);
+  log('[SW] Widget clicked:', event.widget?.tag, event.action);
   event.waitUntil(
     (async () => {
-      // Refresh data on click
       await updatePortfolioWidget();
-
-      // Open / focus the portfolio page
       const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       const portfolioClient = allClients.find(c => c.url.includes('/dashboard'));
-
       if (portfolioClient) {
         portfolioClient.focus();
       } else {
@@ -200,12 +180,10 @@ self.addEventListener('widgetclick', (event) => {
   );
 });
 
-// Widget uninstalled — nothing to clean up for now
 self.addEventListener('widgetuninstall', (event) => {
-  console.log('[SW] Widget uninstalled:', event.widget?.tag);
+  log('[SW] Widget uninstalled:', event.widget?.tag);
 });
 
-// Periodic background sync — refresh widget data every 15 minutes
 self.addEventListener('periodicsync', (event) => {
   if (event.tag === 'portfolio-widget-sync') {
     event.waitUntil(updatePortfolioWidget());

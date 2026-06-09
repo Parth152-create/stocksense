@@ -2,7 +2,6 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install wget for health check
 RUN apt-get update && apt-get install -y --no-install-recommends wget \
     && rm -rf /var/lib/apt/lists/*
 
@@ -16,4 +15,9 @@ COPY . .
 
 EXPOSE 8082
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8082"]
+CMD ["gunicorn", "main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "4", \
+     "--bind", "0.0.0.0:8082", \
+     "--timeout", "120", \
+     "--keep-alive", "5"]

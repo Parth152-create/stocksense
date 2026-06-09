@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useCallback, useRef, Suspense } from "react";
@@ -54,8 +53,6 @@ const BULL   = "#22c55e";
 const BEAR   = "#ef4444";
 const ACCENT = "#8FFFD6";
 const APPLE  = [0.22, 1, 0.36, 1] as const;
-
-// ── Technical indicator calculations ─────────────────────────────────────────
 
 function calcRSI(closes: number[], period = 14): (number | null)[] {
   if (closes.length < period + 1) return closes.map(() => null);
@@ -117,8 +114,6 @@ function calcMACD(closes: number[], fast = 12, slow = 26, signal = 9): MACDPoint
   return result;
 }
 
-// ── Indicator chart components ────────────────────────────────────────────────
-
 function RSIChart({ candles, isDark }: { candles: Candle[]; isDark: boolean }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const closes = candles.map(c => c.close);
@@ -146,7 +141,6 @@ function RSIChart({ candles, isDark }: { candles: Candle[]; isDark: boolean }) {
 
   const ob70y = pad.t + innerH - (70 / 100) * innerH;
   const os30y = pad.t + innerH - (30 / 100) * innerH;
-  const mid50y = pad.t + innerH - (50 / 100) * innerH;
   const lastRSI = plotData[plotData.length - 1];
   const rsiColor = lastRSI > 70 ? BEAR : lastRSI < 30 ? BULL : ACCENT;
   const gridColor = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
@@ -154,12 +148,8 @@ function RSIChart({ candles, isDark }: { candles: Candle[]; isDark: boolean }) {
 
   return (
     <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 80, display: "block" }}>
-      {/* Zone fills */}
-      <rect x={pad.l} y={pad.t} width={innerW} height={ob70y - pad.t}
-        fill={BEAR} fillOpacity={0.04}/>
-      <rect x={pad.l} y={os30y} width={innerW} height={pad.t + innerH - os30y}
-        fill={BULL} fillOpacity={0.04}/>
-      {/* Grid lines */}
+      <rect x={pad.l} y={pad.t} width={innerW} height={ob70y - pad.t} fill={BEAR} fillOpacity={0.04}/>
+      <rect x={pad.l} y={os30y} width={innerW} height={pad.t + innerH - os30y} fill={BULL} fillOpacity={0.04}/>
       {[30, 50, 70].map(level => {
         const y = pad.t + innerH - (level / 100) * innerH;
         return (
@@ -171,9 +161,7 @@ function RSIChart({ candles, isDark }: { candles: Candle[]; isDark: boolean }) {
           </g>
         );
       })}
-      {/* RSI line */}
       <polyline points={points} fill="none" stroke={rsiColor} strokeWidth={1.5} strokeLinejoin="round"/>
-      {/* Current value label */}
       <text x={W - pad.r - 2} y={pad.t + 10} fill={rsiColor} fontSize={10} textAnchor="end" fontWeight={700}>
         {lastRSI.toFixed(1)}
       </text>
@@ -224,12 +212,9 @@ function MACDChart({ candles, isDark }: { candles: Candle[]; isDark: boolean }) 
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 80, display: "block" }}>
-      {/* Zero line */}
       <line x1={pad.l} y1={zero} x2={W - pad.r} y2={zero}
         stroke={gridColor} strokeWidth={0.8} strokeDasharray="3 3"/>
       <text x={pad.l - 4} y={zero + 4} fill={textColor} fontSize={9} textAnchor="end">0</text>
-
-      {/* Histogram bars */}
       {plotData.map((d, i) => {
         if (d.histogram === null) return null;
         const x    = pad.l + i * xStep;
@@ -241,21 +226,14 @@ function MACDChart({ candles, isDark }: { candles: Candle[]; isDark: boolean }) 
             fill={d.histogram >= 0 ? `${BULL}88` : `${BEAR}88`}/>
         );
       })}
-
-      {/* MACD line */}
       {macdPoints && <polyline points={macdPoints} fill="none" stroke={ACCENT} strokeWidth={1.5} strokeLinejoin="round"/>}
-      {/* Signal line */}
       {sigPoints  && <polyline points={sigPoints}  fill="none" stroke="#f59e0b" strokeWidth={1.2} strokeLinejoin="round" strokeDasharray="4 2"/>}
-
-      {/* Legend */}
       <g>
         <circle cx={W - pad.r - 80} cy={pad.t + 8} r={3} fill={ACCENT}/>
         <text x={W - pad.r - 74} y={pad.t + 12} fill={textColor} fontSize={9}>MACD</text>
         <circle cx={W - pad.r - 38} cy={pad.t + 8} r={3} fill="#f59e0b"/>
         <text x={W - pad.r - 32} y={pad.t + 12} fill={textColor} fontSize={9}>Signal</text>
       </g>
-
-      {/* Crossover badge */}
       {lastMacd.macd !== null && (
         <text x={W - pad.r - 2} y={pad.t + 10}
           fill={crossover ? BULL : BEAR} fontSize={10} textAnchor="end" fontWeight={700}>
@@ -265,8 +243,6 @@ function MACDChart({ candles, isDark }: { candles: Candle[]; isDark: boolean }) 
     </svg>
   );
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function cleanSymbol(raw: string): string {
   return raw
@@ -368,8 +344,6 @@ function NewsCard({ article }: { article: NewsArticle }) {
   );
 }
 
-// ── Indicator toggle button ───────────────────────────────────────────────────
-
 function IndicatorBtn({ label, active, color, onClick }: {
   label: string; active: boolean; color: string; onClick: () => void;
 }) {
@@ -389,8 +363,6 @@ function IndicatorBtn({ label, active, color, onClick }: {
   );
 }
 
-// ── StockChart ────────────────────────────────────────────────────────────────
-
 function StockChart({ symbol, currency, marketId }: {
   symbol: string; currency: string; marketId: string;
 }) {
@@ -405,8 +377,6 @@ function StockChart({ symbol, currency, marketId }: {
   const [candles,    setCandles]    = useState<Candle[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [hoverInfo,  setHoverInfo]  = useState<{ price: string; change: string; time: string; isUp: boolean } | null>(null);
-
-  // ── Indicator toggles ──────────────────────────────────────────────────────
   const [showRSI,  setShowRSI]  = useState(false);
   const [showMACD, setShowMACD] = useState(false);
 
@@ -545,8 +515,6 @@ function StockChart({ symbol, currency, marketId }: {
   return (
     <div style={{ background: isDark ? "#0d0d0d" : "#ffffff",
       border: "1px solid var(--color-line)", borderRadius: 12, overflow: "hidden", marginBottom: 20 }}>
-
-      {/* Chart toolbar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "14px 18px", borderBottom: "1px solid var(--color-line)",
         background: "var(--color-card)", flexWrap: "wrap", gap: 8 }}>
@@ -569,12 +537,10 @@ function StockChart({ symbol, currency, marketId }: {
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* Indicator toggles */}
           <div style={{ display: "flex", gap: 4 }}>
             <IndicatorBtn label="RSI" active={showRSI} color="#a855f7" onClick={() => setShowRSI(v => !v)}/>
             <IndicatorBtn label="MACD" active={showMACD} color="#f59e0b" onClick={() => setShowMACD(v => !v)}/>
           </div>
-          {/* Chart type */}
           <div style={{ display: "flex", background: "var(--color-page)",
             border: "1px solid var(--color-line)", borderRadius: 8, padding: 3, gap: 2 }}>
             {([
@@ -590,7 +556,6 @@ function StockChart({ symbol, currency, marketId }: {
               </button>
             ))}
           </div>
-          {/* Range */}
           <div style={{ display: "flex", background: "var(--color-page)",
             border: "1px solid var(--color-line)", borderRadius: 8, padding: 3, gap: 2 }}>
             {RANGES.map(r => (
@@ -606,7 +571,6 @@ function StockChart({ symbol, currency, marketId }: {
         </div>
       </div>
 
-      {/* Price chart */}
       <div style={{ position: "relative" }}>
         {loading && (
           <div style={{ position: "absolute", inset: 0, zIndex: 10,
@@ -621,57 +585,37 @@ function StockChart({ symbol, currency, marketId }: {
         <div ref={containerRef} style={{ height: 340, width: "100%", background: isDark ? "#0d0d0d" : "#ffffff" }}/>
       </div>
 
-      {/* ── RSI panel ─────────────────────────────────────────────────────── */}
       <AnimatePresence>
         {showRSI && candles.length > 0 && (
-          <motion.div
-            key="rsi"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: "easeInOut" }}
+          <motion.div key="rsi" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: "easeInOut" }}
             style={{ overflow: "hidden" }}>
-            <div style={{ borderTop: `1px solid var(--color-line)`,
-              background: isDark ? "#0a0a0a" : "#fafafa" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "8px 18px 4px" }}>
+            <div style={{ borderTop: `1px solid var(--color-line)`, background: isDark ? "#0a0a0a" : "#fafafa" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 18px 4px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <Activity size={11} color="#a855f7"/>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "#a855f7", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                    RSI (14)
-                  </span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#a855f7", letterSpacing: "0.08em", textTransform: "uppercase" }}>RSI (14)</span>
                 </div>
                 <div style={{ display: "flex", gap: 12, fontSize: 9, color: "var(--color-muted)" }}>
                   <span style={{ color: `${BEAR}99` }}>Overbought ≥ 70</span>
                   <span style={{ color: `${BULL}99` }}>Oversold ≤ 30</span>
                 </div>
               </div>
-              <div style={{ padding: "0 0 4px" }}>
-                <RSIChart candles={candles} isDark={isDark}/>
-              </div>
+              <div style={{ padding: "0 0 4px" }}><RSIChart candles={candles} isDark={isDark}/></div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── MACD panel ────────────────────────────────────────────────────── */}
       <AnimatePresence>
         {showMACD && candles.length > 0 && (
-          <motion.div
-            key="macd"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: "easeInOut" }}>
-            <div style={{ overflow: "hidden", borderTop: `1px solid var(--color-line)`,
-              background: isDark ? "#0a0a0a" : "#fafafa" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "8px 18px 4px" }}>
+          <motion.div key="macd" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: "easeInOut" }}>
+            <div style={{ overflow: "hidden", borderTop: `1px solid var(--color-line)`, background: isDark ? "#0a0a0a" : "#fafafa" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 18px 4px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <Activity size={11} color="#f59e0b"/>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "#f59e0b", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                    MACD (12, 26, 9)
-                  </span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#f59e0b", letterSpacing: "0.08em", textTransform: "uppercase" }}>MACD (12, 26, 9)</span>
                 </div>
                 <div style={{ display: "flex", gap: 12, fontSize: 9, color: "var(--color-muted)" }}>
                   <span>
@@ -681,15 +625,12 @@ function StockChart({ symbol, currency, marketId }: {
                   </span>
                 </div>
               </div>
-              <div style={{ padding: "0 0 4px" }}>
-                <MACDChart candles={candles} isDark={isDark}/>
-              </div>
+              <div style={{ padding: "0 0 4px" }}><MACDChart candles={candles} isDark={isDark}/></div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Footer */}
       <div style={{ padding: "8px 18px", borderTop: "1px solid var(--color-line)",
         background: "var(--color-card)", display: "flex", justifyContent: "space-between" }}>
         <span style={{ fontSize: 10, color: "var(--color-muted)" }}>
@@ -702,8 +643,6 @@ function StockChart({ symbol, currency, marketId }: {
     </div>
   );
 }
-
-// ── Inner page ────────────────────────────────────────────────────────────────
 
 function StockPageInner() {
   const params = useParams();
@@ -770,6 +709,22 @@ function StockPageInner() {
 
   useEffect(() => { void load(); void loadNews(); }, [load, loadNews]);
 
+  // ── price is declared here, BEFORE the title useEffect ───────────────────
+  const price     = live?.price     ?? fallbackPrice;
+  const changePct = live?.changePct ?? fallbackChange;
+  const isUp      = (changePct ?? 0) >= 0;
+  const isLive    = !!live?.price;
+
+  // Task 18 — dynamic document title
+  useEffect(() => {
+    if (price !== null) {
+      document.title = `${symbol} · ${formatPrice(price)} | StockSense`;
+    } else {
+      document.title = `${symbol} | StockSense`;
+    }
+    return () => { document.title = "StockSense"; };
+  }, [symbol, price, formatPrice]);
+
   const toggleWatchlist = async () => {
     const method = watchlisted ? "DELETE" : "POST";
     const res    = await fetchWithAuth(`/api/watchlist/${symbol}`, { method });
@@ -814,10 +769,6 @@ function StockPageInner() {
     } finally { setIsPlacingOrder(false); }
   };
 
-  const price     = live?.price     ?? fallbackPrice;
-  const changePct = live?.changePct ?? fallbackChange;
-  const isUp      = (changePct ?? 0) >= 0;
-  const isLive    = !!live?.price;
   const totalRatings = ratings
     ? ratings.strongBuy + ratings.buy + ratings.hold + ratings.sell + ratings.strongSell : 0;
 
@@ -843,6 +794,11 @@ function StockPageInner() {
         @keyframes fadeInUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         .order-tab { flex:1; padding:8px; border:none; cursor:pointer; font-size:13px; font-weight:600; border-radius:6px; transition:all .15s; }
         .kind-tab  { flex:1; padding:6px 4px; border:none; cursor:pointer; font-size:11px; font-weight:600; border-radius:6px; transition:all .15s; }
+        .stock-page-grid { grid-template-columns: 1fr 300px; }
+        @media (max-width: 768px) {
+          .stock-page-grid { grid-template-columns: 1fr !important; }
+          .stock-page-grid > div:last-child { position: static !important; }
+        }
       `}</style>
 
       <motion.button onClick={() => router.back()} whileHover={{ x: -2 }}
@@ -858,11 +814,10 @@ function StockPageInner() {
           <button onClick={load} style={{ padding: "8px 20px", borderRadius: 8, background: "var(--color-primary)", color: "#000", border: "none", cursor: "pointer", fontWeight: 600 }}>Retry</button>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20, alignItems: "start" }}>
+        <div style={{ display: "grid", gap: 20, alignItems: "start" }} className="stock-page-grid">
 
           {/* ── LEFT ── */}
           <div>
-            {/* Hero */}
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, ease: APPLE }}
               style={{ ...cardStyle, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -919,7 +874,6 @@ function StockPageInner() {
               </div>
             </motion.div>
 
-            {/* Chart with indicators */}
             <StockChart
               key={`${symbol}-${effectiveMarketId}`}
               symbol={symbol}
@@ -927,7 +881,6 @@ function StockPageInner() {
               marketId={effectiveMarketId}
             />
 
-            {/* Stats */}
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15, duration: 0.4, ease: APPLE }}
               style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
@@ -949,7 +902,6 @@ function StockPageInner() {
               ) : null}
             </motion.div>
 
-            {/* About */}
             {!loading && overview?.description && (
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2, duration: 0.4, ease: APPLE }} whileHover={{ y: -1 }}
@@ -959,7 +911,6 @@ function StockPageInner() {
               </motion.div>
             )}
 
-            {/* Analyst Ratings */}
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.4, ease: APPLE }} whileHover={{ y: -1 }}
               style={cardStyle}>
@@ -990,7 +941,6 @@ function StockPageInner() {
               )}
             </motion.div>
 
-            {/* AI Insights */}
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.4, ease: APPLE }} whileHover={{ y: -1 }}
               style={cardStyle}>
@@ -1025,7 +975,6 @@ function StockPageInner() {
               )}
             </motion.div>
 
-            {/* News */}
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.4, ease: APPLE }} whileHover={{ y: -1 }}
               style={cardStyle}>
@@ -1159,13 +1108,26 @@ function StockPageInner() {
 
 export default function StockPage() {
   return (
-    <Suspense fallback={
-      <div style={{ padding: "32px 28px", display: "flex", alignItems: "center", justifyContent: "center", height: "60vh" }}>
-        <div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid #1f1f1f", borderTop: "2px solid #8FFFD6", animation: "spin 0.8s linear infinite" }}/>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    }>
-      <StockPageInner/>
-    </Suspense>
+      <Suspense fallback={
+        <div style={{
+          padding: "32px 28px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "60vh"
+        }}>
+          <div style={{
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            border: "2px solid #1f1f1f",
+            borderTop: "2px solid #8FFFD6",
+            animation: "spin 0.8s linear infinite"
+          }}/>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      }>
+        <StockPageInner/>
+      </Suspense>
   );
 }

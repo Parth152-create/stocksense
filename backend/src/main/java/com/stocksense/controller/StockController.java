@@ -3,6 +3,7 @@ package com.stocksense.controller;
 import com.stocksense.service.AlphaVantageService;
 import com.stocksense.service.MarketSymbolService;
 import com.stocksense.service.StockService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,7 +16,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "*")
+
 public class StockController {
 
     private final AlphaVantageService alphaVantage;
@@ -36,6 +37,13 @@ public class StockController {
         Map.entry("DOGE", "dogecoin"),
         Map.entry("XRP",  "ripple")
     );
+
+    @Value("${ml.service.url:http://ml-service:8082}")
+    private String mlServiceUrl;
+
+    private final java.net.http.HttpClient httpClient = java.net.http.HttpClient.newBuilder()
+        .connectTimeout(java.time.Duration.ofSeconds(5))
+        .build();
 
     private static final Map<String, String> FX_YAHOO = Map.ofEntries(
         Map.entry("EUR/USD", "EURUSD=X"),
@@ -296,16 +304,56 @@ public class StockController {
         String now   = new java.util.Date().toString();
         String type  = isCrypto(market) ? "crypto asset" : isFx(market) ? "currency pair" : "stock";
 
-        return ResponseEntity.ok(List.of(
-            Map.of("id","1","type","BULLISH",
-                "title",  clean + " shows strong momentum",
-                "body",   "Technical indicators suggest bullish continuation with RSI above 60 and MACD crossover for this " + type + ".",
-                "source", "StockSense AI", "publishedAt", now),
-            Map.of("id","2","type","NEUTRAL",
-                "title",  "Key levels to watch for " + clean,
-                "body",   "Analysts expect moderate volatility. Watch for volume confirmation at key support and resistance levels.",
-                "source", "StockSense AI", "publishedAt", now)
-        ));
+        List<Map<String, Object>> insights = new ArrayList<>();
+
+        // Base insights
+        insights.add(Map.of("id","1","type","BULLISH",
+            "title",  clean + " shows strong momentum",
+            "body",   "Technical indicators suggest bullish continuation with RSI above 60 and MACD crossover for this " + type + ".",
+            "source", "StockSense AI", "publishedAt", now));
+        insights.add(Map.of("id","2","type","NEUTRAL",
+            "title",  "Key levels to watch for " + clean,
+            "body",   "Analysts expect moderate volatility. Watch for volume confirmation at key support and resistance levels.",
+            "source", "StockSense AI", "publishedAt", now));
+
+        // Append anomaly insight from ML service
+        try {
+            String mlUrl = (mlServiceUrl != null ? mlServiceUrl : "http://ml-service:8082")
+                + "/ml/anomaly/" + clean;
+            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create(mlUrl))
+                .timeout(java.time.Duration.ofSeconds(5))
+                .GET().build();
+            java.net.http.HttpResponse<String> resp = httpClient.send(req,
+                java.net.http.HttpResponse.BodyHandlers.ofString());
+
+            if (resp.statusCode() == 200) {
+                com.fasterxml.jackson.databind.ObjectMapper om =
+                    new com.fasterxml.jackson.databind.ObjectMapper();
+                @SuppressWarnings("unchecked")
+                Map<String, Object> anomaly = om.readValue(resp.body(), Map.class);
+
+                boolean isAnomaly = Boolean.TRUE.equals(anomaly.get("is_anomaly"));
+                String severity   = String.valueOf(anomaly.getOrDefault("severity", "normal"));
+                String summary    = String.valueOf(anomaly.getOrDefault("summary", ""));
+
+                if (isAnomaly && !summary.isEmpty()) {
+                    String insightType = "high".equals(severity) ? "BEARISH" : "NEUTRAL";
+                    insights.add(Map.of(
+                        "id",          "3",
+                        "type",        insightType,
+                        "title",       "Anomaly detected in " + clean,
+                        "body",        summary,
+                        "source",      "StockSense ML",
+                        "publishedAt", now
+                    ));
+                }
+            }
+        } catch (Exception e) {
+            // ML service unavailable — skip anomaly insight silently
+        }
+
+        return ResponseEntity.ok(insights);
     }
 
     // ── GET /api/stocks/{symbol}/news ─────────────────────────────────────────

@@ -100,6 +100,11 @@ public class UserService {
         return userRepository.findAll();
     }
 
+
+  public Optional<User> findById(UUID userId) {
+    return userRepository.findById(userId);
+}
+
     // ── findOrCreateGoogleUser ────────────────────────────────────────────────
     @Transactional
     public User findOrCreateGoogleUser(String email, String name) {

@@ -18,12 +18,16 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final JwtAuthFilter   jwtAuthFilter;
-    private final ApiKeyFilter    apiKeyFilter;
+    private final JwtAuthFilter         jwtAuthFilter;
+    private final ApiKeyFilter          apiKeyFilter;
+    private final AuthRateLimitFilter   authRateLimitFilter;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter, ApiKeyFilter apiKeyFilter) {
-        this.jwtAuthFilter = jwtAuthFilter;
-        this.apiKeyFilter  = apiKeyFilter;
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter,
+                          ApiKeyFilter apiKeyFilter,
+                          AuthRateLimitFilter authRateLimitFilter) {
+        this.jwtAuthFilter       = jwtAuthFilter;
+        this.apiKeyFilter        = apiKeyFilter;
+        this.authRateLimitFilter = authRateLimitFilter;
     }
 
     @Bean
@@ -38,19 +42,15 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/stocks/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/market/**").permitAll()
                 .requestMatchers("/ws/**").permitAll()
-                // Public shared watchlist — no auth needed
                 .requestMatchers(HttpMethod.GET, "/api/watchlist/shared/**").permitAll()
-                // Stripe webhook — verified by signature
                 .requestMatchers(HttpMethod.POST, "/api/payments/stripe/webhook").permitAll()
-                // API v1 routes — authenticated via ApiKeyFilter (runs before this)
                 .requestMatchers("/api/v1/**").authenticated()
-                // All payment endpoints require JWT
                 .requestMatchers("/api/payments/**").authenticated()
                 .anyRequest().authenticated()
             )
-            // ApiKeyFilter runs first — handles /api/v1/** before JWT filter sees it
-            .addFilterBefore(apiKeyFilter,  UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(authRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(apiKeyFilter,        UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(jwtAuthFilter,       UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -64,22 +64,13 @@ public class SecurityConfig {
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of(
-            "Authorization",
-            "Content-Type",
-            "Accept",
-            "Origin",
-            "X-Requested-With",
-            "Access-Control-Request-Method",
-            "Access-Control-Request-Headers",
-            "Stripe-Signature",
-            "X-API-Key"          // allow API key header through CORS
+            "Authorization", "Content-Type", "Accept", "Origin",
+            "X-Requested-With", "Access-Control-Request-Method",
+            "Access-Control-Request-Headers", "Stripe-Signature", "X-API-Key"
         ));
         config.setExposedHeaders(List.of(
-            "Authorization",
-            "X-RateLimit-Limit",
-            "X-RateLimit-Remaining",
-            "X-RateLimit-Reset",
-            "Retry-After"
+            "Authorization", "X-RateLimit-Limit",
+            "X-RateLimit-Remaining", "X-RateLimit-Reset", "Retry-After"
         ));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
