@@ -13,6 +13,7 @@ import {
   TrendingUp, TrendingDown, Trophy, ArrowUpRight,
   Zap, ShoppingCart, Eye, BarChart2, Star,
 } from "lucide-react";
+import { resolveSymbol } from "@/lib/symbols";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -147,12 +148,6 @@ const PORTFOLIO_CATEGORIES = [
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function resolveSymbol(symbol: string, marketId: string) {
-  if (marketId === "IN" && !symbol.includes(".") && !symbol.includes("/"))
-    return `${symbol}.NS`;
-  return symbol;
-}
 
 const useCountUp = (target: number, duration = 1400) => {
   const [count, setCount] = useState(0);
