@@ -2,6 +2,8 @@
  * lib/auth.ts
  */
 
+import { API_BASE_URL, WS_PRICES_URL } from "./config";
+
 let _accessToken: string | null = null;
 
 export function getToken(): string | null {
@@ -44,7 +46,7 @@ async function silentRefresh(): Promise<boolean> {
 
   _refreshPromise = (async () => {
     try {
-      const res = await fetch("https://stocksense-4a8j.onrender.com/api/auth/refresh", {
+      const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
         method: "POST",
         credentials: "include",
       });
@@ -87,7 +89,7 @@ export async function fetchWithAuth(
   }
 
   // Prefix relative URLs with backend base
-  const fullUrl = url.startsWith("http") ? url : `https://stocksense-4a8j.onrender.com${url}`;
+  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
 
   const response = await fetch(fullUrl, {
     ...options,
@@ -138,7 +140,7 @@ export async function login(
   email: string,
   password: string
 ): Promise<LoginResponse> {
-  const res = await fetch("https://stocksense-4a8j.onrender.com/api/auth/login", {
+  const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -162,7 +164,7 @@ export async function register(
   email: string,
   password: string
 ): Promise<void> {
-  const res = await fetch("https://stocksense-4a8j.onrender.com/api/auth/register", {
+  const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -180,7 +182,7 @@ export async function register(
 }
 
 export async function googleAuth(credential: string): Promise<void> {
-  const res = await fetch("https://stocksense-4a8j.onrender.com/api/auth/google", {
+  const res = await fetch(`${API_BASE_URL}/api/auth/google`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -199,7 +201,7 @@ export async function googleAuth(credential: string): Promise<void> {
 
 export async function logout(): Promise<void> {
   try {
-    await fetch("https://stocksense-4a8j.onrender.com/api/auth/logout", {
+    await fetch(`${API_BASE_URL}/api/auth/logout`, {
       method: "POST",
       credentials: "include",
     });
