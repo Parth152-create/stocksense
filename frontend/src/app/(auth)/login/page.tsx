@@ -554,7 +554,7 @@ function LoginForm() {
 function GoogleFallbackButton({ T }: { T: Record<string, string> }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <button type="button" onClick={() => (window.location.href = "http://localhost:8081/oauth2/authorization/google")}
+    <button type="button" onClick={() => (window.location.href = "https://stocksense-4a8j.onrender.com/oauth2/authorization/google")}
       className="login-btn-google" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       style={{ background: hovered ? T.googleHover : T.googleBg, border: `1.5px solid ${T.googleBorder}`, color: T.googleColor }}>
       <GoogleIcon />

@@ -179,7 +179,7 @@ export default function StockSearch() {
     setError(false);
     try {
       const res = await fetch(
-        `http://localhost:8081/api/stocks/search?q=${encodeURIComponent(q)}`,
+        `https://stocksense-4a8j.onrender.com/api/stocks/search?q=${encodeURIComponent(q)}`,
         { credentials: "include" }
       );
       if (!res.ok) throw new Error("Search failed");

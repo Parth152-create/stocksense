@@ -314,7 +314,7 @@ export default function WatchlistPage() {
     if (symbols.length === 0) return;
     if (wsRef.current) wsRef.current.close();
 
-    const ws = new WebSocket("ws://localhost:8081/ws/prices");
+    const ws = new WebSocket("wss://stocksense-4a8j.onrender.com/ws/prices");
     wsRef.current = ws;
 
     ws.onopen = () => ws.send(JSON.stringify({ subscribe: symbols }));

@@ -402,7 +402,7 @@ export default function RegisterPage() {
             {/* ── Google ── */}
             <button
               type="button"
-              onClick={() => (window.location.href = "http://localhost:8081/oauth2/authorization/google")}
+              onClick={() => (window.location.href = "https://stocksense-4a8j.onrender.com/oauth2/authorization/google")}
               onMouseEnter={() => setGoogleHovered(true)}
               onMouseLeave={() => setGoogleHovered(false)}
               style={{
