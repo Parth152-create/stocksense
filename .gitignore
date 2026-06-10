@@ -19,4 +19,4 @@ target/
 
 # Logs / misc
 *.log
-*.sqlite3
+*.sqlite3pgbouncer/userlist.txt
