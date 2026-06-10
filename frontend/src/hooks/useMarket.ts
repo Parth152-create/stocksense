@@ -12,10 +12,11 @@ export interface Market {
 }
 
 export const MARKETS: Market[] = [
-  { id: "IN",     label: "India",  currency: "₹", flag: "🇮🇳" },
-  { id: "US",     label: "USA",    currency: "$", flag: "🇺🇸" },
-  { id: "CRYPTO", label: "Crypto", currency: "$", flag: "₿"  },
-  { id: "FX",     label: "Forex",  currency: "$", flag: "💱" },
+  { id: "IN",     label: "India",  currency: "₹",  flag: "🇮🇳" },
+  { id: "US",     label: "USA",    currency: "$",  flag: "🇺🇸" },
+  { id: "CRYPTO", label: "Crypto", currency: "₿",  flag: "₿"  },
+  { id: "FX",     label: "Forex",  currency: "FX", flag: "💱" },
+
 ];
 
 const STORAGE_KEY = "stocksense-market";
