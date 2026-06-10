@@ -1,13 +1,13 @@
 spring:
   datasource:
-    url: jdbc:postgresql://postgres:5432/stocksense
-    username: postgres
-    password: password
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/stocksense}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
 
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
 
   threads:
     virtual:
@@ -16,8 +16,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: onealpha457@gmail.com
-    password: jpoxrbibcbkcxtyn
+    username: ${SPRING_MAIL_USERNAME:onealpha457@gmail.com}
+    password: ${SPRING_MAIL_PASSWORD:jpoxrbibcbkcxtyn}
     properties:
       mail:
         smtp:
@@ -30,6 +30,9 @@ spring:
     redis:
       host: ${REDIS_HOST:redis}
       port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL:false}
       timeout: 2000ms
       lettuce:
         pool:
@@ -39,15 +42,15 @@ spring:
           max-wait: 1000ms
 
 server:
-  port: 8081
+  port: ${PORT:8081}
 
 alphavantage:
   api:
-    key: HXW27CL9C8V78EXL
+    key: ${ALPHAVANTAGE_API_KEY:demo}
 
 ml:
   service:
-    url: http://ml-service:8082
+    url: ${ML_SERVICE_URL:http://ml-service:8082}
 
 sentry:
   dsn: ${SENTRY_DSN:}
@@ -72,15 +75,15 @@ razorpay:
     secret: ${RAZORPAY_KEY_SECRET:placeholder}
 
 jwt:
-  secret: "your-256-bit-secret-here-change-in-production-min-32-chars"
-  expiration: 900000
+  secret: ${JWT_SECRET:your-256-bit-secret-here-change-in-production-min-32-chars}
+  expiration: ${JWT_EXPIRATION:900000}
 
 google:
-  client-id: "724652717839-u1lacrp7rmj5rp2117vhnpoj26t5vgm5.apps.googleusercontent.com"
+  client-id: ${GOOGLE_CLIENT_ID:724652717839-u1lacrp7rmj5rp2117vhnpoj26t5vgm5.apps.googleusercontent.com}
 
 logging:
   level:
-    com.stocksense: DEBUG
+    com.stocksense: INFO
     com.stocksense.service.StockService: INFO
 
 management:
