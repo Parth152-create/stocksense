@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, X, TrendingUp, Loader2 } from "lucide-react";
 import { useMarket } from "@/lib/MarketContext";
+import { API_BASE_URL } from "@/lib/config";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -179,7 +180,7 @@ export default function StockSearch() {
     setError(false);
     try {
       const res = await fetch(
-        `http://localhost:8081/api/stocks/search?q=${encodeURIComponent(q)}`,
+        `${API_BASE_URL}/api/stocks/search?q=${encodeURIComponent(q)}`,
         { credentials: "include" }
       );
       if (!res.ok) throw new Error("Search failed");

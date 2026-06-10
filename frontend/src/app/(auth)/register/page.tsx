@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { Sun, Moon, Eye, EyeOff } from "lucide-react";
 import { register, getToken } from "@/lib/auth";
+import { API_BASE_URL } from "@/lib/config";
 
 // ── Shared icons (same as login) ──────────────────────────────────────────────
 function GoogleIcon() {
@@ -402,7 +403,7 @@ export default function RegisterPage() {
             {/* ── Google ── */}
             <button
               type="button"
-              onClick={() => (window.location.href = "http://localhost:8081/oauth2/authorization/google")}
+              onClick={() => (window.location.href = `${API_BASE_URL}/oauth2/authorization/google`)}
               onMouseEnter={() => setGoogleHovered(true)}
               onMouseLeave={() => setGoogleHovered(false)}
               style={{

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { Sun, Moon, Eye, EyeOff, Fingerprint } from "lucide-react";
 import { login, googleAuth } from "@/lib/auth";
+import { API_BASE_URL } from "@/lib/config";
 
 declare global {
   interface Window {
@@ -554,7 +555,7 @@ function LoginForm() {
 function GoogleFallbackButton({ T }: { T: Record<string, string> }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <button type="button" onClick={() => (window.location.href = "http://localhost:8081/oauth2/authorization/google")}
+    <button type="button" onClick={() => (window.location.href = `${API_BASE_URL}/oauth2/authorization/google`)}
       className="login-btn-google" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       style={{ background: hovered ? T.googleHover : T.googleBg, border: `1.5px solid ${T.googleBorder}`, color: T.googleColor }}>
       <GoogleIcon />

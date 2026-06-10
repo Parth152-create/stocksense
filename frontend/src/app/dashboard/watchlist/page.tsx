@@ -10,6 +10,7 @@ import {
   Share2, Link2, Link2Off, Check, Copy,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/auth";
+import { WS_PRICES_URL } from "@/lib/config";
 import { useToast } from "@/components/ToastContext";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -314,7 +315,7 @@ export default function WatchlistPage() {
     if (symbols.length === 0) return;
     if (wsRef.current) wsRef.current.close();
 
-    const ws = new WebSocket("ws://localhost:8081/ws/prices");
+    const ws = new WebSocket(WS_PRICES_URL);
     wsRef.current = ws;
 
     ws.onopen = () => ws.send(JSON.stringify({ subscribe: symbols }));
