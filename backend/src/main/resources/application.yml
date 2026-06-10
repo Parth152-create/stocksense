@@ -4,11 +4,17 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
+
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
     show-sql: false
+
+  threads:
+    virtual:
+      enabled: true
+
   mail:
     host: smtp.gmail.com
     port: 587
@@ -24,12 +30,8 @@ spring:
 
   data:
     redis:
-      host: ${REDIS_HOST:redis}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
-      ssl:
-        enabled: ${REDIS_SSL:false}
-      timeout: 2000ms
+      url: ${REDIS_URL:redis://redis:6379}
+      timeout: 5000ms
       lettuce:
         pool:
           max-active: 8
