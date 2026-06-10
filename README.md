@@ -2,6 +2,16 @@
 
 > A production-grade full-stack paper trading platform with real-time prices, ML-powered insights, Redis Pub/Sub WebSocket architecture, and multi-market support. Built to handle 1,000+ concurrent users.
 
+**🌐 Live Demo:** [stocksense-ivory.vercel.app](https://stocksense-ivory.vercel.app/login?redirect=/dashboard)
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Frontend | [stocksense-ivory.vercel.app](https://stocksense-ivory.vercel.app) | ✅ Live |
+| Backend API | [stocksense-4a8j.onrender.com](https://stocksense-4a8j.onrender.com) | ✅ Live |
+| ML Service | [stocksense-ml.onrender.com](https://stocksense-ml.onrender.com) | ✅ Live |
+
+> **Note:** Backend and ML service are on Render's free tier — first request after inactivity may take ~50 seconds to wake up.
+
 ---
 
 ## Table of Contents
@@ -70,7 +80,7 @@ StockSense is a paper trading platform that simulates stock trading across India
 - 🔐 **JWT refresh tokens** — 15-minute access tokens + 7-day refresh tokens in httpOnly Secure SameSite=Strict cookies
 - 🔄 **Silent refresh** — `fetchWithAuth()` intercepts 401s, silently refreshes, retries the original request
 - 🛡️ **Auth rate limiting** — `AuthRateLimitFilter` caps `/api/auth/login` and `/api/auth/register` at 10 attempts/IP/min, returns 429 with `Retry-After` header
-- 🌐 **CORS lockdown** — globally configured in Spring Security, `localhost:3000` only
+- 🌐 **CORS lockdown** — globally configured in Spring Security
 - 🔑 **API key system** — `/api/v1/**` routes authenticated via `X-API-Key` header with 60 req/min rate limiting
 
 ### Infrastructure
@@ -98,13 +108,13 @@ StockSense is a paper trading platform that simulates stock trading across India
 | Charts | Lightweight Charts 4.1.1, Recharts |
 | Backend | Spring Boot 3.x, Spring Security, JPA/Hibernate |
 | Connection Pool | PgBouncer (transaction mode) |
-| Database | PostgreSQL 16 |
-| Cache / Pub-Sub | Redis 7 |
+| Database | PostgreSQL 16 (Neon) |
+| Cache / Pub-Sub | Redis 7 (Upstash) |
 | Auth | JWT HS256 (15min) + httpOnly refresh cookies (7 days) |
 | ML Service | FastAPI, Gunicorn + UvicornWorker ×4, scikit-learn, VADER, httpx |
 | Real-time | Redis Pub/Sub → RedisWebSocketBridge → WebSocket sessions |
 | External APIs | Yahoo Finance, Alpha Vantage, NewsAPI, CoinGecko |
-| DevOps | Docker, Docker Compose |
+| Hosting | Vercel (frontend), Render (backend + ML) |
 
 ---
 
@@ -113,7 +123,7 @@ StockSense is a paper trading platform that simulates stock trading across India
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                          Browser                                │
-│                      Next.js (port 3000)                        │
+│         Next.js — stocksense-ivory.vercel.app                   │
 │   Dashboard │ Stock │ Portfolio │ Wallet │ Watchlist │ ...      │
 └──────────────────────┬──────────────────────────────────────────┘
                        │ HTTPS + WSS
@@ -122,6 +132,7 @@ StockSense is a paper trading platform that simulates stock trading across India
           ▼                          ▼
 ┌──────────────────┐       ┌──────────────────┐
 │   Spring Boot    │       │   FastAPI ML     │
+│ onrender.com     │       │ onrender.com     │
 │   (port 8081)    │       │   (port 8082)    │
 │                  │       │   4 workers      │
 │  AuthController  │       │                  │
@@ -132,7 +143,7 @@ StockSense is a paper trading platform that simulates stock trading across India
 │  NotifController │       │ /ml/full         │
 │                  │       └───────┬──────────┘
 │  PriceIngestion  │               │
-│  Service (60s)   │               │ Redis cache
+│  Service (60s)   │               │ Redis cache (Upstash)
 │       │          │               │ ml:*:{symbol}:{date}
 │       ▼          │               │
 │  Redis Pub/Sub ──┼───────────────┘
@@ -143,25 +154,18 @@ StockSense is a paper trading platform that simulates stock trading across India
 └────────┬─────────┘
          │
          ▼
-┌──────────────────┐
-│    PgBouncer     │  ← transaction pool, 1000 max conn
-│    (port 5433)   │
-└────────┬─────────┘
-         │
-         ▼
 ┌──────────────────┐     ┌──────────────────┐
-│   PostgreSQL 16  │     │     Redis 7      │
-│   (port 5432)    │     │   (port 6379)    │
-│                  │     │                  │
-│  users           │     │  price:{symbol}  │
-│  orders          │     │  ss:stockQuote:* │
-│  holdings        │     │  ss:stockHistory:│
-│  portfolios      │     │  ml:prediction:* │
-│  wallet_*        │     │  ml:sentiment:*  │
-│  watchlist_items │     │  ml:anomaly:*    │
-│  notifications   │     │  prices channel  │
-│  refresh_tokens  │     │                  │
-│  api_keys        │     └──────────────────┘
+│   PostgreSQL     │     │   Redis (Upstash)│
+│   (Neon)         │     │                  │
+│                  │     │  price:{symbol}  │
+│  users           │     │  ss:stockQuote:* │
+│  orders          │     │  ml:prediction:* │
+│  holdings        │     │  ml:sentiment:*  │
+│  portfolios      │     │  ml:anomaly:*    │
+│  wallet_*        │     │  prices channel  │
+│  watchlist_items │     │                  │
+│  notifications   │     └──────────────────┘
+│  refresh_tokens  │
 └──────────────────┘
 ```
 
@@ -262,15 +266,11 @@ PGEOF
 echo '"postgres" "your_password"' > pgbouncer/userlist.txt
 ```
 
-> Replace `your_password` with the value you set in `.env` for `POSTGRES_PASSWORD`.
-
 ### 4. Start everything
 
 ```bash
 docker compose up --build
 ```
-
-First run takes 3–5 minutes to build all images. Subsequent starts take ~30 seconds.
 
 ### 5. Open the app
 
@@ -278,13 +278,11 @@ First run takes 3–5 minutes to build all images. Subsequent starts take ~30 se
 http://localhost:3000
 ```
 
-Register an account → deposit funds → start trading.
-
 ### 6. Stop
 
 ```bash
-docker compose down          # stop containers
-docker compose down -v       # stop + delete all data
+docker compose down
+docker compose down -v   # also delete data
 ```
 
 ---
@@ -313,8 +311,6 @@ export JWT_SECRET=your_secret
 ./mvnw spring-boot:run
 ```
 
-Runs on `http://localhost:8081`.
-
 ### Step 3 — ML Service
 
 ```bash
@@ -322,11 +318,9 @@ cd ml-service
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # fill in API keys
+cp .env.example .env
 uvicorn main:app --host 0.0.0.0 --port 8082 --reload
 ```
-
-Runs on `http://localhost:8082`.
 
 ### Step 4 — Frontend
 
@@ -335,8 +329,6 @@ cd frontend
 npm install
 npm run dev
 ```
-
-Runs on `http://localhost:3000`.
 
 ---
 
@@ -348,71 +340,59 @@ StockSense/
 ├── frontend/
 │   ├── app/
 │   │   ├── dashboard/
-│   │   │   ├── layout.tsx             # Auth guard, sidebar, header
+│   │   │   ├── layout.tsx
 │   │   │   ├── page.tsx               # Bento grid dashboard
-│   │   │   ├── analytics/page.tsx     # Performance charts
-│   │   │   ├── portfolio/page.tsx     # Holdings table, allocation
-│   │   │   ├── wallet/page.tsx        # Balance, deposit/withdraw
-│   │   │   ├── watchlist/page.tsx     # Watchlist + price alerts
-│   │   │   ├── orders/page.tsx        # Order history
-│   │   │   ├── settings/page.tsx      # Profile, password, preferences
-│   │   │   ├── community/page.tsx     # Leaderboard, copy trading
-│   │   │   └── stock/[symbol]/page.tsx # Stock detail + ML panel
+│   │   │   ├── analytics/page.tsx
+│   │   │   ├── portfolio/page.tsx
+│   │   │   ├── wallet/page.tsx
+│   │   │   ├── watchlist/page.tsx
+│   │   │   ├── orders/page.tsx
+│   │   │   ├── settings/page.tsx
+│   │   │   ├── community/page.tsx
+│   │   │   └── stock/[symbol]/page.tsx
 │   │   ├── login/page.tsx
 │   │   └── register/page.tsx
 │   ├── components/
-│   │   ├── MLInsightsPanel.tsx        # Signal/sentiment/prediction/anomaly
-│   │   ├── PriceAlertPanel.tsx        # Set/manage price alerts
-│   │   ├── NotificationsDrawer.tsx    # Bell icon + notification list
-│   │   └── ToastContext.tsx           # Global toast notifications
+│   │   ├── MLInsightsPanel.tsx
+│   │   ├── PriceAlertPanel.tsx
+│   │   ├── NotificationsDrawer.tsx
+│   │   └── ToastContext.tsx
 │   ├── lib/
 │   │   ├── auth.ts                    # JWT, fetchWithAuth, silent refresh
 │   │   ├── websocket.ts               # useLivePrices hook
-│   │   ├── MarketContext.tsx          # Market state + formatPrice
-│   │   └── symbols.ts                 # resolveSymbol (single source of truth)
+│   │   ├── MarketContext.tsx
+│   │   └── symbols.ts                 # resolveSymbol
 │   └── public/
-│       └── sw.js                      # Service worker (DEBUG-gated logging)
+│       └── sw.js                      # Service worker
 │
 ├── backend/
 │   └── src/main/java/com/stocksense/
 │       ├── controller/
-│       │   ├── AuthController.java    # /api/auth/* + refresh/logout
-│       │   ├── StockController.java   # /api/stocks/* + anomaly insights
-│       │   ├── OrderController.java
-│       │   ├── PortfolioController.java
-│       │   ├── WalletController.java
-│       │   ├── WatchlistController.java
-│       │   └── NotificationController.java
 │       ├── service/
-│       │   ├── PriceIngestionService.java  # Scheduled 60s worker
-│       │   ├── StockService.java           # Redis-first quote reads
-│       │   ├── NotificationService.java
-│       │   ├── RefreshTokenService.java
-│       │   └── UserService.java
+│       │   ├── PriceIngestionService.java  # 60s scheduled worker
+│       │   └── StockService.java           # Redis-first quotes
 │       ├── websocket/
-│       │   ├── PriceWebSocketHandler.java  # WS session lifecycle
-│       │   └── RedisWebSocketBridge.java   # Redis → WebSocket fan-out
+│       │   ├── PriceWebSocketHandler.java
+│       │   └── RedisWebSocketBridge.java   # Redis → WS fan-out
 │       └── config/
-│           ├── SecurityConfig.java         # CORS + filter chain
-│           ├── JwtAuthFilter.java
-│           ├── AuthRateLimitFilter.java     # 10 req/IP/min on auth endpoints
-│           ├── ApiKeyFilter.java            # 60 req/min on /api/v1/*
-│           ├── CacheConfig.java             # 5 Redis cache configs
-│           └── WebSocketConfig.java         # RedisMessageListenerContainer
+│           ├── SecurityConfig.java
+│           ├── AuthRateLimitFilter.java
+│           ├── ApiKeyFilter.java
+│           ├── CacheConfig.java
+│           └── WebSocketConfig.java
 │
 ├── ml-service/
 │   ├── main.py
 │   ├── Dockerfile                     # Gunicorn + 4 UvicornWorkers
 │   └── services/
-│       ├── redis_cache.py             # Shared Redis helper + TTLCache fallback
-│       ├── sentiment.py               # NewsAPI + VADER + Redis cache
-│       ├── prediction.py              # Linear regression + Redis cache
-│       ├── signal.py                  # Composite BUY/SELL/HOLD
-│       └── anomaly.py                 # Z-score detection + Redis cache
+│       ├── redis_cache.py
+│       ├── sentiment.py
+│       ├── prediction.py
+│       ├── signal.py
+│       └── anomaly.py
 │
 ├── pgbouncer/
-│   ├── pgbouncer.ini                  # Transaction pool config
-│   └── userlist.txt                   # Auth credentials
+│   └── pgbouncer.ini
 │
 ├── docker-compose.yml
 ├── .env.example
@@ -423,7 +403,7 @@ StockSense/
 
 ## API Reference
 
-All backend endpoints are on `http://localhost:8081`.
+Base URL: `https://stocksense-4a8j.onrender.com`
 
 ### Auth
 
@@ -433,19 +413,19 @@ All backend endpoints are on `http://localhost:8081`.
 | POST | `/api/auth/login` | Login → `{ token, email }` + sets `refreshToken` cookie |
 | POST | `/api/auth/refresh` | Rotate refresh token → new access token |
 | POST | `/api/auth/logout` | Clear refresh token cookie |
-| POST | `/api/auth/google` | Google OAuth → `{ token, email }` |
+| POST | `/api/auth/google` | Google OAuth |
 
-> Auth endpoints are rate-limited to **10 requests/IP/min**. Exceeding returns `429 Too Many Requests` with `Retry-After` header.
+> Rate limited to **10 requests/IP/min**. Returns `429` with `Retry-After` on breach.
 
 ### Stocks & Market
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/stocks/{symbol}` | Real-time quote (Redis-first, API fallback) |
-| GET | `/api/stocks/{symbol}/history?range=` | OHLCV candles (1D/1W/1M/1Y/ALL) |
+| GET | `/api/stocks/{symbol}` | Real-time quote (Redis-first) |
+| GET | `/api/stocks/{symbol}/history?range=` | OHLCV candles |
 | GET | `/api/stocks/{symbol}/overview` | Fundamentals |
-| GET | `/api/stocks/{symbol}/insights` | AI insights + live anomaly from ML service |
-| GET | `/api/stocks/{symbol}/news` | NewsAPI feed |
+| GET | `/api/stocks/{symbol}/insights` | AI insights + anomaly |
+| GET | `/api/stocks/{symbol}/news` | News feed |
 | GET | `/api/stocks/search?q=` | Symbol search |
 
 ### Orders
@@ -453,7 +433,7 @@ All backend endpoints are on `http://localhost:8081`.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/orders` | All orders |
-| POST | `/api/orders` | Place order (validates wallet balance) |
+| POST | `/api/orders` | Place order |
 
 ### Wallet
 
@@ -468,36 +448,24 @@ All backend endpoints are on `http://localhost:8081`.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/watchlist` | All watchlist items |
+| GET | `/api/watchlist` | All items |
 | POST | `/api/watchlist/{symbol}` | Add symbol |
 | DELETE | `/api/watchlist/{symbol}` | Remove symbol |
 | PUT | `/api/watchlist/{symbol}/alert` | Set price alert |
 | POST | `/api/watchlist/share` | Generate share token |
-| DELETE | `/api/watchlist/share` | Revoke share token |
-| GET | `/api/watchlist/shared/{token}` | Public view (no auth) |
-
-### Notifications
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/notifications` | All notifications |
-| POST | `/api/notifications/{id}/read` | Mark one read |
-| POST | `/api/notifications/read-all` | Mark all read |
 
 ---
 
 ## ML Service
 
-All ML endpoints are on `http://localhost:8082`. JWT-gated (pass `Authorization: Bearer {token}`).
-
-### Endpoints
+Base URL: `https://stocksense-ml.onrender.com`
 
 | Endpoint | Cache TTL | Description |
 |----------|-----------|-------------|
 | `GET /health` | — | Health check |
-| `GET /ml/sentiment/{symbol}` | 1 hour | News sentiment score (-1 to +1) |
-| `GET /ml/prediction/{symbol}` | 1 hour | Next-day + next-week price forecast |
-| `GET /ml/signal/{symbol}` | — | BUY/SELL/HOLD composite signal |
+| `GET /ml/sentiment/{symbol}` | 1 hour | News sentiment (-1 to +1) |
+| `GET /ml/prediction/{symbol}` | 1 hour | Next-day + next-week forecast |
+| `GET /ml/signal/{symbol}` | — | BUY/SELL/HOLD signal |
 | `GET /ml/anomaly/{symbol}` | 30 min | Z-score anomaly detection |
 | `GET /ml/full/{symbol}` | — | All four in one call |
 
@@ -518,26 +486,19 @@ All ML endpoints are on `http://localhost:8082`. JWT-gated (pass `Authorization:
   "sentiment": {
     "score": 0.2341,
     "label": "Bullish",
-    "article_count": 20,
-    "positive": 0.60,
-    "negative": 0.15,
-    "neutral": 0.25
+    "article_count": 20
   },
   "prediction": {
     "current_price": 182.50,
     "next_day": 184.20,
     "next_day_change_pct": 0.93,
     "next_week": 186.10,
-    "next_week_change_pct": 1.97,
     "rsi": 58.4,
-    "momentum_5d": 2.1,
     "confidence": 72.5
   },
   "signal": {
     "signal": "BUY",
-    "strength": 68.4,
-    "composite_score": 0.684,
-    "reasoning": "News sentiment is bullish across 20 articles..."
+    "strength": 68.4
   },
   "anomaly": {
     "is_anomaly": false,
@@ -553,15 +514,13 @@ All ML endpoints are on `http://localhost:8082`. JWT-gated (pass `Authorization:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `ALPHAVANTAGE_API_KEY` | ✅ | Alpha Vantage key (free tier works) |
+| `ALPHAVANTAGE_API_KEY` | ✅ | Alpha Vantage key |
 | `NEWS_API_KEY` | ✅ | NewsAPI.org key |
 | `JWT_SECRET` | ✅ | 32+ char signing secret |
 | `POSTGRES_PASSWORD` | ✅ | PostgreSQL password |
+| `REDIS_URL` | ✅ | Redis connection URL (`rediss://` for SSL) |
 | `GOOGLE_CLIENT_ID` | ❌ | Google OAuth (optional) |
 | `SENTRY_BACKEND_DSN` | ❌ | Sentry error tracking |
-| `SENTRY_FRONTEND_DSN` | ❌ | Sentry frontend tracking |
-| `STRIPE_SECRET_KEY` | ❌ | Stripe billing (optional) |
-| `RAZORPAY_KEY_ID` | ❌ | Razorpay billing (optional) |
 
 ---
 
@@ -571,15 +530,12 @@ All ML endpoints are on `http://localhost:8082`. JWT-gated (pass `Authorization:
 users           (id UUID PK, email, name, password, provider, created_at, portfolio_id)
 refresh_tokens  (id UUID PK, user_id FK, token, expires_at)
 api_keys        (id UUID PK, user_id FK, key_hash, created_at)
-
 portfolios      (id UUID PK, user_id FK)
 holdings        (id UUID PK, portfolio_id FK, symbol, market, quantity, buy_price)
 orders          (id, user_id, symbol, market, type, kind, quantity, price, total,
                  limit_price, status, created_at, triggered_at)
-
 wallet_balances      (id UUID PK, user_id FK UNIQUE, balance, currency, updated_at)
 wallet_transactions  (id UUID PK, user_id FK, type, amount, description, status, created_at)
-
 watchlist_items (id UUID PK, user_id, symbol, alert_price, last_checked_price,
                  share_token, shared BOOLEAN)
 notifications   (id UUID PK, user_id, type, title, message, symbol, read, created_at)
@@ -603,15 +559,12 @@ idx_portfolios_user_id       ON portfolios(user_id)
 | Metric | Value |
 |--------|-------|
 | Concurrent users (comfortable) | ~300 |
-| Concurrent users (max before degradation) | ~1,000 |
-| WebSocket bottleneck | Single backend instance, ~200 Tomcat threads |
-| Price ingestion cycle | 60s, all active symbols in one pass |
+| Concurrent users (max) | ~1,000 |
+| Price ingestion cycle | 60s, all active symbols |
 | PgBouncer max connections | 1,000 clients → 20 PostgreSQL connections |
-| ML cache hit rate | ~95% in normal trading hours (1hr TTL) |
+| ML cache hit rate | ~95% in normal trading hours |
 | Access token lifetime | 15 minutes |
 | Refresh token lifetime | 7 days (rotated on each use) |
-
-To scale beyond 1,000 concurrent users: add Nginx + 3 backend replicas — each instance independently receives prices via Redis and fans out to its own WebSocket clients.
 
 ---
 
@@ -619,10 +572,10 @@ To scale beyond 1,000 concurrent users: add Nginx + 3 backend replicas — each 
 
 | Limitation | Notes |
 |-----------|-------|
-| Alpha Vantage free tier: 25 calls/day | Rate limiter + Redis cache + Yahoo Finance fallback built in |
-| NSE/BSE real-time prices | Yahoo Finance `.NS` suffix used; quality varies |
-| ML predictions use linear regression | Educational purposes only — not financial advice |
-| Single backend replica | Horizontal scaling config ready (see architecture) |
+| Render free tier sleeps after inactivity | First request takes ~50s to wake up |
+| Alpha Vantage free tier: 25 calls/day | Yahoo Finance fallback built in |
+| NSE/BSE real-time prices | Yahoo Finance `.NS` suffix used |
+| ML predictions use linear regression | Educational purposes only |
 | No real money | Paper trading only — by design |
 
 ---
@@ -635,10 +588,13 @@ MIT — free to use, modify, and distribute.
 
 ## Acknowledgements
 
-- [Yahoo Finance](https://finance.yahoo.com) — primary market data source
+- [Yahoo Finance](https://finance.yahoo.com) — primary market data
 - [Alpha Vantage](https://alphavantage.co) — fallback market data
 - [CoinGecko](https://coingecko.com) — crypto prices
 - [NewsAPI](https://newsapi.org) — news headlines
 - [Lightweight Charts](https://tradingview.github.io/lightweight-charts/) — charting
 - [VADER Sentiment](https://github.com/cjhutto/vaderSentiment) — NLP sentiment
-- [PgBouncer](https://pgbouncer.org) — connection pooling
+- [Neon](https://neon.tech) — serverless PostgreSQL
+- [Upstash](https://upstash.com) — serverless Redis
+- [Vercel](https://vercel.com) — frontend hosting
+- [Render](https://render.com) — backend hosting
