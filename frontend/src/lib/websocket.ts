@@ -2,7 +2,7 @@
  * lib/websocket.ts
  *
  * WebSocket client for live price updates.
- * Connects to wss://stocksense-4a8j.onrender.com/ws/prices
+ * Connects to WS_PRICES_URL (see lib/config.ts)
  *
  * ACTUAL backend protocol:
  *   Client → Server (subscribe):
@@ -20,6 +20,7 @@
  */
 
 import { useEffect, useState, useRef } from "react";
+import { WS_PRICES_URL } from "./config";
 
 export interface PriceUpdate {
   symbol:    string;
@@ -31,7 +32,7 @@ export interface PriceUpdate {
 
 type PriceMap = Record<string, PriceUpdate>;
 
-const WS_URL          = "wss://stocksense-4a8j.onrender.com/ws/prices";
+const WS_URL          = WS_PRICES_URL;
 const MAX_RECONNECT   = 5;
 const RECONNECT_DELAY = 3000;
 

@@ -120,11 +120,9 @@ export async function fetchWithAuth(
   return response;
 }
 
-const WS_BASE = process.env.NEXT_PUBLIC_WS_URL ?? "wss://stocksense-4a8j.onrender.com/ws/prices";
-
 export function getWebSocketUrl(symbol?: string): string {
   const token = getToken();
-  const base = symbol ? `${WS_BASE}?symbol=${symbol}` : WS_BASE;
+  const base = symbol ? `${WS_PRICES_URL}?symbol=${symbol}` : WS_PRICES_URL;
   return token ? `${base}${symbol ? "&" : "?"}token=${token}` : base;
 }
 
