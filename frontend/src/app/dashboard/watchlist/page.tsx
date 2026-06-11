@@ -12,6 +12,7 @@ import {
 import { fetchWithAuth } from "@/lib/auth";
 import { WS_PRICES_URL } from "@/lib/config";
 import { useToast } from "@/components/ToastContext";
+import { encodeSymbolForUrl } from "@/lib/symbolEncoding";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -402,7 +403,7 @@ export default function WatchlistPage() {
         loadWatchlist(); return;
       }
     } catch { /* fallback */ }
-    router.push(`/dashboard/stock/${sym}`);
+    router.push(`/dashboard/stock/${encodeSymbolForUrl(sym)}`);
     setShowAdd(false); setAddSymbol("");
   };
 
@@ -552,7 +553,7 @@ export default function WatchlistPage() {
                 style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 80px 36px 36px 36px", padding: "13px 20px", borderBottom: i < filtered.length - 1 ? `1px solid ${C.line}` : "none", cursor: "pointer", transition: "background 0.15s", alignItems: "center" }}
                 onMouseEnter={e => (e.currentTarget.style.background = C.hover)}
                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                onClick={() => router.push(`/dashboard/stock/${item.symbol.replace(/\.(BSE|NSE)$/i, "")}`)}>
+                onClick={() => router.push(`/dashboard/stock/${encodeSymbolForUrl(item.symbol.replace(/\.(BSE|NSE)$/i, ""))}`)}>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <StockAvatar symbol={item.symbol} color={item.color} bg={item.bg} size={34} />
@@ -590,7 +591,7 @@ export default function WatchlistPage() {
                   <MiniSparkline data={item.sparkline} up={isUp} />
                 </div>
 
-                <button onClick={e => { e.stopPropagation(); router.push(`/dashboard/stock/${item.symbol.replace(/\.(BSE|NSE)$/i, "")}`); }}
+                <button onClick={e => { e.stopPropagation(); router.push(`/dashboard/stock/${encodeSymbolForUrl(item.symbol.replace(/\.(BSE|NSE)$/i, ""))}`); }}
                   style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.line}`, background: "transparent", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <ArrowUpRight size={13} />
                 </button>

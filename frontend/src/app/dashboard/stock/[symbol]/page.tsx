@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
+import { decodeSymbolFromUrl } from "@/lib/symbolEncoding";
 import { fetchWithAuth } from "@/lib/auth";
 import { useLivePrices } from "@/lib/websocket";
 import { useMarket } from "@/lib/MarketContext";
@@ -648,7 +649,7 @@ function StockPageInner() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
-  const symbol = cleanSymbol((params?.symbol as string) ?? "");
+  const symbol = cleanSymbol(decodeSymbolFromUrl((params?.symbol as string) ?? ""));
   const { market, formatPrice } = useMarket();
   const searchParams      = useSearchParams();
   const marketFromUrl     = (searchParams.get("market") ?? "").toUpperCase();

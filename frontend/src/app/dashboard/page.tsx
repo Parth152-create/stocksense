@@ -14,6 +14,7 @@ import {
   Zap, ShoppingCart, Eye, BarChart2, Star,
 } from "lucide-react";
 import { resolveSymbol } from "@/lib/symbols";
+import { encodeSymbolForUrl } from "@/lib/symbolEncoding";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -961,7 +962,7 @@ function WatchlistCard({ marketId, currency, onNavigate }: {
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             transition={{ delay: 0.35 + i * 0.07 }}
             whileHover={{ x: 3 }}
-            onClick={() => onNavigate(`/dashboard/stock/${resolveSymbol(h.symbol, marketId)}?market=${marketId}`)}
+            onClick={() => onNavigate(`/dashboard/stock/${encodeSymbolForUrl(resolveSymbol(h.symbol, marketId))}?market=${marketId}`)}
             style={{
               display: "flex", alignItems: "center", gap: 10,
               padding: "5px 4px", borderRadius: 8, background: "transparent",
@@ -1145,7 +1146,7 @@ export default function DashboardPage() {
         <div className="bento-hold-wrap">
           <HoldingsCard
             holdings={displayHoldings} marketId={key}
-            onNavigate={sym => nav(`/dashboard/stock/${sym}?market=${key}`)}
+            onNavigate={sym => nav(`/dashboard/stock/${encodeSymbolForUrl(sym)}?market=${key}`)}
           />
         </div>
 
@@ -1171,7 +1172,7 @@ export default function DashboardPage() {
             <TransactionsCard
               transactions={displayTxs} livePrices={livePrices}
               currency={currency} marketId={key}
-              onNavigate={path => nav(`/dashboard/stock/${path}`)}
+              onNavigate={path => nav(`/dashboard/stock/${encodeSymbolForUrl(path)}`)}
             />
           )}
         </div>
@@ -1181,7 +1182,7 @@ export default function DashboardPage() {
       <div className="bento-row2">
         <MarketMoversCard
           marketId={key} currency={currency}
-          onNavigate={sym => nav(`/dashboard/stock/${sym}?market=${key}`)}
+          onNavigate={sym => nav(`/dashboard/stock/${encodeSymbolForUrl(sym)}?market=${key}`)}
         />
         <PortfolioBreakdownCard />
         <CommunityCard onNavigate={() => nav("/dashboard/community")} />
