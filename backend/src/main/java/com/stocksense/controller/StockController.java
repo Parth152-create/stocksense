@@ -16,7 +16,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
-
 public class StockController {
 
     private final AlphaVantageService alphaVantage;
@@ -106,10 +105,22 @@ public class StockController {
         this.stockService  = stockService;
     }
 
+    /** Decode URL-safe hyphen back to slash for FX pairs: EUR-USD → EUR/USD */
+    private String decodeFxSymbol(String symbol) {
+        if (symbol == null) return null;
+        String s = symbol.trim().toUpperCase();
+        if (s.matches("[A-Z]{2,4}-[A-Z]{2,4}")) return s.replace("-", "/");
+        return s;
+    }
+
     private String resolveSymbol(String symbol, String market) {
         if (symbol == null) return null;
         String s = symbol.trim().toUpperCase()
             .replace(".BSE","").replace(".NSE","").replace(".NS","").replace(".BO","");
+        // Decode URL-encoded FX symbols: EUR-USD → EUR/USD
+        if ("FX".equalsIgnoreCase(market) && s.matches("[A-Z]{2,4}-[A-Z]{2,4}")) {
+            s = s.replace("-", "/");
+        }
         if ("IN".equalsIgnoreCase(market) && !s.contains(".")) return s + ".NS";
         if ("FX".equalsIgnoreCase(market)) return FX_YAHOO.getOrDefault(s, s + "=X");
         return s;
@@ -125,7 +136,8 @@ public class StockController {
             @RequestParam(required = false, defaultValue = "US") String market) {
 
         String clean = symbol.trim().toUpperCase()
-            .replace(".BSE","").replace(".NSE","").replace(".NS","").replace(".BO","");
+            .replace(".BSE","").replace(".NSE","").replace(".NS","").replace(".BO","")
+            .replace("-", "/"); // decode EUR-USD → EUR/USD
 
         if (isCrypto(market)) {
             String coinId = CRYPTO_IDS.getOrDefault(clean, clean.toLowerCase());
@@ -139,7 +151,7 @@ public class StockController {
         }
 
         if (isFx(market)) {
-            String yahooSym = FX_YAHOO.getOrDefault(clean, clean + "=X");
+            String yahooSym = FX_YAHOO.getOrDefault(clean, clean.replace("/","") + "=X");
             Map<String, Object> quote = stockService.getQuote(yahooSym);
             if (quote == null || quote.isEmpty()) return ResponseEntity.notFound().build();
             Map<String, Object> result = new LinkedHashMap<>(quote);
@@ -158,7 +170,8 @@ public class StockController {
             @RequestParam(defaultValue = "1M") String range) {
         try {
             String clean = symbol.trim().toUpperCase()
-                .replace(".BSE","").replace(".NSE","").replace(".NS","").replace(".BO","");
+                .replace(".BSE","").replace(".NSE","").replace(".NS","").replace(".BO","")
+                .replace("-", "/"); // decode EUR-USD → EUR/USD
 
             if (isCrypto(market)) {
                 String coinId = CRYPTO_IDS.getOrDefault(clean, clean.toLowerCase());
@@ -168,7 +181,7 @@ public class StockController {
             }
 
             if (isFx(market)) {
-                String yahooSym = FX_YAHOO.getOrDefault(clean, clean + "=X");
+                String yahooSym = FX_YAHOO.getOrDefault(clean, clean.replace("/","") + "=X");
                 String[] ri = toYahooRangeInterval(range);
                 List<Map<String, Object>> candles = stockService.getHistory(yahooSym, ri[0], ri[1]);
                 if (candles == null || candles.isEmpty()) candles = generateMockCandles(range);
@@ -200,7 +213,8 @@ public class StockController {
             @RequestParam(required = false, defaultValue = "US") String market) {
 
         String clean = symbol.trim().toUpperCase()
-            .replace(".BSE","").replace(".NSE","").replace(".NS","").replace(".BO","");
+            .replace(".BSE","").replace(".NSE","").replace(".NS","").replace(".BO","")
+            .replace("-", "/"); // decode EUR-USD → EUR/USD
 
         if (isCrypto(market)) {
             String coinId = CRYPTO_IDS.getOrDefault(clean, clean.toLowerCase());
@@ -273,7 +287,11 @@ public class StockController {
             ));
         }
 
-        int hash       = Math.abs(symbol.hashCode());
+        String clean = symbol.trim().toUpperCase()
+            .replace(".BSE","").replace(".NSE","").replace(".NS","").replace(".BO","")
+            .replace("-", "/");
+
+        int hash       = Math.abs(clean.hashCode());
         int strongBuy  = 5  + (hash % 10);
         int buy        = 8  + (hash % 8);
         int hold       = 4  + (hash % 6);
@@ -300,13 +318,14 @@ public class StockController {
             @RequestParam(required = false, defaultValue = "US") String market) {
 
         String clean = symbol.replace(".BSE","").replace(".NSE","")
-                             .replace(".NS","").replace(".BO","").toUpperCase();
+                             .replace(".NS","").replace(".BO","")
+                             .replace("-", "/") // decode EUR-USD → EUR/USD
+                             .toUpperCase();
         String now   = new java.util.Date().toString();
         String type  = isCrypto(market) ? "crypto asset" : isFx(market) ? "currency pair" : "stock";
 
         List<Map<String, Object>> insights = new ArrayList<>();
 
-        // Base insights
         insights.add(Map.of("id","1","type","BULLISH",
             "title",  clean + " shows strong momentum",
             "body",   "Technical indicators suggest bullish continuation with RSI above 60 and MACD crossover for this " + type + ".",
@@ -316,7 +335,6 @@ public class StockController {
             "body",   "Analysts expect moderate volatility. Watch for volume confirmation at key support and resistance levels.",
             "source", "StockSense AI", "publishedAt", now));
 
-        // Append anomaly insight from ML service
         try {
             String mlUrl = (mlServiceUrl != null ? mlServiceUrl : "http://ml-service:8082")
                 + "/ml/anomaly/" + clean;
@@ -364,7 +382,9 @@ public class StockController {
 
         String clean = symbol.replace(".BSE","").replace(".NSE","")
                              .replace(".NS","").replace(".BO","")
-                             .replace(".NYSE","").replace(".NASDAQ","").toUpperCase();
+                             .replace(".NYSE","").replace(".NASDAQ","")
+                             .replace("-", "/") // decode EUR-USD → EUR/USD
+                             .toUpperCase();
 
         Map<String, String> nameHints = Map.ofEntries(
             Map.entry("AAPL",      "Apple"),
