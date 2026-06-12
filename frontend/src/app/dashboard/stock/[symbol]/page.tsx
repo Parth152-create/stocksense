@@ -4,13 +4,13 @@ import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
-import { decodeSymbolFromUrl } from "@/lib/symbolEncoding";
 import { fetchWithAuth } from "@/lib/auth";
 import { useLivePrices } from "@/lib/websocket";
 import { useMarket } from "@/lib/MarketContext";
 import { MLInsightsPanel } from "@/components/MLInsightsPanel";
 import { PriceAlertPanel } from "@/components/PriceAlertPanel";
 import { useToast } from "@/components/ToastContext";
+import { encodeSymbolForUrl, decodeSymbolFromUrl } from "@/lib/symbolEncoding";
 import {
   TrendingUp, TrendingDown, ArrowLeft, Star, StarOff,
   BarChart2, AlertCircle, CandlestickChart, LineChart as LineIcon,
@@ -381,14 +381,17 @@ function StockChart({ symbol, currency, marketId }: {
   const [showRSI,  setShowRSI]  = useState(false);
   const [showMACD, setShowMACD] = useState(false);
 
+  // encode symbol for API path
+  const apiSymbol = encodeSymbolForUrl(symbol);
+
   useEffect(() => {
     setLoading(true);
-    fetchWithAuth(`/api/stocks/${symbol}/history?range=${range}&market=${marketId}`)
+    fetchWithAuth(`/api/stocks/${apiSymbol}/history?range=${range}&market=${marketId}`)
       .then(r => r.ok ? r.json() : [])
       .then((data: Candle[]) => setCandles(Array.isArray(data) ? data : []))
       .catch(() => setCandles([]))
       .finally(() => setLoading(false));
-  }, [symbol, range, marketId]);
+  }, [apiSymbol, range, marketId]);
 
   useEffect(() => {
     if (!containerRef.current || loading) return;
@@ -638,7 +641,7 @@ function StockChart({ symbol, currency, marketId }: {
           Lightweight Charts™ · {candles.length} candles
         </span>
         <span style={{ fontSize: 10, color: "var(--color-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-          {marketId === "IN" ? "BSE" : marketId === "CRYPTO" ? "Crypto" : "NYSE / NASDAQ"}
+          {marketId === "IN" ? "BSE" : marketId === "CRYPTO" ? "Crypto" : marketId === "FX" ? "Forex" : "NYSE / NASDAQ"}
         </span>
       </div>
     </div>
@@ -649,7 +652,12 @@ function StockPageInner() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+
+  // Decode URL param: EUR-USD → EUR/USD
   const symbol = cleanSymbol(decodeSymbolFromUrl((params?.symbol as string) ?? ""));
+  // Re-encode for API path: EUR/USD → EUR-USD
+  const apiSymbol = encodeSymbolForUrl(symbol);
+
   const { market, formatPrice } = useMarket();
   const searchParams      = useSearchParams();
   const marketFromUrl     = (searchParams.get("market") ?? "").toUpperCase();
@@ -675,11 +683,11 @@ function StockPageInner() {
     setLoading(true); setError(null);
     try {
       const [ovRes, ratRes, insRes, wlRes, quoteRes] = await Promise.all([
-        fetchWithAuth(`/api/stocks/${symbol}/overview?market=${effectiveMarketId}`),
-        fetchWithAuth(`/api/stocks/${symbol}/ratings?market=${effectiveMarketId}`),
-        fetchWithAuth(`/api/stocks/${symbol}/insights?market=${effectiveMarketId}`),
+        fetchWithAuth(`/api/stocks/${apiSymbol}/overview?market=${effectiveMarketId}`),
+        fetchWithAuth(`/api/stocks/${apiSymbol}/ratings?market=${effectiveMarketId}`),
+        fetchWithAuth(`/api/stocks/${apiSymbol}/insights?market=${effectiveMarketId}`),
         fetchWithAuth(`/api/watchlist`),
-        fetchWithAuth(`/api/stocks/${symbol}?market=${effectiveMarketId}`),
+        fetchWithAuth(`/api/stocks/${apiSymbol}?market=${effectiveMarketId}`),
       ]);
       if (!ovRes.ok) throw new Error(`Symbol not found: ${symbol}`);
       setOverview(await ovRes.json());
@@ -698,25 +706,23 @@ function StockPageInner() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally { setLoading(false); }
-  }, [symbol, effectiveMarketId]);
+  }, [apiSymbol, symbol, effectiveMarketId]);
 
   const loadNews = useCallback(async () => {
     setNewsLoading(true);
     try {
-      const res = await fetchWithAuth(`/api/stocks/${symbol}/news`);
+      const res = await fetchWithAuth(`/api/stocks/${apiSymbol}/news`);
       if (res.ok) { const data: NewsArticle[] = await res.json(); setNews(Array.isArray(data) ? data : []); }
     } catch { } finally { setNewsLoading(false); }
-  }, [symbol]);
+  }, [apiSymbol]);
 
   useEffect(() => { void load(); void loadNews(); }, [load, loadNews]);
 
-  // ── price is declared here, BEFORE the title useEffect ───────────────────
   const price     = live?.price     ?? fallbackPrice;
   const changePct = live?.changePct ?? fallbackChange;
   const isUp      = (changePct ?? 0) >= 0;
   const isLive    = !!live?.price;
 
-  // Task 18 — dynamic document title
   useEffect(() => {
     if (price !== null) {
       document.title = `${symbol} · ${formatPrice(price)} | StockSense`;
@@ -1109,26 +1115,24 @@ function StockPageInner() {
 
 export default function StockPage() {
   return (
-      <Suspense fallback={
+    <Suspense fallback={
+      <div style={{
+        padding: "32px 28px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "60vh"
+      }}>
         <div style={{
-          padding: "32px 28px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "60vh"
-        }}>
-          <div style={{
-            width: 32,
-            height: 32,
-            borderRadius: "50%",
-            border: "2px solid #1f1f1f",
-            borderTop: "2px solid #8FFFD6",
-            animation: "spin 0.8s linear infinite"
-          }}/>
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      }>
-        <StockPageInner/>
-      </Suspense>
+          width: 32, height: 32, borderRadius: "50%",
+          border: "2px solid #1f1f1f",
+          borderTop: "2px solid #8FFFD6",
+          animation: "spin 0.8s linear infinite"
+        }}/>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    }>
+      <StockPageInner/>
+    </Suspense>
   );
 }
