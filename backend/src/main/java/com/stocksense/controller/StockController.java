@@ -151,8 +151,7 @@ public class StockController {
         }
 
         if (isFx(market)) {
-            String yahooSym = FX_YAHOO.getOrDefault(clean, clean.replace("/","") + "=X");
-            Map<String, Object> quote = stockService.getQuote(yahooSym);
+            Map<String, Object> quote = stockService.getFxQuote(clean);
             if (quote == null || quote.isEmpty()) return ResponseEntity.notFound().build();
             Map<String, Object> result = new LinkedHashMap<>(quote);
             result.put("symbol", clean);
@@ -181,9 +180,7 @@ public class StockController {
             }
 
             if (isFx(market)) {
-                String yahooSym = FX_YAHOO.getOrDefault(clean, clean.replace("/","") + "=X");
-                String[] ri = toYahooRangeInterval(range);
-                List<Map<String, Object>> candles = stockService.getHistory(yahooSym, ri[0], ri[1]);
+                List<Map<String, Object>> candles = stockService.getFxHistory(clean, range);
                 if (candles == null || candles.isEmpty()) candles = generateMockCandles(range);
                 return ResponseEntity.ok(normaliseHistoryTimestamps(candles));
             }

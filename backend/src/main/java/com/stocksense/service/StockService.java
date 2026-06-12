@@ -16,21 +16,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.*;
 
-/**
- * StockService
- *
- * All caching is now delegated to Spring's @Cacheable, backed by Redis
- * (via CacheConfig). The internal Caffeine Cache<> fields have been removed.
- *
- * Cache names + TTLs (defined in CacheConfig):
- *   stockQuote   → 15 min
- *   stockHistory → 60 min
- *   stockSearch  →  5 min
- *   batchQuotes  → 15 min
- *   marketList   → 24 hr
- */
 @Service
 public class StockService {
 
@@ -44,16 +32,21 @@ public class StockService {
 
     private static final String PRICE_KEY_PREFIX = "price:";
 
-    private final HttpClient   http   = HttpClient.newBuilder()
+    private final HttpClient http = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
         .followRedirects(HttpClient.Redirect.NORMAL)
         .build();
 
     private final ObjectMapper mapper = new ObjectMapper();
 
-    private static final String YF_USER_AGENT    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-    private static final String YF_ACCEPT        = "text/html,application/xhtml+xml,application/xml;q=0.9,application/json,*/*;q=0.8";
-    private static final String YF_ACCEPT_LANG   = "en-US,en;q=0.9";
+    private static final String YF_USER_AGENT  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+    private static final String YF_ACCEPT      = "text/html,application/xhtml+xml,application/xml;q=0.9,application/json,*/*;q=0.8";
+    private static final String YF_ACCEPT_LANG = "en-US,en;q=0.9";
+
+    // Base currencies that Frankfurter supports as the "from" currency
+    private static final Set<String> FRANKFURTER_BASES = Set.of(
+        "EUR","USD","GBP","AUD","CAD","CHF","JPY","NZD","SEK","NOK","DKK","HUF","CZK","PLN"
+    );
 
     private HttpRequest.Builder yahooRequest(String url) {
         return HttpRequest.newBuilder()
@@ -78,17 +71,144 @@ public class StockService {
         return s;
     }
 
+    // ── getFxQuote — Frankfurter API ──────────────────────────────────────────
+    // Accepts "EUR/USD", "GBP/USD", "USD/JPY" etc.
+
+    @Cacheable(value = "stockQuote", key = "'fx:' + #pair.toUpperCase()", unless = "#result == null || #result.isEmpty()")
+    public Map<String, Object> getFxQuote(String pair) {
+        log.debug("Fetching FX quote for {}", pair);
+        try {
+            String[] parts = pair.toUpperCase().split("/");
+            if (parts.length != 2) return Collections.emptyMap();
+            String from = parts[0], to = parts[1];
+
+            // Frankfurter requires a supported base; if "from" not supported, invert
+            String base, target;
+            boolean inverted = false;
+            if (FRANKFURTER_BASES.contains(from)) {
+                base = from; target = to;
+            } else {
+                base = to; target = from; inverted = true;
+            }
+
+            String url = "https://api.frankfurter.app/latest?from=" + base + "&to=" + target;
+            HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Accept", "application/json")
+                .GET().timeout(Duration.ofSeconds(8)).build();
+
+            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                log.warn("Frankfurter HTTP {} for {}", resp.statusCode(), pair);
+                return Collections.emptyMap();
+            }
+
+            JsonNode root  = mapper.readTree(resp.body());
+            JsonNode rates = root.path("rates");
+            if (!rates.has(target)) return Collections.emptyMap();
+
+            double rate = rates.path(target).asDouble();
+            if (inverted && rate > 0) rate = 1.0 / rate;
+
+            Map<String, Object> quote = new LinkedHashMap<>();
+            quote.put("symbol",    pair.toUpperCase());
+            quote.put("name",      pair.toUpperCase() + " Exchange Rate");
+            quote.put("price",     Math.round(rate * 100000.0) / 100000.0);
+            quote.put("change",    0.0);
+            quote.put("changePct", 0.0);
+            quote.put("currency",  to);
+            quote.put("exchange",  "FOREX");
+            quote.put("source",    "frankfurter");
+            return quote;
+        } catch (Exception e) {
+            log.error("Frankfurter FX quote error for {}: {}", pair, e.getMessage());
+            return Collections.emptyMap();
+        }
+    }
+
+    // ── getFxHistory — Frankfurter API ────────────────────────────────────────
+
+    @Cacheable(value = "stockHistory", key = "'fx:history:' + #pair.toUpperCase() + ':' + #range", unless = "#result == null || #result.isEmpty()")
+    public List<Map<String, Object>> getFxHistory(String pair, String range) {
+        log.debug("Fetching FX history for {} range={}", pair, range);
+        try {
+            String[] parts = pair.toUpperCase().split("/");
+            if (parts.length != 2) return Collections.emptyList();
+            String from = parts[0], to = parts[1];
+
+            boolean inverted = !FRANKFURTER_BASES.contains(from);
+            String base   = inverted ? to   : from;
+            String target = inverted ? from : to;
+
+            LocalDate end   = LocalDate.now();
+            LocalDate start = switch (range.toUpperCase()) {
+                case "1D"  -> end.minusDays(5);    // weekends — go back 5 days
+                case "1W"  -> end.minusWeeks(1);
+                case "1M"  -> end.minusMonths(1);
+                case "1Y"  -> end.minusYears(1);
+                case "ALL" -> end.minusYears(5);
+                default    -> end.minusMonths(1);
+            };
+
+            String url = "https://api.frankfurter.app/" + start + ".." + end
+                + "?from=" + base + "&to=" + target;
+
+            HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Accept", "application/json")
+                .GET().timeout(Duration.ofSeconds(12)).build();
+
+            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                log.warn("Frankfurter history HTTP {} for {}", resp.statusCode(), pair);
+                return Collections.emptyList();
+            }
+
+            JsonNode root  = mapper.readTree(resp.body());
+            JsonNode rates = root.path("rates");
+
+            List<Map<String, Object>> candles = new ArrayList<>();
+            List<String> dates = new ArrayList<>();
+            rates.fieldNames().forEachRemaining(dates::add);
+            Collections.sort(dates);
+
+            double prevClose = 0;
+            for (String date : dates) {
+                JsonNode dayRates = rates.path(date);
+                if (!dayRates.has(target)) continue;
+                double rate = dayRates.path(target).asDouble();
+                if (inverted && rate > 0) rate = 1.0 / rate;
+                rate = Math.round(rate * 100000.0) / 100000.0;
+
+                long timestamp = LocalDate.parse(date)
+                    .atStartOfDay(java.time.ZoneOffset.UTC).toEpochSecond();
+
+                // Simulate OHLC from daily close (Frankfurter only gives close)
+                double open  = prevClose > 0 ? prevClose : rate;
+                double noise = rate * 0.002; // 0.2% noise for high/low
+                Map<String, Object> candle = new LinkedHashMap<>();
+                candle.put("time",   timestamp);
+                candle.put("open",   Math.round(open          * 100000.0) / 100000.0);
+                candle.put("high",   Math.round((rate + noise) * 100000.0) / 100000.0);
+                candle.put("low",    Math.round((rate - noise) * 100000.0) / 100000.0);
+                candle.put("close",  rate);
+                candle.put("volume", 0L);
+                candles.add(candle);
+                prevClose = rate;
+            }
+            return candles;
+        } catch (Exception e) {
+            log.error("Frankfurter FX history error for {}: {}", pair, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
     // ── getQuote ──────────────────────────────────────────────────────────────
-    //
-    // Cache key = symbol (upper-cased before call).
-    // Falls back to Alpha Vantage if Yahoo returns nothing.
-    // ─────────────────────────────────────────────────────────────────────────
 
     @Cacheable(value = "stockQuote", key = "#symbol.toUpperCase()", unless = "#result == null || #result.isEmpty()")
     public Map<String, Object> getQuote(String symbol) {
         log.debug("Cache miss — checking Redis price key for {}", symbol);
 
-        // 1. Check Redis price:{symbol} written by PriceIngestionService
         try {
             String json = redisTemplate.opsForValue().get(PRICE_KEY_PREFIX + symbol.toUpperCase());
             if (json != null) {
@@ -102,7 +222,6 @@ public class StockService {
             log.warn("Redis price read failed for {}: {}", symbol, e.getMessage());
         }
 
-        // 2. Fall back to direct API fetch
         log.debug("Redis miss — fetching live quote for {}", symbol);
         Map<String, Object> result = fetchYahooQuote(symbol);
         if (result == null || result.isEmpty()) {
@@ -213,7 +332,6 @@ public class StockService {
     }
 
     // ── getTopCrypto ──────────────────────────────────────────────────────────
-    // Short TTL (2 min) — crypto moves fast. Defined as default TTL fallback.
 
     @Cacheable(value = "stockQuote", key = "'crypto:top:' + #limit", unless = "#result == null || #result.isEmpty()")
     public List<Map<String, Object>> getTopCrypto(int limit) {
@@ -329,11 +447,7 @@ public class StockService {
         }
     }
 
-    // ── getCacheStats — now reports Redis key counts via Spring CacheManager ──
-    // (Removed — Redis doesn't expose estimatedSize like Caffeine.
-    //  Use Spring Actuator /actuator/caches or RedisInsight instead.)
-
-    // ── Private fetch helpers (no caching — called by @Cacheable methods) ────
+    // ── Private fetch helpers ─────────────────────────────────────────────────
 
     private Map<String, Object> fetchYahooQuote(String symbol) {
         try {
